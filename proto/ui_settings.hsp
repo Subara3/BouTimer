@@ -119,6 +119,8 @@
 	return
 
 *startup_set
+	; 確認用モードでは、スタートアップのショートカットを作ったり消したりしない（ランタイムの hsp3utf.exe が登録されてしまう）
+	if testmode : dbg += "STARTUP skip sw=" + sw_start + "\n" : return
 	gosub *startup_path
 	; 前の題名のショートカットは、オンでもオフでも消す（オンなら新しい名前で置きなおす）
 	exist su_old

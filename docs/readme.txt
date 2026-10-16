@@ -6,6 +6,7 @@
 ────────────────────────────────────────
 
 図や表の入った取扱説明書は、manual.htmlをブラウザで開いてください。
+しくみの解説は、tech_shikumi.html（棒人間が動くしくみ）とtech_ghost.html（ゴースト置き場のしくみ）にあります。
 
 
 ■ 30秒でわかる使い方
@@ -315,3 +316,4 @@ settings.txtとhistory.txtを消すと、記録と設定が初期状態にもど
 
 subara3
 https://subara3.com/
+ソース：https://github.com/Subara3/BouTimer

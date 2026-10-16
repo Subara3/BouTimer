@@ -135,3 +135,8 @@ if ($Only -contains "B2") {
 if ($Only -contains "C") { Shot "C_休憩でふちに座る" 20 "test" 3 $null }
 if ($Only -contains "D") { Shot "D_サボり先を注意" 22 "scold" 2 $null }
 if ($Only -contains "F") { ShotFrames "F_ゴーストが来る" 24 "show ghostdemo" 0 }
+# 1.0 で足した場面（本物のマウスは動かさない。やることの札は偽のマウス入力で押す）
+if ($Only -contains "G") { Shot "G_はじめまして" 24 "wizardtest wzauto" 0 $null }
+if ($Only -contains "H") { Shot "H_やることにチェック" 14 "tdchecktest" 3 $null }
+if ($Only -contains "I") { Shot "I_認識の図示" 20 "realtest ovl" 0 $null }
+if ($Only -contains "J") { Shot "J_珠音の髪型" 40 "show tamane" 0 $null }

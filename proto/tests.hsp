@@ -123,6 +123,12 @@
 	}
 	; 確認用：wizardtest ははじめての起動の質問を出す（wzgo を付けると「答える」を押して次へ進む）
 	if (instr(cmd, 0, "wzgo") >= 0) & (frame = 90) : wz_pick = 0
+	; wzauto を付けると、2.5秒ごとにデフォルトの答えを押して最後まで進める（PV の撮影用。起動時に起動する は「しない」）
+	if (instr(cmd, 0, "wzauto") >= 0) & wz_on & (frame >= 120) & (((frame - 120) \ 150) = 0) {
+		wz_pick = 0
+		if wz_page = 1 : wz_pick = 1
+		if wz_page = 6 : wz_pick = 1
+	}
 	if (instr(cmd, 0, "wizardtest") >= 0) & (frame = 1) : endframe = 60 * 40
 	if (instr(cmd, 0, "wizardtest") >= 0) & (frame <= 3) : dbg += strf("WFIRST f=%d cx=%d cy=%d on=%d", frame, int(cx), int(cy), wz_on) + "\n"
 	if (instr(cmd, 0, "wizardtest") >= 0) & wz_on & ((frame \ 30) = 0) {

@@ -1,0 +1,311 @@
+<title>棒人間が動くしくみ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* レイアウト：章ごとのカード。カードの上のふちに棒人間が腰かけている。図とコードはその箱の中だけ横スクロール */
+:root {
+  --paper: #f5f6f8;
+  --ink: #2e2e36;
+  --sub: #5d6270;
+  --line: #d9dce3;
+  --accent: #2a6a8a;
+  --accent-soft: #e3eef3;
+  --tomato: #d8483c;
+  --card: #ffffff;
+  --code-bg: #eceef2;
+  --head: #ffffff;
+  --f-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Meiryo", sans-serif;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Meiryo", sans-serif;
+  --f-mono: "JetBrains Mono", "Consolas", "MS Gothic", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17191e; --ink: #e6e7ec; --sub: #a3a8b5; --line: #343843;
+    --accent: #7fbcd8; --accent-soft: #1d2d36; --tomato: #ef7a6e; --card: #1e2128; --code-bg: #242832; --head: #2a2e38;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17191e; --ink: #e6e7ec; --sub: #a3a8b5; --line: #343843;
+  --accent: #7fbcd8; --accent-soft: #1d2d36; --tomato: #ef7a6e; --card: #1e2128; --code-bg: #242832; --head: #2a2e38;
+  color-scheme: dark;
+}
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.85;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+}
+.wrap { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.eyebrow { font-size: 13px; letter-spacing: .12em; color: var(--accent); font-weight: 700; }
+h1 { font-family: var(--f-display); font-size: clamp(30px, 6vw, 46px); line-height: 1.3; margin: 6px 0 12px; text-wrap: balance; }
+.lead { color: var(--sub); margin: 0; max-width: 36em; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+nav.toc a { font-size: 14px; color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; background: var(--card); }
+nav.toc a:hover, nav.toc a:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.chap { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 22px 18px; min-width: 0; }
+.chap h2 { font-family: var(--f-display); font-size: 23px; margin: 0 0 10px; padding-right: 90px; text-wrap: balance; display: flex; gap: 10px; align-items: baseline; }
+.chap h2 .no { font-family: var(--f-mono); font-size: 14px; color: var(--accent); }
+.chap p { margin: 0 0 10px; }
+.chap .q { font-family: var(--f-display); color: var(--accent); font-size: 15px; margin-bottom: 4px; }
+code { font-family: var(--f-mono); font-size: .87em; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+pre.code { font-family: var(--f-mono); font-size: 13px; line-height: 1.6; background: var(--code-bg); border-radius: 8px; padding: 12px 14px; margin: 6px 0 12px; overflow-x: auto; }
+pre.code .c { color: var(--sub); }
+.fig { overflow-x: auto; margin: 6px 0 12px; }
+.fig svg { display: block; max-width: 100%; height: auto; }
+.fig svg text { fill: var(--sub); font-family: var(--f-body); font-size: 12px; }
+ul.plain { margin: 0 0 10px; padding-left: 1.2em; }
+ul.plain li { margin-bottom: 4px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 18px 0 0; }
+.facts div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.facts b { display: block; font-family: var(--f-mono); font-size: 22px; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 13px; color: var(--sub); }
+/* カードのふちに腰かける棒人間 */
+.sitter { position: absolute; top: -52px; right: 22px; width: 64px; height: 80px; pointer-events: none; }
+.sitter .ink { stroke: var(--ink); fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.sitter .halo { stroke: var(--paper); fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.sitter .face { fill: var(--head); stroke: var(--ink); stroke-width: 3; }
+.sitter .eye { fill: var(--ink); }
+.sitter .cup { fill: var(--accent-soft); stroke: var(--ink); stroke-width: 2; }
+.sitter .book { fill: var(--tomato); stroke: var(--ink); stroke-width: 1.6; }
+.sitter .z { fill: var(--accent); font-family: var(--f-mono); font-size: 11px; font-weight: 600; }
+.sitter .legs { transform-origin: 43px 52px; animation: swing 2.4s ease-in-out infinite; }
+.sitter .legs.b { animation-delay: -1.2s; }
+@keyframes swing { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(10deg); } }
+@media (prefers-reduced-motion: reduce) { .sitter .legs { animation: none; } }
+footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+@media (max-width: 480px) { .chap { padding: 20px 16px 16px; } .chap h2 { padding-right: 70px; font-size: 20px; } .sitter { right: 10px; } }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">作業のおとも、棒人間　技術解説</div>
+  <h1>棒人間が動くしくみ</h1>
+  <p class="lead">デスクトップのウィンドウの上を歩いて、お茶を飲んで、休憩になると使っている窓のふちに座る。TODOリストを管理してくれる、ポモドーロタイマーの棒人間はどうやって動いているのでしょうか？</p>
+  <div class="facts">
+    <div><b>60</b><span>1秒に回すメインループの回数</span></div>
+    <div><b>24</b><span>動き（お茶・釣り・縄跳びなど）</span></div>
+    <div><b>25</b><span>状態（歩く・寝る・のぞくなど）</span></div>
+    <div><b>27</b><span>ソースのファイル数</span></div>
+  </div>
+  <nav class="toc" aria-label="もくじ">
+    <a href="#loop">メインループ</a><a href="#stand">窓の上に立つ</a><a href="#draw">透ける絵</a><a href="#body">体の動かし方</a><a href="#jump">跳ぶ・落ちる</a><a href="#route">道さがし</a><a href="#seed">窓ごとの性格</a><a href="#ink">線の色</a><a href="#music">音楽</a><a href="#input">打つ・離席</a><a href="#caret">文字カーソル</a><a href="#voice">声と口パク</a><a href="#env">全画面と電池</a><a href="#diary">絵日記</a><a href="#ghost">ゴースト</a><a href="#first">はじめての起動</a>
+  </nav>
+</header>
+
+<section class="chap" id="loop" data-pose="tea">
+  <h2><span class="no">01</span>メインループ</h2>
+  <p class="q">どうやって動いてるの？</p>
+  <p>起動すると、1つのループを1秒に60回まわします。1回ごとに、タイマーを進め、入力と音を見て、乗っている窓を確かめ、何をするか決め、体を動かし、絵を描きます。最後に<code>await 16</code>で16ミリ秒休んで、また頭に戻る、のくり返しです。</p>
+<pre class="code">*mainloop
+    gosub *tick_timer      <span class="c">; ポモドーロの残り時間</span>
+    gosub *watch_input     <span class="c">; 打った回数・離席</span>
+    gosub *listen          <span class="c">; 音楽の音量</span>
+    gosub *poll_mouse      <span class="c">; つつく・つまむ・なでる</span>
+    gosub *brain           <span class="c">; 次に何をするか</span>
+    gosub *fall            <span class="c">; 重力と着地</span>
+    gosub *render          <span class="c">; 絵を描いて画面へ</span>
+    await 16
+    goto *mainloop</pre>
+  <p>止まっているときは描く回数を半分（30回）に落として、CPUを使いすぎないようにしています。ソースは機能ごとに27のファイルに分け、<code>main.hsp</code>から<code>#include</code>で読みこんでいます。</p>
+</section>
+
+<section class="chap" id="stand" data-pose="sit">
+  <h2><span class="no">02</span>窓の上に立つ</h2>
+  <p class="q">どうしてウィンドウの上を歩けるの？</p>
+  <p>画面の手前から奥へ、開いているウィンドウを順にたどって、上の辺を「足場」の一覧にしています（<code>GetTopWindow</code>と<code>GetWindow</code>）。見えない窓、最小化した窓、最大化した窓、小さすぎる窓は外します。</p>
+  <ul class="plain">
+    <li>窓の位置は<code>DwmGetWindowAttribute</code>で取ります。Windows 11の<code>GetWindowRect</code>は見えない影の分だけ外に広く、そのまま使うと宙に浮いて見えるためです。</li>
+    <li>裏で隠れているストアアプリ（<code>DWMWA_CLOAKED</code>）は、見えていなくても一覧に出てくるので外します。</li>
+    <li>手前の別の窓に隠れている辺には立ちません。着地点のすぐ下を<code>WindowFromPoint</code>で調べて、本当にその窓が見えているかを確かめます。</li>
+  </ul>
+  <p>乗っている窓を毎フレーム調べなおして、窓が動いたら同じだけ一緒に動きます。左右に揺さぶられたら目を回して落ちるし、窓が閉じたら「おっと」と言って落ちます。</p>
+</section>
+
+<section class="chap" id="draw" data-pose="read">
+  <h2><span class="no">03</span>透ける絵を描く</h2>
+  <p class="q">背景はどうやって透かしてるの？</p>
+  <p>棒人間は、220×140の小さなウィンドウに描いています。このウィンドウに<code>WS_EX_LAYERED</code>を付けて、32ビットの画像を<code>UpdateLayeredWindow</code>で画面に貼ると、画素ごとに透け具合を変えられます。決まった色を透明にする方法だと、線のふちのにじみが汚く残るので、この方法にしました。</p>
+  <p>絵はGDI+ でその画像に描きます。白い太い線（ふちどり）で1回、黒い線で1回の、2回描くと、どんな色の窓の上でも棒人間が読めます。吹き出しの文字は、同じ文字なら前に作った画像を貼るだけにして、毎回の文字描きを省いています。</p>
+  <p>HSPには、小数をGDI+ の<code>float</code>の並びに直す命令がありません。四角の位置を渡すために、指数と仮数を計算する関数<code>fbits()</code>を自分で書いています。</p>
+</section>
+
+<section class="chap" id="body" data-pose="sleep">
+  <h2><span class="no">04</span>体の動かし方</h2>
+  <p class="q">どうやってポーズを作ってるの？</p>
+  <p>体は、腰・首・頭と、腕2本・脚2本でできています。腕と脚は、付け根の角度と、ひじ・ひざから先の角度の2つで決まります（真下が0度、前が正）。ポーズを作る処理は、状態と動きごとに、この角度を決めるだけです。</p>
+  <div class="fig">
+    <svg viewBox="0 0 520 150" role="img" aria-label="腕の角度の決め方">
+      <g stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" style="color:var(--ink)">
+        <circle cx="80" cy="40" r="14" style="fill:var(--head)"/>
+        <line x1="80" y1="54" x2="80" y2="104"/>
+        <line x1="80" y1="64" x2="112" y2="80"/><line x1="112" y1="80" x2="132" y2="58"/>
+        <line x1="80" y1="104" x2="66" y2="138"/><line x1="80" y1="104" x2="94" y2="138"/>
+      </g>
+      <g stroke-width="1.5" fill="none" style="stroke:var(--accent)">
+        <line x1="80" y1="64" x2="80" y2="96" stroke-dasharray="3 3"/>
+        <path d="M80 82 A18 18 0 0 0 96 72"/>
+        <line x1="112" y1="80" x2="112" y2="104" stroke-dasharray="3 3"/>
+        <path d="M112 96 A16 16 0 0 0 124 70"/>
+      </g>
+      <text x="150" y="40">付け根の角度：真下から何度、前へ開くか</text>
+      <text x="150" y="64">ひじから先の角度：同じく真下からの向き</text>
+      <text x="150" y="98">歩く：脚の角度を sin で前後にふる</text>
+      <text x="150" y="122">息：首の高さを sin で少しだけ上下させる</text>
+    </svg>
+  </div>
+  <p>描くときは、腰の位置から順に線を引いていきます。ポーズを角度だけで持っているので、腕の長さや線の太さを変えても、全部のポーズがそのままついてきます。動きは24、状態は25です。</p>
+</section>
+
+<section class="chap" id="jump" data-pose="tea">
+  <h2><span class="no">05</span>跳ぶ・落ちる</h2>
+  <p class="q">ねらった窓にどうやって着地してるの？</p>
+  <p>重力は1フレームあたり0.5ピクセル毎フレームの加速です。跳ぶときは、着地したい点から逆算して、最初の速さを決めます。</p>
+<pre class="code">頂点の高さ = 足もとと着地点の高いほう − 40
+上向きの速さ vy = −√(2 × 重力 × (足もと − 頂点))
+かかる時間 t = 上がる時間 + 頂点から着地点まで落ちる時間
+横の速さ vx = 横の距離 ÷ t</pre>
+  <p>落ちている途中は、足が足場の辺を上から下へ横切ったフレームで着地します。投げられたときは、見えている窓の横の辺や画面の端で跳ね返ります。窓の縁のそばで離すと、縁につかまってよじ登ります。</p>
+</section>
+
+<section class="chap" id="route" data-pose="sit">
+  <h2><span class="no">06</span>窓を渡って行く道さがし</h2>
+  <p class="q">ダブルクリックしたところまで、どうやって来るの？</p>
+  <p>窓の上の辺のうち、見えているいちばん長い区間を「ノード」にして、地面も1つのノードにします。2つのノードのあいだは、横のすき間が380ピクセル以内で、上へ跳ぶなら高さの差が330ピクセル以内のとき、跳べることにして、その距離を「かかる手間」にします。</p>
+  <p>いまいるノードからゴールまで、手間がいちばん小さい道を探す方法は、ダイクストラ法です。窓が動いたり閉じたりしたら、その場で探しなおします。文字カーソルをのぞきに行くときだけは、道がなければ大ジャンプで飛び乗ります。</p>
+</section>
+
+<section class="chap" id="seed" data-pose="read">
+  <h2><span class="no">07</span>窓ごとに性格が変わる</h2>
+  <p class="q">窓によって遊び方が変わるのは？</p>
+  <p>乗っている窓のクラス名とタイトルの文字から、ハッシュという数を作っています（1文字ずつ「33倍して足す」を繰り返す、djb2という方法）。この数を乱数の種にして、どの動きをどの順でやるか、拾った棒を剣にするか釣り竿にするか、を決めます。</p>
+  <p>同じ窓の上では同じ種から選ぶので、ある窓では読書が多く、別の窓では縄跳びが多い、のように窓ごとにくせが出ます。タイトルは計算に使うだけで、どこにも残しません。</p>
+</section>
+
+<section class="chap" id="ink" data-pose="tea">
+  <h2><span class="no">08</span>線の色を窓のアイコンから</h2>
+  <p class="q">線の色はどこから来てるの？</p>
+  <p>線の色が「おまかせ」のとき、乗っている窓のアイコンを取り出して（<code>WM_GETICON</code>）、32×32の画像に描きます。その画素のうち、鮮やかな色ほど重みを大きくして平均し、いちばん明るい成分が110になるまで暗くして、線の色にします。</p>
+  <p>色は一度に変えず、毎フレーム少しずつ目標の色へ寄せています。窓を移ると、じわっと色が変わるのはそのためです。</p>
+</section>
+
+<section class="chap" id="music" data-pose="sit">
+  <h2><span class="no">09</span>音楽に合わせて動く</h2>
+  <p class="q">曲がかかっているのが、どうしてわかるの？</p>
+  <p>WindowsのCore Audioにある<code>IAudioMeterInformation</code>をCOMで呼び、いまスピーカーから出ている音の大きさ（ピークの値）だけを毎フレーム読みます。録音はしないので、何の音かはわかりません。</p>
+<pre class="code">ならした音量 = ならした音量 × 0.96 + いまの音量 × 0.04
+拍とみなす：いまの音量 &gt; ならした音量 × 1.35、かつ前の拍から 15フレーム以上
+曲とみなす：ならした音量 &gt; 0.02 が3秒くらい続いた</pre>
+  <p>曲とみなすと、拍に合わせて体を弾ませてノリはじめ、音が止まると「いい曲だった」と言います。</p>
+</section>
+
+<section class="chap" id="input" data-pose="read">
+  <h2><span class="no">10</span>打つ速さと離席</h2>
+  <p class="q">速く打つと、なんで一緒に打ちはじめるの？</p>
+  <p>キーは「押された瞬間の回数」だけを数えます。どのキーかは変数にも残しません。最後に操作した時刻（<code>GetLastInputInfo</code>）が変わったフレームだけキーの状態を読むので、何もしていないあいだは調べることもしません。</p>
+  <p>打った回数を、毎フレーム0.98倍しながら足していった値を「打つ速さ」にして、速いと小さなノートパソコンを出して一緒に打ちます。5分操作がないと「おーい」と呼び、10分ないとタイマーを止めて寝て待ちます。絵を描いているときなど止めてほしくない人のために、止めない設定もあります。</p>
+  <p>カーソルが棒人間に重なっているあいだは、つまみやすいように、その場で立ち止まります。重なっているかは、描いた絵のその画素が透明かどうかで決めています。</p>
+</section>
+
+<section class="chap" id="caret" data-pose="sit">
+  <h2><span class="no">11</span>文字カーソルをのぞきに来る</h2>
+  <p class="q">打っているところに、どうやって来るの？</p>
+  <p><code>GetGUIThreadInfo</code>に0を渡すと、手前の窓の文字カーソルの位置が返ってきます。位置だけを読んで、打った文字や画面の中身は読みません。カーソルがよく動いているあいだ（動いた回数を0.93倍しながら数えて6をこえたら）、その窓の上まで道を探して行き、前かがみでのぞきこみます。5分に1回までです。</p>
+  <p>ChromeやVS Codeのように、Windows標準の文字カーソルを使わないアプリでは、位置が取れないので来ません。</p>
+</section>
+
+<section class="chap" id="voice" data-pose="tea">
+  <h2><span class="no">12</span>声と口パク</h2>
+  <p class="q">口の動きを声に合わせるには？</p>
+  <p>声は、決まった文のセリフをVOICEVOX（玄野武宏）で前もって作り、<code>voice</code>フォルダに入れてあります。ファイル名は、セリフのUTF-8のバイト列から作るハッシュ（djb2）です。アプリも同じ計算をするので、吹き出しの文からファイルを探せます。数字の入るセリフは「3個目！やったな」の「やったな」のように、決まった部分だけを声にします。</p>
+  <p>声を作るときに<code>audio_query</code>の答え（1音ごとの子音と母音の長さのJSON）も一緒に残しておきます。これを読んで「何秒後に、あ・い・う・え・おのどの口にするか」の表を作り、再生を始めた時刻に合わせて口の形を切りかえます。</p>
+  <p>wavは16kHzのIMA ADPCMにして、全部で約1.9MBです。メモリに読んで<code>PlaySound</code>（<code>SND_MEMORY</code>）で鳴らします。効果音はMCI（<code>mciSendString</code>）で鳴らすので、声と重なっても止めあいません。</p>
+</section>
+
+<section class="chap" id="env" data-pose="sleep">
+  <h2><span class="no">13</span>全画面と電池</h2>
+  <p class="q">ゲームやプレゼンの最中は？</p>
+  <p><code>SHQueryUserNotificationState</code>で、全画面のアプリやプレゼンの最中かがわかります。その間は棒人間もゴーストも隠れて、声も出しません。</p>
+  <p>ノートPCが電池で動いているときや省電力モードのとき（<code>GetSystemPowerStatus</code>）は、描く回数をさらに減らします。測った範囲では、12秒あたりのCPU時間が0.92秒から0.39秒になりました。</p>
+</section>
+
+<section class="chap" id="diary" data-pose="read">
+  <h2><span class="no">14</span>絵日記</h2>
+  <p class="q">絵日記はどうやって描いてるの？</p>
+  <p>日付が変わると、前の日の記録から640×500の絵日記を描いてPNGで保存します。画面には出さない画像にGDI+ で描き、<code>GdipSaveImageToFile</code>で書き出しています。</p>
+  <p>日付の文字から乱数の種を作るので、同じ日なら何度描いても同じ絵日記です。空は5通り、場面は21通りあり、その日にあった出来事（釣った・こぼした・紙飛行機を飛ばした など）から場面と文を選びます。</p>
+</section>
+
+<section class="chap" id="ghost" data-pose="sit">
+  <h2><span class="no">15</span>ゴースト</h2>
+  <p class="q">ほかの人の棒人間はどこから来るの？</p>
+  <p>「サーバーと通信する（ゴースト機能用）」をオンにすると、ポモドーロを1つ終えるたびに、匿名のIDと数字だけをCloudflare Workersに送り、ほかの人の数字を1人分もらいます。もらった数字から、同じ描き方で半透明の棒人間を描きます。くわしくは別の解説<a href="tech_ghost.html" style="color:var(--accent)">「ゴースト置き場のしくみ」</a>にまとめています。</p>
+</section>
+
+<section class="chap" id="costume" data-pose="read">
+  <h2><span class="no">16</span>着せ替え（珠音の髪型）</h2>
+  <p class="q">どのポーズでも髪がずれないのは？</p>
+  <p>HSP3のオフィシャル素材の珠音はドット絵なので、そのまま差し替えると、お茶や釣りのポーズが使えなくなります。そこで、棒人間の頭に髪だけを重ねています。頭の中心から「角度と半径」で点を並べて塗るので、寝転んだり傾いたりしても、体の傾きの角度を足すだけでついてきます。</p>
+  <p>GDI+の小数の座標で塗る関数には、点を<code>float</code>の並びで渡す必要があります。HSPには<code>float</code>のビット列を作る命令がなく、自前の変換は負の数を扱えないので、点は4倍した整数で作り、描くあいだだけ座標を1/4に縮めています。</p>
+</section>
+
+<section class="chap" id="first" data-pose="tea">
+  <h2><span class="no">17</span>はじめての起動</h2>
+  <p class="q">最初の質問の窓に、どうやって入ってるの？</p>
+  <p>はじめて起動したときは、メインループに入る前に質問の窓を開き、棒人間をその窓の床の位置に置きます。窓の中の座標を<code>ClientToScreen</code>で画面の座標に直して、そこへ棒人間の窓を重ねています。</p>
+  <p>窓をドラッグしているあいだはメインループが止まるので、窓が動いたという知らせ（<code>WM_MOVE</code>）を<code>oncmd</code>で受けて、その場で棒人間を動かします。答え終わったら、上向きの速さを与えて、窓から外へ飛び出させます。</p>
+</section>
+<footer>作業のおとも、棒人間（HSPプログラムコンテスト2026）　作者subara3</footer>
+</div>
+
+<script>
+// 章のカードのふちに腰かける棒人間を描く（お茶・読書・ねむり・ただ座る）
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function figure(pose) {
+    var svg = el("svg", { viewBox: "0 0 64 80", "class": "sitter", "aria-hidden": "true" });
+    // 腰は (32,52)。カードの上のふちが y=52 になる位置に置く
+    var arms = {
+      tea:   [["M32 34 L22 44 L28 40", "M32 34 L42 42 L44 34"]],
+      read:  [["M32 34 L24 44 L36 42", "M32 34 L40 44 L36 42"]],
+      sleep: [["M32 34 L24 46", "M32 34 L40 46"]],
+      sit:   [["M32 34 L22 48", "M32 34 L44 46"]]
+    }[pose] || [["M32 34 L22 48", "M32 34 L44 46"]];
+    [["halo"], ["ink"]].forEach(function (cls) {
+      var g = el("g", { "class": cls[0] }, svg);
+      el("path", { d: "M32 52 L32 30" }, g);
+      el("path", { d: arms[0][0] }, g);
+      el("path", { d: arms[0][1] }, g);
+      var l1 = el("g", { "class": "legs" }, g); el("path", { d: "M30 52 L42 52 L43 68" }, l1);
+      var l2 = el("g", { "class": "legs b" }, g); el("path", { d: "M32 52 L45 51 L47 67" }, l2);
+    });
+    var tilt = pose === "sleep" ? " rotate(-14 32 18)" : "";
+    var head = el("g", { transform: "translate(0 0)" + tilt }, svg);
+    el("circle", { cx: 32, cy: 18, r: 10, "class": "face" }, head);
+    if (pose === "sleep") {
+      el("path", { d: "M27 18 L30 18 M34 18 L37 18", "class": "ink", "stroke-width": 2 }, head);
+      var z = el("text", { x: 44, y: 8, "class": "z" }, svg); z.textContent = "z";
+    } else if (pose === "read") {
+      el("circle", { cx: 29, cy: 20, r: 1.6, "class": "eye" }, head);
+      el("circle", { cx: 35, cy: 20, r: 1.6, "class": "eye" }, head);
+    } else {
+      el("circle", { cx: 29, cy: 17, r: 1.6, "class": "eye" }, head);
+      el("circle", { cx: 35, cy: 17, r: 1.6, "class": "eye" }, head);
+      el("path", { d: "M28 21 Q32 25 36 21", "class": "ink", "stroke-width": 1.8 }, head);
+    }
+    if (pose === "tea") el("rect", { x: 41, y: 29, width: 7, height: 7, rx: 1.5, "class": "cup" }, svg);
+    if (pose === "read") el("rect", { x: 27, y: 37, width: 13, height: 9, rx: 1, "class": "book" }, svg);
+    return svg;
+  }
+  document.querySelectorAll(".chap").forEach(function (c) {
+    c.appendChild(figure(c.getAttribute("data-pose") || "sit"));
+  });
+})();
+</script>

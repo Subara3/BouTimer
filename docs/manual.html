@@ -281,6 +281,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
 <section class="chap tech" id="tech" data-pose="read">
   <h2>しくみ（技術のはなし）</h2>
   <p>全部HSP 3.7で書いていて、WindowsのAPIを直接呼んでいます。1つのループを1秒に60回まわし、そのたびにタイマー、入力、音、足場の窓、次の動きを決めて、絵を描きます。</p>
+  <p>くわしい解説は、同じフォルダの<a href="tech_shikumi.html">棒人間が動くしくみ（tech_shikumi.html）</a>と<a href="tech_ghost.html">ゴースト置き場のしくみ（tech_ghost.html）</a>にあります。</p>
   <div class="cards">
     <div><b>窓の上に立つ</b><span>開いているウィンドウを手前から順にたどって、上の辺を足場にします。位置は<code>DwmGetWindowAttribute</code>で取り、Windows 11の見えない影の分のずれをなくしています。手前の窓に隠れた辺には立ちません。</span></div>
     <div><b>透ける絵</b><span>GDI+で32ビットの画像に描き、<code>UpdateLayeredWindow</code>で画素ごとに透かして貼っています。白いふちどりと黒い線の2回描きで、どんな窓の上でも見えます。</span></div>
@@ -296,6 +297,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
 <section class="chap" id="about" data-pose="sleep">
   <h2>作者など</h2>
   <p>作者：subara3（<a href="https://subara3.com/">https://subara3.com/</a>）</p>
+  <p>ソース：<a href="https://github.com/Subara3/BouTimer">https://github.com/Subara3/BouTimer</a></p>
   <p>ライセンス：自由に再配布・改変してかまいません。同梱の<code>modules</code>フォルダのモジュールも、自由に使ってかまいません。</p>
   <p>プログラムの作成に生成AI（Claude）を使用しています。</p>
 </section>

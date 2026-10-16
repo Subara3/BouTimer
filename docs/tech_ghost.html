@@ -1,0 +1,277 @@
+<title>ゴースト置き場のしくみ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* レイアウト：1段組の読みもの。図とコードだけ横に広がってよい（その箱の中で横スクロール） */
+:root {
+  --paper: #f5f6f8;
+  --ink: #2e2e36;
+  --sub: #5d6270;
+  --line: #d9dce3;
+  --ghost: #2a6a8a;       /* 見本のゴーストの線の色（0x2A6A8A） */
+  --ghost-soft: #e3eef3;
+  --warn: #b35a2a;
+  --card: #ffffff;
+  --code-bg: #eceef2;
+  --f-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Meiryo", sans-serif;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Meiryo", sans-serif;
+  --f-mono: "JetBrains Mono", "Consolas", "MS Gothic", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17191e; --ink: #e6e7ec; --sub: #a3a8b5; --line: #343843;
+    --ghost: #7fbcd8; --ghost-soft: #1d2d36; --warn: #e39a6d; --card: #1e2128; --code-bg: #242832;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17191e; --ink: #e6e7ec; --sub: #a3a8b5; --line: #343843;
+  --ghost: #7fbcd8; --ghost-soft: #1d2d36; --warn: #e39a6d; --card: #1e2128; --code-bg: #242832;
+  color-scheme: dark;
+}
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.85;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+header { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+header > div { min-width: 0; }
+.eyebrow { font-size: 13px; letter-spacing: .12em; color: var(--ghost); font-weight: 700; }
+h1 { font-family: var(--f-display); font-size: clamp(30px, 6vw, 44px); line-height: 1.3; margin: 6px 0 12px; text-wrap: balance; }
+.lead { color: var(--sub); margin: 0; max-width: 34em; }
+h2 { font-family: var(--f-display); font-size: 24px; margin: 0 0 12px; text-wrap: balance; display: flex; gap: 10px; align-items: baseline; }
+h2 .no { font-family: var(--f-mono); font-size: 14px; color: var(--ghost); }
+h3 { font-size: 17px; margin: 20px 0 6px; }
+section { display: flex; flex-direction: column; gap: 4px; min-width: 0; position: relative; }
+section[data-pose] { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 22px 18px; }
+section[data-pose] h2 { padding-right: 80px; }
+/* カードのふちに腰かける棒人間 */
+.sitter { position: absolute; top: -52px; right: 22px; width: 64px; height: 80px; pointer-events: none; }
+.sitter .ink { stroke: var(--ink); fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.sitter .halo { stroke: var(--paper); fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.sitter .face { fill: var(--card); stroke: var(--ink); stroke-width: 3; }
+.sitter .eye { fill: var(--ink); }
+.sitter .cup { fill: var(--ghost-soft); stroke: var(--ink); stroke-width: 2; }
+.sitter .book { fill: var(--warn); stroke: var(--ink); stroke-width: 1.6; }
+.sitter .z { fill: var(--ghost); font-family: var(--f-mono); font-size: 11px; font-weight: 600; }
+.sitter .legs { transform-origin: 43px 52px; animation: swing 2.4s ease-in-out infinite; }
+.sitter .legs.b { animation-delay: -1.2s; }
+@keyframes swing { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(10deg); } }
+@media (prefers-reduced-motion: reduce) { .sitter .legs { animation: none; } }
+
+p { margin: 0 0 10px; }
+code { font-family: var(--f-mono); font-size: .88em; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+pre.code { font-family: var(--f-mono); font-size: 13.5px; line-height: 1.6; background: var(--code-bg); border-radius: 8px; padding: 14px 16px; margin: 6px 0 12px; overflow-x: auto; }
+pre.code .c { color: var(--sub); }
+.figure { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; }
+pre.mermaid { margin: 0; background: transparent; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+.tablebox { overflow-x: auto; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; color: var(--sub); font-weight: 700; letter-spacing: .04em; }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--f-mono); white-space: nowrap; }
+ul.plain { margin: 0 0 10px; padding-left: 1.2em; }
+ul.plain li { margin-bottom: 6px; }
+.guard { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.guard div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.guard b { display: block; font-size: 15px; margin-bottom: 4px; }
+.guard span { font-size: 14px; color: var(--sub); line-height: 1.7; display: block; }
+.note { border-left: 3px solid var(--warn); padding: 4px 0 4px 14px; color: var(--ink); }
+.ghostfig { width: 96px; height: 120px; }
+.ghostfig circle, .ghostfig line { stroke: var(--ghost); }
+.ghostfig circle { fill: var(--card); }
+footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+@media (max-width: 480px) { header { grid-template-columns: 1fr; } .ghostfig { display: none; } }
+</style>
+
+<div class="wrap">
+<header>
+  <div>
+    <div class="eyebrow">作業のおとも、棒人間　フレンド（ゴースト）</div>
+    <h1>ゴースト置き場のしくみ</h1>
+    <p class="lead">休憩になると、ほかの人の棒人間が半透明で遊びに来ます。その記録を預かっているのが、Cloudflare Workersで動く小さなサーバーです。アプリからサーバーまでの流れと、無料で公開しても止まりにくくするための工夫をまとめました。</p>
+  </div>
+  <svg class="ghostfig" viewBox="0 0 96 120" aria-hidden="true">
+    <g opacity=".7" fill="none" stroke-width="3.5" stroke-linecap="round">
+      <circle cx="48" cy="26" r="15"/>
+      <line x1="48" y1="41" x2="48" y2="78"/>
+      <line x1="48" y1="52" x2="28" y2="36"/>
+      <line x1="48" y1="52" x2="70" y2="38"/>
+      <line x1="48" y1="78" x2="34" y2="108"/>
+      <line x1="48" y1="78" x2="62" y2="108"/>
+    </g>
+  </svg>
+</header>
+
+<section data-pose="tea">
+  <h2><span class="no">1</span>全体の流れ</h2>
+  <p>登場するのは3つだけです。アプリ（HSP）、Cloudflare Workersの上で動くJavaScript、データを置くWorkers KVです。アプリは、設定の「サーバーと通信する（ゴースト機能用）」がオンのときだけ通信します。最初はオフです。</p>
+  <div class="figure">
+<pre class="mermaid">
+sequenceDiagram
+  participant A as アプリ（HSP・hspinet）
+  participant W as Workers（boutimer-ghost）
+  participant K as KV（キー "recent" 1件）
+  Note over A: ポモドーロを1つ終えて休憩に入る
+  A->>W: POST /ghost（id・線の色・数字）
+  W->>K: get "recent"（最新を読む）
+  W->>K: put "recent"（自分の分を先頭に入れて保存）
+  W-->>A: ok
+  A->>W: GET /ghosts?n=1&me=自分のid
+  W->>K: get "recent"
+  W-->>A: 1人分の数字（id は外す）
+  Note over A: ゴーストが降ってきて、十数秒あいさつして帰る
+</pre>
+  </div>
+  <p>送る（POST）のと受け取る（GET）のは、ポモドーロを1つ終えたときと、「サーバーと通信する」をオンにしたときです。休憩のたびに1回ずつなので、1人が1日に通信するのは十数回くらいになります。</p>
+</section>
+
+<section data-pose="sit">
+  <h2><span class="no">2</span>送るもの・受け取るもの</h2>
+  <h3>送るもの（POST /ghost）</h3>
+<pre class="code">id=3f9a0c12b7e45d68&amp;c=3026486&amp;p=3&amp;m=75&amp;f=4
+<span class="c">  id  はじめて起動したときに作る16桁の16進（settings.txt に保存）
+  c   線の色（RGB を10進で）
+  p   今日のポモドーロ数（0〜99）
+  m   今日の作業分数（0〜1440）
+  f   よくやった動きの番号（お茶・読書・ダンス・腕立て・ほうき）</span></pre>
+  <p>名前、アプリ名、ウィンドウのタイトル、キー入力は送りません。サーバーも数字以外を受け付けない作りなので、文字を書きこまれることがありません。</p>
+  <h3>受け取るもの（GET /ghosts）</h3>
+<pre class="code">2763306,4,100,3,0
+<span class="c">  色, ポモドーロ数, 作業分数, 動きの番号, 見本なら1</span></pre>
+  <p>直近24時間に送ってきた人の中から、自分以外をランダムに選んで返します。idは返さないので、受け取った側には誰のゴーストかわかりません。参加者がまだいないときは、色と数字を決めておいた見本のゴースト（最後が<code>1</code>）を返します。</p>
+</section>
+
+<section data-pose="read">
+  <h2><span class="no">3</span>Cloudflare WorkersとKV</h2>
+  <p>Cloudflare Workersは、Cloudflareの世界中の拠点でJavaScriptを動かすサービスです。サーバーを借りたり起動しておいたりする必要がなく、リクエストが来たときだけ<code>fetch(req, env)</code>が呼ばれます。Workers KVは、そこから読み書きできるキーと値の置き場です。</p>
+  <div class="tablebox">
+  <table>
+    <thead><tr><th>無料枠でできること</th><th>上限</th><th>このアプリでの使い方</th></tr></thead>
+    <tbody>
+      <tr><td>Workersのリクエスト</td><td class="num">10万回/日</td><td>送ると受け取るで、1回の休憩に2回</td></tr>
+      <tr><td>KVの読み出し</td><td class="num">10万回/日</td><td>送るときと受け取るときに1回ずつ</td></tr>
+      <tr><td>KVの書きこみ</td><td class="num">1,000回/日</td><td>送るときだけ。いちばん先に足りなくなる</td></tr>
+      <tr><td>同じキーへの書きこみ</td><td class="num">1回/秒</td><td>キーは1つなので、全員の書きこみがここに集まる</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>KVには、キー<code>recent</code>の1件だけを置いています。中身は最大60人・24時間分の配列です。1人1キーにすると、書きこみのほかに一覧を取るための読み出しも増えるので、1件にまとめました。</p>
+<pre class="code">[
+  { "id": "3f9a0c12b7e45d68", "c": 3026486, "p": 3, "m": 75, "f": 4, "t": 1792134620909 },
+  { "id": "a1b2c3d4e5f60718", "c": 255, "p": 2, "m": 50, "f": 3, "t": 1792134584426 }
+]
+<span class="c">  t はサーバーが受け取った時刻（ミリ秒）。24時間たった人は、次の書きこみのときに消える</span></pre>
+</section>
+
+<section data-pose="sit">
+  <h2><span class="no">4</span>公開しても止まりにくくするために</h2>
+  <p>いちばん困るのは、書きこみの無料枠（1日1,000回）を使い切られて、その日は全員のゴーストが来なくなることです。そのため、書きこむ前に次の6つを確かめています。</p>
+  <div class="guard">
+    <div><b>同じIPからは1分に1回</b><span>送ってきたIPをハッシュにして、CloudflareのCache APIに1分だけ印を置きます。印があれば書きこまずにokを返します。IPそのものはどこにも保存しません。</span></div>
+    <div><b>変わっていなければ書かない</b><span>同じidが10分以内に同じ数字を送ってきたときは、書きこみを省きます。</span></div>
+    <div><b>書く前に最新を読む</b><span>キャッシュした古い一覧に上書きすると、直前に書いた人の分が消えます。書きこみの前は、キャッシュを使わずに読みます。</span></div>
+    <div><b>失敗しても200を返す</b><span>無料枠を使い切ったときや、1秒に2回書こうとしたときは、エラーにせず「busy」を返します。アプリ側は何もせず、ゴーストが来ないだけで済みます。</span></div>
+    <div><b>数字だけ・短いものだけ</b><span>idは16桁の16進だけを通します（それ以外は400）。本文が200文字をこえたら413。数字は上限で切りそろえます（ポモドーロ99、分数1440）。</span></div>
+    <div><b>アプリも返事を確かめる</b><span>返ってきた行が数字とカンマだけのときだけゴーストを出します。エラーページが返ってきても、変なゴーストは出ません。</span></div>
+  </div>
+</section>
+
+<section data-pose="tea">
+  <h2><span class="no">5</span>アプリ側（HSP）</h2>
+  <p>通信はHSP付属のhspinetプラグインで行います。<code>netrequest_post</code>や<code>netrequest_get</code>で頼んでおき、メインループで毎フレーム<code>netexec</code>を呼んで終わったかを見ます。待っているあいだも棒人間は止まりません。</p>
+<pre class="code">neturl gh_url
+netheader "Content-Type: application/x-www-form-urlencoded\n"
+netrequest_post "ghost", gbody     <span class="c">; 頼むだけで、すぐ戻ってくる</span>
+...
+netexec gres                       <span class="c">; 毎フレーム。0 ならまだ、1 なら完了、負なら失敗</span>
+if gres &gt; 0 : netgetv gtxt         <span class="c">; 返事を受け取る</span></pre>
+  <p>ゴーストは本体とは別の小さな窓に半透明で描いています。クリックは下の窓へ素通りし、足場にもなりません。</p>
+</section>
+
+<section data-pose="tea">
+  <h2><span class="no">6</span>フレンド（特定の人とだけ見せあう）</h2>
+  <p class="q">知らない人ではなく、友だちの棒人間を呼ぶには？</p>
+  <p>アプリが最初に作る匿名のIDから、サーバーがSHA-256で8文字のフレンドコードを作ります。読みまちがえやすいI・L・O・Uは使いません。IDそのものは送り返さないので、コードからIDはたどれません。</p>
+  <p>おたがいに相手のコードを登録したときだけ、サイクル数などの数字が見えます。片方だけが登録しているあいだは「相手の登録待ち」、コードがないときは「見つからない」と返します。メッセージを送る機能はありません。</p>
+  <p>フレンドの通信は、Windows 10 1803以降に入っている<code>curl.exe</code>を窓なしで起動して行います。返事はファイルで受け取り、メインループで終わったかを見ます。hspinetで受け取ると、そのあいだメインループが数秒止まって、棒人間がつかめなくなったためです。休憩に入るときにフレンドがいれば、知らない人より先にフレンドのゴーストを呼びます。</p>
+</section>
+
+<section data-pose="read">
+  <h2><span class="no">7</span>置き場を更新するとき</h2>
+  <p>サーバーのコードは<code>server/src/index.js</code>の1ファイルだけで、設定は<code>wrangler.toml</code>に書いています。Cloudflareの公式ツールwranglerで、ログインしてから<code>wrangler deploy</code>を実行すると、数秒で全世界の拠点に切りかわります。このフォルダは日本語のパスなので、ASCIIだけのフォルダにコピーしてから実行しています。</p>
+<pre class="code">name = "boutimer-ghost"
+main = "src/index.js"
+
+[[kv_namespaces]]
+binding = "GHOSTS"                      <span class="c">; コードからは env.GHOSTS で使う</span>
+id = "dd685ae107894f9b825f39171bdf5527"</pre>
+  <p>公開先は<code>https://boutimer-ghost.subara3.workers.dev</code>です。配った版のアプリはこの住所に送るので、変えるとそれまでの版からはつながらなくなります。</p>
+</section>
+
+<section data-pose="sleep">
+  <h2><span class="no">8</span>わかっている限界</h2>
+  <ul class="plain">
+    <li>2人がほぼ同時（1秒以内）に送ると、片方の分が一覧に残らないことがあります。KVは「読んでから書く」を1つの手順として守ってくれないためです。次の休憩でまた送るので、次の回には戻ります。</li>
+    <li>KVは世界中の拠点に行きわたるまで最大60秒ほどかかります。送った直後に別の拠点から読むと、まだ載っていないことがあります。</li>
+    <li>同じ会社などで同じIPを使っている人は、1分以内に2人目が送ると、その回は記録されません。</li>
+    <li>書きこみの無料枠を使い切った日は、新しく送った分が載りません。それまでの人のゴーストはそのまま届きます。</li>
+  </ul>
+  <p class="note">どの場合も、困るのは「ゴーストが来ない」ことだけです。タイマーやほかの機能は、通信がなくてもふつうに動きます。</p>
+</section>
+
+<footer>作業のおとも、棒人間（HSPプログラムコンテスト2026）　作者subara3　／　ほかのしくみ：<a href="tech_shikumi.html" style="color:var(--ghost)">棒人間が動くしくみ</a></footer>
+</div>
+<script>
+// 章のカードのふちに腰かける棒人間を描く（お茶・読書・ねむり・ただ座る）
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function figure(pose) {
+    var svg = el("svg", { viewBox: "0 0 64 80", "class": "sitter", "aria-hidden": "true" });
+    // 腰は (32,52)。カードの上のふちが y=52 になる位置に置く
+    var arms = {
+      tea:   [["M32 34 L22 44 L28 40", "M32 34 L42 42 L44 34"]],
+      read:  [["M32 34 L24 44 L36 42", "M32 34 L40 44 L36 42"]],
+      sleep: [["M32 34 L24 46", "M32 34 L40 46"]],
+      sit:   [["M32 34 L22 48", "M32 34 L44 46"]]
+    }[pose] || [["M32 34 L22 48", "M32 34 L44 46"]];
+    [["halo"], ["ink"]].forEach(function (cls) {
+      var g = el("g", { "class": cls[0] }, svg);
+      el("path", { d: "M32 52 L32 30" }, g);
+      el("path", { d: arms[0][0] }, g);
+      el("path", { d: arms[0][1] }, g);
+      var l1 = el("g", { "class": "legs" }, g); el("path", { d: "M30 52 L42 52 L43 68" }, l1);
+      var l2 = el("g", { "class": "legs b" }, g); el("path", { d: "M32 52 L45 51 L47 67" }, l2);
+    });
+    var tilt = pose === "sleep" ? " rotate(-14 32 18)" : "";
+    var head = el("g", { transform: "translate(0 0)" + tilt }, svg);
+    el("circle", { cx: 32, cy: 18, r: 10, "class": "face" }, head);
+    if (pose === "sleep") {
+      el("path", { d: "M27 18 L30 18 M34 18 L37 18", "class": "ink", "stroke-width": 2 }, head);
+      var z = el("text", { x: 44, y: 8, "class": "z" }, svg); z.textContent = "z";
+    } else if (pose === "read") {
+      el("circle", { cx: 29, cy: 20, r: 1.6, "class": "eye" }, head);
+      el("circle", { cx: 35, cy: 20, r: 1.6, "class": "eye" }, head);
+    } else {
+      el("circle", { cx: 29, cy: 17, r: 1.6, "class": "eye" }, head);
+      el("circle", { cx: 35, cy: 17, r: 1.6, "class": "eye" }, head);
+      el("path", { d: "M28 21 Q32 25 36 21", "class": "ink", "stroke-width": 1.8 }, head);
+    }
+    if (pose === "tea") el("rect", { x: 41, y: 29, width: 7, height: 7, rx: 1.5, "class": "cup" }, svg);
+    if (pose === "read") el("rect", { x: 27, y: 37, width: 13, height: 9, rx: 1, "class": "book" }, svg);
+    return svg;
+  }
+  document.querySelectorAll("section[data-pose]").forEach(function (c) {
+    c.appendChild(figure(c.getAttribute("data-pose") || "sit"));
+  });
+})();
+</script>

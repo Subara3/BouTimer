@@ -42,6 +42,7 @@ Copy-Item -Force (Join-Path $work "BouTimer.exe") (Join-Path $dist "BouTimer.exe
 Copy-Item -Force (Join-Path $root "docs\readme.txt") (Join-Path $dist "readme.txt")
 # 取扱説明書（HTML。外のファイルを読まないので、オフラインでも見られる）
 Copy-Item -Force (Join-Path $root "docs\manual.html") (Join-Path $dist "manual.html")
+Copy-Item -Force (Join-Path $root "docs\tech_*.html") $dist
 # 通信に使う hspinet プラグインは exe に入らないので横に置く（HSP 付属のプラグインは再配布可）
 Copy-Item -Force "$hsp\hspinet.dll" (Join-Path $dist "hspinet.dll")
 New-Item -ItemType Directory -Force (Join-Path $dist "modules") | Out-Null
