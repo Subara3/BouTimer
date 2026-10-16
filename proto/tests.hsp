@@ -33,6 +33,39 @@
 		}
 		if gh_on & (frame \ 60 = 0) : dbg += strf("GH f=%d gpomos=%d gmins=%d", frame, gpomos, gmins) + " " + bubble + "\n"
 	}
+	; 確認用：frpairtest は、2人分のフレンドを手元の確認用サーバー（127.0.0.1:8799）で試す。
+	; frA なら id=1111aaaa1111aaaa（コード M1STFQRW）が T8X5AKMA を、frB ならその逆を登録する。A→B→A の順に動かすと、
+	; 1回目の A は「登録待ち（w）」、B と2回目の A は「おたがい（f）」になり、相手の数字が届く
+	if instr(cmd, 0, "frpairtest") >= 0 {
+		if frame = 1 {
+			endframe = 60 * 12 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000
+			gh_url = "http://127.0.0.1:8799/" : friend_on = 1 : nfr = 1 : fr_nick(0) = ""
+			if instr(cmd, 0, "frA") >= 0 : myid = "1111aaaa1111aaaa" : fr_code(0) = "T8X5AKMA" : pomos_today = 3 : workms_today = 75 * 60000
+			if instr(cmd, 0, "frB") >= 0 : myid = "2222bbbb2222bbbb" : fr_code(0) = "M1STFQRW" : pomos_today = 5 : workms_today = 125 * 60000
+		}
+		; ポモドーロを終えたときと同じく、自分の数字を書いて送る。そのあとフレンドの窓を開く（読むだけ）
+		if frame = 30 : fr_w = 1 : gosub *fr_sync
+		if frame = 300 : gosub *fr_open
+		if frame = 600 {
+			dbg += "FP me=" + my_fcode
+			repeat nfr
+				dbg += strf(" [%s kind=%d p=%d m=%d age=%d]", fr_code(cnt), fr_kind(cnt), fr_p(cnt), fr_m(cnt), fr_age(cnt))
+			loop
+			dbg += "\n"
+		}
+	}
+	; 確認用：audiocheck は、同梱の声と効果音を鳴らし、出力デバイスの音量メーター（peak）で実際に音が出ているかを測る（音が出る。setest も付ける）
+	if instr(cmd, 0, "audiocheck") >= 0 {
+		if frame = 1 : endframe = 60 * 14 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : voice_mode = 2 : ac_ph = 0 : dim ac_mx, 6 : dim ac_bg, 1
+		; 0 鳴らす前（静かなとき） 1 声 2 ぷよん 3 ピピピッ 4 ペチョッ 5 ポン
+		if frame = 60 : ac_ph = 1 : bubble = "よう、こんばんは" : bubt = 120
+		if frame = 200 : ac_ph = 2 : se_name = "se_jump" : gosub *se_play
+		if frame = 260 : ac_ph = 3 : se_name = "se_write" : gosub *se_play
+		if frame = 320 : ac_ph = 4 : se_name = "se_paper" : gosub *se_play
+		if frame = 380 : ac_ph = 5 : se_name = "se_goal" : gosub *se_play
+		if (frame >= 2) & (frame < 440) : apk = int(peak * 1000.0) : if apk > ac_mx(ac_ph) : ac_mx(ac_ph) = apk
+		if frame = 450 : dbg += strf("AUDIO meter=%d quiet=%d voice=%d jump=%d write=%d paper=%d goal=%d （千分率）", meter_ok, ac_mx(0), ac_mx(1), ac_mx(2), ac_mx(3), ac_mx(4), ac_mx(5)) + "\n"
+	}
 	; 確認用：bubbletest は、長い吹き出しと短い吹き出しを出して、絵を proto\shot に書き出す
 	if instr(cmd, 0, "bubbletest") >= 0 {
 		if frame = 1 : endframe = 60 * 8 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : CreateDirectory dir_cur + "\\shot", 0
@@ -65,9 +98,16 @@
 			fmx = int(cx) + int((double(LW / 2) + double(dir) * headx) * uis) : fmy = int(cy) + int((double(LF) + heady) * uis)
 			if hovering : tc_f = frame
 		}
-		if (tc_f > 0) & td_vis : fmx = int(cx) + int((double(td_x) + td_w / 2.0) * uis) : fmy = int(cy) + int(47.0 * uis)
-		if (tc_f > 0) & ((frame = tc_f + 30) | (frame = tc_f + 130)) : fml = 1
-		if (tc_f > 0) & ((frame = tc_f + 33) | (frame = tc_f + 133)) : fml = 0
+		; tdnoundo では、押した 0.7 秒後にカーソルを横へ離す（ふつうの使い方と同じく、離すと紙を投げる）
+		if frame = 1 : tc_away = 0
+		if (tc_max = 1) & (tc_c >= 1) & (frame = tc_p + 40) : tc_away = 1 : fmx += int(260.0 * uis) : fmy -= int(60.0 * uis)
+		if (tc_f > 0) & td_vis & (tc_away = 0) : fmx = int(cx) + int((double(td_x) + td_w / 2.0) * uis) : fmy = int(cy) + int(47.0 * uis)
+		; tdnoundo を付けると、2回目（もどす）は押さない（PV で紙を投げるところまで見せる）
+		; 押すのは、札が出ていてカーソルが重なっているときだけ（tc_c：押した回数、tc_p：押した時刻）
+		if frame = 1 : tc_c = 0 : tc_p = 0
+		tc_max = 2 : if instr(cmd, 0, "tdnoundo") >= 0 : tc_max = 1
+		if (tc_f > 0) & (tc_c < tc_max) & (fml = 0) & td_vis & hovering & (frame >= tc_f + 30 + tc_c * 100) & (frame >= tc_p + 60) : fml = 1 : tc_p = frame : tc_c++
+		if (fml = 1) & (frame = tc_p + 3) : fml = 0
 		if (tc_f > 0) & ((frame = tc_f + 80) | (frame = tc_f + 180)) : dbg += strf("TC n=%d vis=%d d0=%d d1=%d top=%d undo=%d todos=%d pokes=%d", frame - tc_f, td_vis, todo_d(0), todo_d(1), todo_top, td_undo, todos_today, pokes) + " " + bubble + "\n"
 	}
 	; 確認用：hovertest は、歩いているところにカーソルを重ねて、止まるかを見る
@@ -122,6 +162,15 @@
 		datadir = dsave
 	}
 	; 確認用：wizardtest ははじめての起動の質問を出す（wzgo を付けると「答える」を押して次へ進む）
+	; wzmove を付けると、質問の窓を少しずつ動かして（ドラッグと同じ WM_MOVE が来る）、棒人間がついていくかを見る
+	if (instr(cmd, 0, "wzmove") >= 0) & wz_on & (frame >= 120) & (frame < 180) {
+		dim wmr, 4 : GetWindowRect wz_hwnd, wmr
+		SetWindowPos wz_hwnd, 0, wmr(0) + 4, wmr(1) + 2, 0, 0, 0x15
+		if (frame \ 20) = 0 {
+			dim wzp2, 2 : wzp2(0) = WZ_FX : wzp2(1) = WZ_FY : ClientToScreen wz_hwnd, wzp2
+			dbg += strf("WM f=%d floor=%d,%d cx+CW/2=%d cy+FOOTY=%d", frame, wzp2(0), wzp2(1), int(cx) + CW / 2, int(cy) + FOOTY) + "\n"
+		}
+	}
 	if (instr(cmd, 0, "wzgo") >= 0) & (frame = 90) : wz_pick = 0
 	; wzauto を付けると、2.5秒ごとにデフォルトの答えを押して最後まで進める（PV の撮影用。起動時に起動する は「しない」）
 	if (instr(cmd, 0, "wzauto") >= 0) & wz_on & (frame >= 120) & (((frame - 120) \ 150) = 0) {
@@ -295,6 +344,9 @@
 		idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : pomos_today = 3 : workms_today = 75 * 60000
 		gh_post = 1 : gh_fetch = 1
 	}
+	; PV 用：pvsecNN で長さを決める
+	if pvmode & (pv_sec > 0) : endframe = pv_sec * 60
+	if pvframes & (frame > endframe) : notesel pvlog : notesave dir_cur + "\\pvf\\frames.txt" : noteunsel
 	if testmode & (frame > endframe) : notesel dbg : notesave datadir + "\\debug.txt" : gosub *tray_del : if vvproc : TerminateProcess vvproc, 0
 	if testmode & (frame > endframe) : end
 	; 跳ね返りの確認用：throw で起動すると、x=700 から右へ投げる

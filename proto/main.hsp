@@ -25,6 +25,7 @@
 #func SystemParametersInfo "SystemParametersInfoW" int, int, var, int
 #func MessageBeep "MessageBeep" int
 #func SetWindowPos "SetWindowPos" int, int, int, int, int, int, int
+#func PrintWindow "PrintWindow" int, int, int
 #func ShowWindow "ShowWindow" int, int
 #func UpdateLayeredWindow "UpdateLayeredWindow" int, int, var, var, int, var, int, var, int
 #cfunc CreatePopupMenu "CreatePopupMenu"
@@ -423,12 +424,41 @@
 	; 確認用：tamane を付けると珠音の髪型で動かし、show と合わせると30コマごとに絵を書き出す
 	tm_shot = 0
 	if instr(cmd, 0, "tamane") >= 0 : costume = 1 : tm_shot = showmode
+	; PV 用モード（pvmode）：tools\pvstage.ax を quiet で動かしてから使う。足場と前面の窓を舞台の窓だけで決め、
+	; 本物の画面を録画せずに PV を作れるよう、pvframes を付けると2コマごとの絵と位置を pvf フォルダに書き出す
+	pvmode = 0 : pv_fg = 0 : pv_fgid = 0 : pvframes = 0 : pvn = 0 : pv_sec = 0 : dim pv_h, 3 : sdim pvlog, 65536
+	if instr(cmd, 0, "pvmode") >= 0 {
+		exist dir_cur + "\\..\\tools\\pvstage_hwnd.txt"
+		if strsize > 0 {
+			sdim pvtxt, 1024 : notesel pvtxt : noteload dir_cur + "\\..\\tools\\pvstage_hwnd.txt"
+			repeat 3
+				noteget pvl, cnt : split pvl, " ", pvv
+				if stat >= 2 : pv_h(cnt) = int(pvv(1))
+			loop
+			noteunsel
+			pvmode = 1
+			repeat 3
+				if instr(cmd, 0, "pvfg" + (cnt + 1)) >= 0 : pv_fgid = cnt + 1 : pv_fg = pv_h(cnt)
+			loop
+			; 舞台は画面の下の 1280x720。小さな窓（はじめまして・内訳など）も舞台のまんなかに出す
+			vleft = 0 : vright = 1280
+			wa(0) = 0 : wa(1) = wa(3) - 720 : wa(2) = 1280
+			pvframes = instr(cmd, 0, "pvframes") >= 0
+			pv_sec = 0 : pvq = instr(cmd, 0, "pvsec")
+			if pvq >= 0 : pv_sec = int(strmid(cmd, pvq + 5, 4))
+			; 撮っているあいだに本物の離席で止まらないように
+			sound_on = 1 : idle_warn = 99999999 : idle_pause = 99999999
+			if instr(cmd, 0, "pvvoice") >= 0 : voice_mode = 2
+			if pvframes : CreateDirectory dir_cur + "\\pvf", 0 : buffer 21, 800, 500 : gsel 0
+		}
+	}
 	tea_every = 60 * 60 * 4
 	idle_warn = 5 * 60 * 1000 : idle_pause = 10 * 60 * 1000
 	gosub *apply_minutes
 	if testmode : work_ms = 8000 : break_ms = 6000 : tea_every = 60 * 10 : idle_warn = 4000 : idle_pause = 7000
 	if showmode : work_ms = 600000 : tea_every = 999999 : idle_warn = 99999999 : idle_pause = 99999999
 	if instr(cmd, 0, "noidle") >= 0 : idle_warn = 99999999 : idle_pause = 99999999
+	if instr(cmd, 0, "pvmode") >= 0 : idle_warn = 99999999 : idle_pause = 99999999
 	if closetest : close_mode = 1 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999 : endframe = 60 * 45
 	if closetest & (instr(cmd, 0, "closeclose") >= 0) : close_mode = 2
 	if instr(cmd, 0, "voicetest") >= 0 : testmode = 1 : voice_mode = 2 : endframe = 60 * 70 : idle_warn = 99999999 : idle_pause = 99999999
@@ -781,6 +811,8 @@ shotall = instr(cmd, 0, "shotall") >= 0
 	; 電池で動いているときは、描く回数を半分（止まっているときは4分の1）にする
 	if lowpow : rdo = ((frame \ 2) = 1) & ((calm = 0) | ((frame \ 4) = 1))
 	if fs_hide : rdo = 0
+	; PV 用：2コマごとに必ず描いて書き出す
+	if pvframes : rdo = ((frame \ 2) = 0)
 	if rdo : gosub *render
 	await 16
 	goto *mainloop
@@ -1035,6 +1067,21 @@ shotall = instr(cmd, 0, "shotall") >= 0
 #include "tests.hsp"
 
 ; ---- 関数（本体は上から流れて実行されないよう、ファイルの最後に置く） ----
+; 点 (x, y) でいちばん手前にあるウィンドウ（ルート）。PV 用モードでは、舞台の窓だけで決める
+#defcfunc pf_root int q_px, int q_py
+	if pvmode = 0 : return GetAncestor(WindowFromPoint(q_px, q_py), GA_ROOT)
+	; repeat の中から return すると エラー30 になるので、見つけた窓を pfr に入れて抜ける
+	pfr = 0
+	repeat nplat
+		if (q_px >= plat_l(cnt)) & (q_px < plat_r(cnt)) & (q_py >= plat_t(cnt)) & (q_py < plat_b(cnt)) : pfr = plat_h(cnt) : break
+	loop
+	return pfr
+
+; いま使っている（前面の）ウィンドウ。PV 用モードでは、舞台の指定した窓
+#defcfunc fg_root
+	if pvmode : return pv_fg
+	return GetAncestor(GetForegroundWindow(), GA_ROOT)
+
 ; qjson（JSON）から数を1つ読む（キーのあとの数。null は 0）。読み終えた位置を jpos に残す
 #defcfunc jnum int p_at, str p_key
 	jk = instr(qjson, p_at, "\"" + p_key + "\":")

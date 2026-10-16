@@ -192,7 +192,7 @@
 	al_due = -1
 	if behindh : gosub *restore_front
 	hangoff = 0
-	alh = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	alh = fg_root()
 	; 自分の窓（内訳ややることリスト）には知らせに行かない
 	chk_h = alh : gosub *check_mine
 	if is_mine : alh = 0

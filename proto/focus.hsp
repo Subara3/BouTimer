@@ -26,7 +26,7 @@
 *track_apps
 	if (frame \ 60) != 0 : return
 	slack_now = 0
-	fgh = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	fgh = fg_root()
 	if fgh = 0 : return
 	; このアプリ自身の窓（棒人間・内訳・設定・やることリストなど）は数えない
 	chk_h = fgh : gosub *check_mine

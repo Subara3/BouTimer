@@ -6,6 +6,8 @@
 	; 最後に操作した時刻だけで離席を判定する
 	GetLastInputInfo lii
 	idlems = GetTickCount() - lii(1)
+	; PV 用：撮っているあいだは、操作しているものとみなす
+	if pvmode : idlems = 0
 	; キーは「押された回数」だけ数える。どのキーかは変数にも残さない
 	newk = 0
 	; 前のフレームから入力がなければ、キーの状態も変わっていないので調べない
@@ -85,7 +87,7 @@
 	hovering = over
 	; デスクトップをダブルクリックすると、その場所まで窓を渡ってくる
 	if ml & (ml_old = 0) & (over = 0) & (dragging = 0) {
-		dkh = GetAncestor(WindowFromPoint(mx, my), GA_ROOT)
+		dkh = pf_root(mx, my)
 		memset wbuf, 0, 1024
 		GetClassNameW dkh, wbuf, 255
 		dcls = cnvwtos(wbuf)

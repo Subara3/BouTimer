@@ -14,7 +14,7 @@
 			if cnt < ns {
 				sxp = plat_l(bp) + cnt * 12
 				if sxp > plat_r(bp) - 1 : sxp = plat_r(bp) - 1
-				vs = GetAncestor(WindowFromPoint(sxp, plat_t(bp) + 3), GA_ROOT) = plat_h(bp)
+				vs = pf_root(sxp, plat_t(bp) + 3) = plat_h(bp)
 				all_n++ : vis_n += vs
 			} else {
 				vs = -1 : sxp = plat_r(bp)

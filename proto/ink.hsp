@@ -47,7 +47,7 @@
 *ensure_icons
 	isl = 0 : ih = onh : gosub *load_icon
 	if icok(0) = 0 {
-		ih = GetAncestor(GetForegroundWindow(), GA_ROOT)
+		ih = fg_root()
 		if ih != myhwnd : gosub *load_icon
 	}
 	isl = 1 : icok(1) = 0

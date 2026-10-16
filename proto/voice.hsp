@@ -118,6 +118,12 @@
 	} else {
 		lip_n = 0
 	}
+	; PV 用：鳴らさずに、いつ鳴ったかだけ書いておく（口パクは動かす）
+	if pvframes {
+		pvlog += "EV " + frame + " voice " + vv_name + "\n"
+		lip_t0 = timeGetTime() + 30 : lip_on = 1 : vv_spoke++
+		return
+	}
 	PlaySoundStop 0, 0, 0
 	sdim wavbuf, wsz + 16
 	bload vv_dir + "\\" + vv_name + ".wav", wavbuf, wsz

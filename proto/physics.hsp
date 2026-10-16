@@ -31,7 +31,7 @@
 			if (fx >= plat_l(cnt)) & (fx < plat_r(cnt)) {
 				if (foot <= plat_t(cnt)) & (nfoot >= plat_t(cnt)) & (plat_t(cnt) < bestt) {
 					; 手前の別ウィンドウに隠れていない辺だけ
-					if GetAncestor(WindowFromPoint(fx, plat_t(cnt) + 3), GA_ROOT) = plat_h(cnt) {
+					if pf_root(fx, plat_t(cnt) + 3) = plat_h(cnt) {
 						best = cnt : bestt = plat_t(cnt)
 					}
 				}
@@ -60,12 +60,12 @@
 		if plat_h(cnt) = ignoreh : continue
 		if (midy <= plat_t(cnt) + 4) | (midy >= plat_b(cnt)) : continue
 		if (vx > 0.0) & (fxo < plat_l(cnt)) & (fxn >= plat_l(cnt)) {
-			if GetAncestor(WindowFromPoint(plat_l(cnt) + 2, midy), GA_ROOT) = plat_h(cnt) {
+			if pf_root(plat_l(cnt) + 2, midy) = plat_h(cnt) {
 				cx = double(plat_l(cnt) - CW / 2 - 1) : vx = -vx * 0.55 : gosub *bump : break
 			}
 		}
 		if (vx < 0.0) & (fxo > plat_r(cnt)) & (fxn <= plat_r(cnt)) {
-			if GetAncestor(WindowFromPoint(plat_r(cnt) - 3, midy), GA_ROOT) = plat_h(cnt) {
+			if pf_root(plat_r(cnt) - 3, midy) = plat_h(cnt) {
 				cx = double(plat_r(cnt) - CW / 2 + 1) : vx = -vx * 0.55 : gosub *bump : break
 			}
 		}
@@ -98,11 +98,11 @@
 		if (foot > plat_t(cnt) + 20) & (foot + 30 < plat_b(cnt)) {
 			d = abs(fx - plat_l(cnt))
 			if d < bestd {
-				if GetAncestor(WindowFromPoint(plat_l(cnt) + 3, foot + 30), GA_ROOT) = plat_h(cnt) : best = cnt : bestd = d : side = -1
+				if pf_root(plat_l(cnt) + 3, foot + 30) = plat_h(cnt) : best = cnt : bestd = d : side = -1
 			}
 			d = abs(fx - plat_r(cnt))
 			if d < bestd {
-				if GetAncestor(WindowFromPoint(plat_r(cnt) - 4, foot + 30), GA_ROOT) = plat_h(cnt) : best = cnt : bestd = d : side = 1
+				if pf_root(plat_r(cnt) - 4, foot + 30) = plat_h(cnt) : best = cnt : bestd = d : side = 1
 			}
 		}
 	loop
@@ -165,6 +165,17 @@
 ; 足場になるウィンドウを手前から順に集める
 *scan_platforms
 	nplat = 0
+	if pvmode {
+		; PV 用モード：舞台の窓だけを足場にする（前面に指定した窓を手前に、あとは番号順）
+		repeat 3
+			pvi = cnt
+			if pv_fgid : pvi = (pv_fgid - 1 + cnt) \ 3
+			onh_bak = onh : onh = pv_h(pvi) : gosub *rect_of_onh : onh = onh_bak
+			plat_h(nplat) = pv_h(pvi) : plat_l(nplat) = rc(0) : plat_t(nplat) = rc(1) : plat_r(nplat) = rc(2) : plat_b(nplat) = rc(3)
+			nplat++
+		loop
+		return
+	}
 	h = GetTopWindow(0)
 	repeat
 		if h = 0 : break

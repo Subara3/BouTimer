@@ -19,9 +19,14 @@ def ffmpeg():
     return glob.glob(os.path.join(base, "**", "ffmpeg.exe"), recursive=True)[0]
 
 def decode(ff, path, sec):
-    raw = subprocess.run([ff, "-loglevel", "error", "-i", path, "-t", str(sec), "-af", "volume=0.5",
+    raw = subprocess.run([ff, "-loglevel", "error", "-i", path, "-t", str(sec), 
                           "-ar", str(RATE), "-ac", "1", "-f", "s16le", "-"], check=True, capture_output=True).stdout
     a = array.array("h"); a.frombytes(raw)
+    # 音ごとの大きさをそろえる（いちばん大きいところを最大の 20% に。声よりひかえめ）
+    pk = max(1, max(abs(v) for v in a))
+    g = 32767 * 0.20 / pk
+    for i in range(len(a)):
+        a[i] = int(max(-32768, min(32767, a[i] * g)))
     # 終わりの 30 ミリ秒を小さくして、ぷつっと切れないようにする
     n = min(len(a), int(RATE * 0.03))
     for i in range(n):

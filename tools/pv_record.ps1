@@ -140,3 +140,14 @@ if ($Only -contains "G") { Shot "G_はじめまして" 24 "wizardtest wzauto" 0 
 if ($Only -contains "H") { Shot "H_やることにチェック" 14 "tdchecktest" 3 $null }
 if ($Only -contains "I") { Shot "I_認識の図示" 20 "realtest ovl" 0 $null }
 if ($Only -contains "J") { Shot "J_珠音の髪型" 40 "show tamane" 0 $null }
+
+# 応募ページ用の静止画：撮った動画のまんなかのコマを pv\stills に PNG で書き出す（-Only に S を入れる）
+if ($Only -contains "S") {
+  $stills = Join-Path $out "stills"
+  New-Item -ItemType Directory -Force $stills | Out-Null
+  Get-ChildItem $out -Filter "*.mp4" | Where-Object { $_.Name -notlike "PV_*" -and $_.Name -notlike "下書き*" } | ForEach-Object {
+    $len = [double](& ($ff -replace "ffmpeg.exe$", "ffprobe.exe") -v error -show_entries format=duration -of csv=p=0 $_.FullName)
+    & $ff -y -loglevel error -ss ($len / 2) -i $_.FullName -frames:v 1 (Join-Path $stills ($_.BaseName + ".png"))
+    "still: " + $_.BaseName
+  }
+}

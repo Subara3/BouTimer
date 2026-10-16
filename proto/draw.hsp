@@ -175,6 +175,25 @@
 			shotn++
 		}
 	}
+	; PV 用：2コマごとに、描いた絵と画面上の位置を書き出す（あとで舞台の絵と重ねて動画にする）
+	if pvframes & ((frame \ 2) = 0) {
+		GdipSaveImageToFile gbmp, dir_cur + "\\pvf\\" + strf("%05d", pvn) + ".png", pngclsid, 0
+		pvlog += strf("%d %d %d %d %d %d", pvn, frame, int(cx), int(cy), fmx, fmy) + "\n"
+		; 認識の図示を出しているときは、その絵も（6コマごと）
+		if ovl_on & ((frame \ 6) = 0) {
+			GdipSaveImageToFile gbmp3, dir_cur + "\\pvf\\ov_" + strf("%05d", pvn) + ".png", pngclsid, 0
+			pvlog += "OV " + pvn + " " + vleft + " " + vtop + "\n"
+		}
+		; はじめましての窓は、ボタンごと PrintWindow で写す（4コマごと）
+		if wz_on & ((frame \ 4) = 0) {
+			dim pwr, 4 : GetWindowRect wz_hwnd, pwr
+			gsel 21 : color 0, 0, 0 : boxf : PrintWindow wz_hwnd, hdc, 0
+			bmpsave dir_cur + "\\pvf\\wz_" + strf("%05d", pvn) + ".bmp"
+			gsel 1
+			pvlog += strf("WZ %d %d %d %d %d", pvn, pwr(0), pwr(1), pwr(2) - pwr(0), pwr(3) - pwr(1)) + "\n"
+		}
+		pvn++
+	}
 	; 画面へ（位置の移動もここで）
 	ptd(0) = int(cx) : ptd(1) = int(cy)
 	UpdateLayeredWindow myhwnd, 0, ptd, psz, memdc, pts, 0, blend, 2

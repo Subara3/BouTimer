@@ -81,7 +81,7 @@
 			gosub *scan_platforms
 			repeat nplat
 				if (gxc >= plat_l(cnt)) & (gxc < plat_r(cnt)) & (gfoot <= plat_t(cnt)) & (gnf >= plat_t(cnt)) {
-					if GetAncestor(WindowFromPoint(gxc, plat_t(cnt) + 3), GA_ROOT) = plat_h(cnt) : ghy = double(plat_t(cnt) - FOOTY) : gland = 1 : gvy = 0.0 : break
+					if pf_root(gxc, plat_t(cnt) + 3) = plat_h(cnt) : ghy = double(plat_t(cnt) - FOOTY) : gland = 1 : gvy = 0.0 : break
 				}
 			loop
 		}

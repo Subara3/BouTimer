@@ -19,3 +19,5 @@ release/
 pv/
 server/node_modules/
 server/.wrangler/
+proto/pvf/
+tools/pvstage_hwnd.txt

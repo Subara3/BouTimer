@@ -5,16 +5,24 @@
 #func SetProcessDPIAware "SetProcessDPIAware"
 #cfunc GetWindowLong "GetWindowLongW" int, int
 #func SetWindowLong "SetWindowLongW" int, int, int
+#func ShowWindow "ShowWindow" int, int
+#func SetWindowPos "SetWindowPos" int, int, int, int, int, int, int
 
 	SetProcessDPIAware
+	; 起動時の既定の窓（0番）は使わないので隠しておく
+	gsel 0, -1
 	cmd = dir_cmdline
 	split cmd, " ", a
 	secs = int(a(0)) : ox = int(a(1)) : oy = int(a(2))
 	fgid = 0
 	if stat >= 4 : fgid = int(a(3))
 	if secs <= 0 : secs = 60
+	; quiet：合成で PV を作るとき用。窓は前に出さず（フォーカスを取らない）、いちばん後ろに置く。
+	; 背景は作らず、窓のハンドルと位置を pvstage_hwnd.txt に書く（本体がこれを足場にする）
+	quiet = instr(cmd, 0, "quiet") >= 0
 
 	; 背景
+	if quiet : goto *no_bg
 	bgscr 0, 1280, 720, 0, ox, oy
 	; 背景は足場にしない（クリック素通しの窓は足場から外れる）
 	SetWindowLong hwnd, -20, GetWindowLong(hwnd, -20) | 0x20
@@ -25,17 +33,22 @@
 		color 236 - c, 240 - c, 246 - c / 2 : boxf 0, cnt, 1279, cnt
 	loop
 	redraw 1
+*no_bg
 
 	; 足場になるウィンドウ（高さをずらして並べる）
 	sdim ttl, 64, 3
 	ttl(0) = "メモ - 今日のやること" : ttl(1) = "YouTube - ねこの動画" : ttl(2) = "エディタ - main.hsp"
-	dim wx, 3 : dim wy, 3 : dim ww, 3 : dim wh, 3
+	dim hws, 3 : dim wx, 3 : dim wy, 3 : dim ww, 3 : dim wh, 3
 	wx(0) = 90 : wy(0) = 330 : ww(0) = 360 : wh(0) = 300
 	wx(1) = 520 : wy(1) = 170 : ww(1) = 380 : wh(1) = 280
 	wx(2) = 860 : wy(2) = 400 : ww(2) = 360 : wh(2) = 260
 	repeat 3
 		id = cnt + 1
-		screen id, ww(cnt), wh(cnt), 0, ox + wx(cnt), oy + wy(cnt)
+		if quiet {
+			screen id, ww(cnt), wh(cnt), 2, ox + wx(cnt), oy + wy(cnt)
+		} else {
+			screen id, ww(cnt), wh(cnt), 0, ox + wx(cnt), oy + wy(cnt)
+		}
 		title ttl(cnt)
 		redraw 0
 		color 255, 255, 255 : boxf
@@ -59,11 +72,25 @@
 			loop
 		}
 		redraw 1
-		gsel id, 2
+		if quiet {
+			; SW_SHOWNA で出して、重なり順のいちばん後ろへ（HWND_BOTTOM、SWP_NOMOVE|NOSIZE|NOACTIVATE）
+			ShowWindow hwnd, 8
+			SetWindowPos hwnd, 1, 0, 0, 0, 0, 0x13
+			hws(cnt) = hwnd
+		} else {
+			gsel id, 2
+		}
 	loop
+	if quiet {
+		sdim hwtxt, 1024
+		repeat 3
+			hwtxt += "" + (cnt + 1) + " " + hws(cnt) + " " + (ox + wx(cnt)) + " " + (oy + wy(cnt)) + "\n"
+		loop
+		notesel hwtxt : notesave dir_cur + "\\pvstage_hwnd.txt" : noteunsel
+	}
 
 	; 指定があれば、そのウィンドウを前面にする（1=メモ 2=YouTube 3=エディタ）
-	if fgid : gsel fgid, 2
+	if fgid & (quiet = 0) : gsel fgid, 2
 	repeat secs * 10
 		await 100
 	loop

@@ -21,8 +21,10 @@
 ; se_name の効果音を鳴らす。音を鳴らさない設定・全画面のあいだは鳴らさない
 *se_play
 	if (sound_on = 0) | fs_hide : return
-	; 確認用モードでは、setest のときだけ鳴らす
-	if testmode & (instr(cmd, 0, "setest") < 0) : dbg += "SE " + se_name + "\n" : return
+	; PV 用：鳴らさずに、いつ鳴ったかだけ書いておく（動画にあとで音を重ねる）
+	if pvframes : pvlog += "EV " + frame + " se " + se_name + "\n" : return
+	; 確認用モードでは、setest と audiocheck のときだけ鳴らす
+	if testmode & (instr(cmd, 0, "setest") < 0) & (instr(cmd, 0, "audiocheck") < 0) : dbg += "SE " + se_name + "\n" : return
 	mciSendString "play " + se_name + " from 0", 0, 0, 0
 	if testmode : dbg += "SE " + se_name + " play=" + stat + "\n"
 	return

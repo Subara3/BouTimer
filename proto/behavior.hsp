@@ -597,7 +597,7 @@
 
 ; ---- 休憩：使っているウィンドウのふちへ ----
 *go_rest
-	h = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	h = fg_root()
 	if (h != 0) & (h != myhwnd) : tgt = h
 	ok = 0
 	if tgt {

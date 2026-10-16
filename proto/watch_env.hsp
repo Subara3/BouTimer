@@ -5,7 +5,7 @@
 *watch_caret
 	if peek_cd > 0 : peek_cd -= 20
 	caret_ok = 0
-	fgw = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	fgw = fg_root()
 	if fgw = 0 : caret_moves = 0.0 : return
 	if instr(cmd, 0, "peektest") >= 0 : caret_fg = fgw : caret_ok = 1 : return
 	; スレッドに 0 を渡すと、手前の窓のスレッドの情報が返る（GUITHREADINFO は 32bit で48バイト）
