@@ -1,0 +1,7 @@
+name = "boutimer-ghost"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "GHOSTS"
+id = "dd685ae107894f9b825f39171bdf5527"

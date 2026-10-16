@@ -1,0 +1,722 @@
+; 作業のおとも、棒人間：描く（GDI+）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ==== 描く ====
+*render
+	gosub *make_pose
+	gosub *ink_step
+	if exitsign {
+		GdipSetPenColor pen, 0xFFFFFFFF
+	} else {
+		GdipSetPenColor pen, inkc
+	}
+	if squash > 0 : sy *= 1.0 - double(squash) * 0.018 : sx *= 1.0 + double(squash) * 0.012 : squash--
+	GdipGraphicsClear gfx, 0
+
+	; 足元の影
+	if shadow & (lie = 0) {
+		GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
+		GdipSetSolidFillColor brush, 0x30000000
+		GdipFillEllipse gfx, brush, LW / 2 - 14, LF - 2, 28, 5
+	}
+
+	GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
+	if lie {
+		GdipTranslateWorldTransform gfx, LW / 2 - 30 * dir, LF - 4, 0
+		GdipRotateWorldTransform gfx, 90.0 * dir, 0
+	} else {
+		GdipTranslateWorldTransform gfx, LW / 2, LF, 0
+	}
+	GdipScaleWorldTransform gfx, sx * dir, sy, 0
+
+	; 首と頭の位置
+	neckx = hipx + sin(lean * RAD) * 18.0 : necky = hipy - cos(lean * RAD) * 18.0 + breath
+	shx = hipx + (neckx - hipx) * 0.82 : shy = hipy + (necky - hipy) * 0.82
+	headx = neckx + sin(lean * RAD) * 11.0 : heady = necky - cos(lean * RAD) * 11.0
+
+	if (state = ST_ACT) & (act = ACT_AQUA) : gosub *draw_aquarium
+	if (state = ST_ACT) & (act = ACT_KICKCAN) : gosub *draw_can_ground
+	; 非常口の板
+	if exitsign {
+		GdipSetSolidFillColor brush, 0xFF2E9A50
+		GdipFillRectangle gfx, brush, -42.0, -82.0, 92.0, 86.0
+		GdipSetPenColor pen, 0xFFFFFFFF : GdipSetPenWidth pen, 2.0
+		GdipDrawRectangle gfx, pen, 26.0, -66.0, 18.0, 66.0
+		GdipSetPenWidth pen, 3.0
+	}
+	; こぼれた茶
+	if puddle > 0.0 {
+		GdipSetSolidFillColor brush, 0xA0B89A50
+		GdipFillEllipse gfx, brush, 20.0 - 16.0 * puddle, -2.2, 32.0 * puddle, 4.4
+	}
+	; やることがあれば紙を持つ（歩いている・立っているときだけ）
+	carry_paper = (todo_top >= 0) & (view = 0) & (dragging = 0) & ((state = ST_IDLE) | (state = ST_WALK) | (state = ST_GOTO))
+	; 白いふちどり → 本体の順に2回描く
+	if nohalo = 0 {
+		curpen = halopen : halo = 1 : gosub *figure
+	}
+	curpen = pen : halo = 0 : gosub *figure
+	carry_paper = 0
+	if (state = ST_ACT) & (act = ACT_TOSS) : gosub *draw_toss
+	if (state = ST_ACT) & (act >= ACT_ROPE) : gosub *draw_play
+	gosub *draw_icons
+
+	; 文字（時間・ふきだし・zzz）
+	GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
+	headsx = int(cx) + int((double(LW / 2) + double(dir) * headx * sx) * uis) : headsy = int(cy) + int((double(LF) + heady * sy) * uis)
+	if signboard {
+		; 札をふる（幅は文字の長さに合わせる）
+		sgw = limitf(16.0 + double(strlen(signtext)) * 4.0, 72.0, 170.0)
+		sbx = double(LW / 2) - sgw / 2.0 + sin(double(frame) * 0.5) * 3.0 : sby = limitf(LF + (heady - 46.0) * sy, 22.0, 100.0)
+		GdipSetSolidFillColor brush, 0xFFFFF6D8
+		GdipFillRectangle gfx, brush, sbx, sby, sgw, 20
+		GdipSetPenWidth pen, 1.6
+		GdipDrawRectangle gfx, pen, sbx, sby, sgw, 20
+		GdipSetPenWidth pen, 3.0
+		cpill 3, signtext, sbx, sby, sgw, 20, 0, 0xFF3A3A44
+	}
+	if celebrate > 0 {
+		; 紙ふぶき
+		celebrate--
+		repeat 16
+			cfx = (cnt * 53 + 17) \ LW + sin(double(frame + cnt * 7) * 0.2) * 3.0
+			cfy = ((150 - celebrate) * (2 + cnt \ 3) + cnt * 29) \ LF
+			cc = cnt \ 4
+			if cc = 0 : GdipSetSolidFillColor brush, 0xFFE05050
+			if cc = 1 : GdipSetSolidFillColor brush, 0xFFF0C030
+			if cc = 2 : GdipSetSolidFillColor brush, 0xFF40B070
+			if cc = 3 : GdipSetSolidFillColor brush, 0xFF4A80E0
+			GdipFillRectangle gfx, brush, cfx, cfy, 3.0, 4.5
+		loop
+	}
+	; タイマーの表示。動いているときは▶、止まっているときは‖を付ける（クリックで切りかえ）
+	if phase = 0 {
+		label = "▶作業" : fg = 0xFF3A3A44
+	} else {
+		label = "▶休憩" : fg = 0xFF1E8C50
+	}
+	label += strf("%d:%02d", remain / 60000, (remain / 1000) \ 60)
+	if slack_now & (phase = 0) : label = "‖タイマー停止中" : fg = 0xFF808088
+	if paused : label = "‖一時停止中" : fg = 0xFF808088
+	tl_w = limitf(24.0 + double(strlen(label)) * 4.0, 76.0, 130.0) : tl_x = double(LW / 2) - tl_w / 2.0
+	; はじめての質問のあいだは、タイマーの表示を出さない
+	if wz_on = 0 : cpill 0, label, tl_x, 2, tl_w, 18, 0xD8FFFFFF, fg
+	if hovering & (dragging = 0) {
+		; カーソルを乗せると今日の記録
+		hs_line = "ポモドーロ：" + pomos_today + "サイクル"
+		if typecount_on : hs_line += "・" + keys_today + "打"
+		hw1 = limitf(16.0 + double(strlen(hs_line)) * 4.0, 90.0, LW - 4.0)
+		cpill 1, hs_line, LW / 2 - hw1 / 2, 21, hw1, 16, 0xC8FFFFFF, 0xFF505060
+		; 持っているやることを、チェック欄つきで見せる。クリックで済みにする（済ませた直後の8秒は、もう一度クリックでもどせる）
+		td_vis = 0 : td_ck = 0
+		if (td_undo >= 0) & (frame < td_undo_t) {
+			if td_undo < ntodo : td_vis = 1 : td_ck = 1 : cu_s = todo_s(td_undo)
+		} else {
+			if todo_top >= 0 : td_vis = 1 : cu_s = todo_s(todo_top)
+		}
+		if td_vis {
+			cu_n = 10 : gosub *cut_utf8
+			hs_line = "　 " + cu_s
+			if td_ck : hs_line += "（もどす）"
+			td_w = limitf(16.0 + strlen(hs_line) * 4.0, 60.0, LW - 4.0) : td_x = LW / 2 - td_w / 2
+			td_fg = 0xFF505060 : if td_ck : td_fg = 0xFF909098
+			pill hs_line, td_x, 39, td_w, 16, 0xE0FFFFFF, td_fg
+			; チェック欄（文字のはじめの空きに描く）
+			ckx = td_x + 8.0 : cky = 42.5
+			GdipDrawLine gfx, chkpen, ckx, cky, ckx + 9.0, cky
+			GdipDrawLine gfx, chkpen, ckx + 9.0, cky, ckx + 9.0, cky + 9.0
+			GdipDrawLine gfx, chkpen, ckx + 9.0, cky + 9.0, ckx, cky + 9.0
+			GdipDrawLine gfx, chkpen, ckx, cky + 9.0, ckx, cky
+			if td_ck {
+				GdipDrawLine gfx, chkpen, ckx + 1.5, cky + 4.5, ckx + 4.0, cky + 7.5
+				GdipDrawLine gfx, chkpen, ckx + 4.0, cky + 7.5, ckx + 10.5, cky - 1.5
+			}
+		}
+	}
+	if bubt > 0 {
+		bubt--
+		; 札を出している間は吹き出しを出さない
+		if (lie = 0) & (signboard = 0) {
+			; 文字数（UTF-8 の続きのバイトは数えない）。窓の幅に入らない長さなら2行にする
+			bn = 0
+			repeat strlen(bubble)
+				if (peek(bubble, cnt) & 0xC0) != 0x80 : bn++
+			loop
+			bw = 22.0 + double(bn) * 12.0 : bh = 18.0
+			if bw > double(LW) - 6.0 : bh = 34.0 : bw = limitf(28.0 + double((bn + 1) / 2) * 12.0, 60.0, double(LW) - 6.0)
+			bxp = limitf(LW / 2 + dir * 24 - bw / 2, 1.0, LW - bw - 1.0)
+			byp = limitf(LF + (heady - 40.0) * sy - (bh - 18.0), 22.0, 200.0)
+			; 吹き出し：うすい縁どりと、頭へ向かうしっぽ
+			tipxp = int(LW / 2 + dir * headx * sx) : tipyp = int(LF + (heady - 13.0) * sy)
+			poly(0) = int(bxp + bw / 2) - 5 : poly(1) = int(byp + bh) - 3
+			poly(2) = int(bxp + bw / 2) + 5 : poly(3) = int(byp + bh) - 3
+			poly(4) = tipxp : poly(5) = tipyp
+			cpill 4, "", bxp - 1.0, byp - 1.0, bw + 2.0, bh + 2.0, 0x50404050, 0
+			GdipSetSolidFillColor brush, 0x50404050
+			GdipFillPolygonI gfx, brush, poly, 3, 0
+			poly(5) = tipyp - 1
+			GdipSetSolidFillColor brush, 0xF8FFFFFF
+			GdipFillPolygonI gfx, brush, poly, 3, 0
+			cpill 2, bubble, bxp, byp, bw, bh, 0xF8FFFFFF, 0xFF3A3A44
+		}
+	}
+	if zzz {
+		zt = double(frame \ 90) / 90.0
+		zx = LW / 2 + dir * (headx + 4.0) - 4.0 + zt * 8.0 : zy = LF + heady - 26.0 - zt * 14.0
+		cpill 5, "z", zx, zy, 14, 14, 0x00FFFFFF, 0xFF6060A0
+		cpill 6, "Z", zx + 8, zy - 14, 16, 16, 0x00FFFFFF, 0xFF6060A0
+	}
+
+	if (sea_part != 0) & (sea_show > 0) : gosub *season_particles
+	; 確認用：shot を付けると、描いた絵をそのまま PNG に書き出す（口パクとポーズの確認）
+	if shoton & (shotn < 200) {
+		if (lip_on | (shotall & (shotn < 20)) | (pose_kind > 0) | td_vis | (tm_shot & ((frame \ 24) = 1)) | signboard | (state = ST_PEEK) | (state = ST_ALARM) | ((state = ST_ACT) & ((act = ACT_TOSS) | (act = ACT_STRETCH) | (act >= ACT_ROPE)))) & ((frame \ 8) = 1) {
+			GdipSaveImageToFile gbmp, dir_cur + "\\shot\\" + strf("%03d", shotn) + ".png", pngclsid, 0
+			shotn++
+		}
+	}
+	; 画面へ（位置の移動もここで）
+	ptd(0) = int(cx) : ptd(1) = int(cy)
+	UpdateLayeredWindow myhwnd, 0, ptd, psz, memdc, pts, 0, blend, 2
+	return
+
+; 棒人間を1回描く（halo=1 のときは白いふちどり用）
+*figure
+	if prop = PR_GROUNDSTICK : gosub *ground_stick
+	; 奥の脚・腕 → 胴 → 手前の脚・腕
+	if view = 0 {
+		limb hipx, hipy, la1(1), legl, la2(1), legl
+		limb shx, shy, aa1(1), 10.0, aa2(1), 9.0
+	}
+	GdipDrawLine gfx, curpen, hipx, hipy, neckx, necky
+	if view = 0 {
+		limb hipx, hipy, la1(0), legl, la2(0), legl
+		bfx = lx2 : bfy = ly2 : bfa = la2(0)
+		if boot_t > 0 : gosub *draw_boot
+		limb shx, shy, aa1(0), 10.0, aa2(0), 9.0
+	} else {
+		limb hipx - 3.0, hipy, la1(0), legl, la2(0), legl
+		bfx = lx2 : bfy = ly2 : bfa = la2(0)
+		if boot_t > 0 : gosub *draw_boot
+		limb hipx + 3.0, hipy, la1(1), legl, la2(1), legl
+		if lmirror {
+			limb shx - 2.0, shy, -aa1(0), 10.0, -aa2(0), 9.0
+		} else {
+			limb shx - 2.0, shy, -absf(aa1(0)), 10.0, -absf(aa2(0)), 9.0
+		}
+		lhx = lx2 : lhy = ly2
+		limb shx + 2.0, shy, aa1(1), 10.0, aa2(1), 9.0
+	}
+	handx = lx2 : handy = ly2
+	; 頭
+	hr = 11.0
+	if halo {
+		GdipSetSolidFillColor brush, 0xE0FFFFFF
+		GdipFillEllipse gfx, brush, headx - hr - 2.5, heady - hr - 2.5, hr * 2 + 5, hr * 2 + 5
+		gosub *props
+		return
+	}
+	GdipSetSolidFillColor brush, 0xFFFFFFFF
+	GdipFillEllipse gfx, brush, headx - hr, heady - hr, hr * 2, hr * 2
+	GdipDrawEllipse gfx, pen, headx - hr, heady - hr, hr * 2, hr * 2
+	if (view != 2) & (noface = 0) : gosub *face
+	if costume = 1 : gosub *tamane_hair
+	if sea_hat {
+		gosub *season_hat
+	} else {
+		if night : gosub *nightcap
+	}
+	gosub *props
+	return
+
+*nightcap
+	ix = int(headx) : iy = int(heady)
+	poly(0) = ix - 11 : poly(1) = iy - 5
+	poly(2) = ix + 10 : poly(3) = iy - 8
+	poly(4) = ix - 14 : poly(5) = iy - 25
+	GdipSetSolidFillColor brush, 0xFF4A5A9A
+	GdipFillPolygonI gfx, brush, poly, 3, 0
+	GdipSetSolidFillColor brush, 0xFFFFFFFF
+	GdipFillEllipse gfx, brush, ix - 18, iy - 29, 7, 7
+	GdipSetPenWidth pen, 1.4
+	GdipDrawEllipse gfx, pen, ix - 18, iy - 29, 7, 7
+	GdipSetPenWidth pen, 3.0
+	return
+
+*face
+	; 横向きは顔のパーツを前寄りに
+	if view = 0 {
+		fcx = headx + 3.5
+	} else {
+		fcx = headx
+	}
+	fcy = heady + 1.0
+	; 目線：カーソルの方へ少し寄せる
+	ex = 0.0 : ey = 0.0
+	if lie = 0 {
+		gx = double(mx - (int(cx) + int(double(LW / 2) * uis))) : gy = double(my - (int(cy) + int((double(LF) + heady) * uis)))
+		gl = sqrt(gx * gx + gy * gy) + 0.01
+		ex = gx / gl * 1.6 * dir : ey = gy / gl * 1.4
+	}
+	if lookdown : ex = 1.2 : ey = 1.6
+	blink = ((frame \ 220) < 7)
+	GdipSetSolidFillColor brush, inkc
+	e = eyes
+	if (e = 0) & blink : e = 1
+	GdipSetPenWidth pen, 1.7
+	repeat 2
+		if view = 0 {
+			exx = fcx - 4.5 + double(cnt) * 7.0
+		} else {
+			exx = fcx - 4.5 + double(cnt) * 9.0
+		}
+		if e = 0 {
+			GdipFillEllipse gfx, brush, exx - 1.4 + ex, fcy - 3.4 + ey, 2.8, 3.8
+		}
+		if e = 1 : GdipDrawLine gfx, pen, exx - 1.8, fcy - 1.2, exx + 1.8, fcy - 1.2
+		if e = 2 {
+			; ＞＜
+			sg = 1.0 - double(cnt) * 2.0
+			GdipDrawLine gfx, pen, exx - 1.8 * sg, fcy - 3.0, exx + 1.8 * sg, fcy - 1.5
+			GdipDrawLine gfx, pen, exx + 1.8 * sg, fcy - 1.5, exx - 1.8 * sg, fcy
+		}
+		if e = 3 {
+			; 半目
+			GdipDrawLine gfx, pen, exx - 1.8, fcy - 1.6, exx + 1.8, fcy - 1.6
+			GdipFillEllipse gfx, brush, exx - 1.2 + ex * 0.5, fcy - 1.4, 2.4, 2.0
+		}
+		if e = 4 {
+			sg = 1.0 - double(cnt) * 2.0
+			GdipDrawLine gfx, pen, exx - 2.0, fcy - 2.6 - sg, exx + 2.0, fcy - 2.6 + sg
+		}
+		if e = 5 {
+			; 目を回す（＠）
+			GdipDrawEllipse gfx, pen, exx - 2.2, fcy - 3.4, 4.4, 4.4
+			GdipFillEllipse gfx, brush, exx - 0.8 + sin(double(frame) * 0.3) * 0.8, fcy - 2.0 + cos(double(frame) * 0.3) * 0.8, 1.6, 1.6
+		}
+		if e = 6 {
+			; にっこり（＾＾）
+			GdipDrawArc gfx, pen, exx - 2.2, fcy - 3.2, 4.4, 4.4, 200.0, 140.0
+		}
+	loop
+	; 口
+	GdipSetPenWidth pen, 1.8
+	if lip_on : mouth = 0 : gosub *lip_mouth
+	if mouth = 1 : GdipDrawArc gfx, pen, fcx - 2.5, fcy + 1.0, 5.0, 3.6, 20.0, 140.0
+	if mouth = 2 : GdipDrawEllipse gfx, pen, fcx - 1.4, fcy + 2.4, 2.8, 3.0
+	if mouth = 3 {
+		GdipSetSolidFillColor brush, inkc
+		GdipFillEllipse gfx, brush, fcx - 2.6, fcy + 1.4, 5.2, 4.6
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillRectangle gfx, brush, fcx - 3.0, fcy + 0.8, 6.0, 2.4
+	}
+	if mouth = 4 : GdipDrawLine gfx, pen, fcx - 2.0, fcy + 3.6, fcx + 2.0, fcy + 3.6
+	; 怒りマーク
+	if anger {
+		GdipSetPenColor pen, 0xFFE0464E
+		ax = headx + 8.0 : ay = heady - 9.0
+		GdipDrawArc gfx, pen, ax - 4.0, ay - 4.0, 4.0, 4.0, 0.0, 90.0
+		GdipDrawArc gfx, pen, ax, ay - 4.0, 4.0, 4.0, 90.0, 90.0
+		GdipDrawArc gfx, pen, ax - 4.0, ay, 4.0, 4.0, 270.0, 90.0
+		GdipDrawArc gfx, pen, ax, ay, 4.0, 4.0, 180.0, 90.0
+		GdipSetPenColor pen, inkc
+	}
+	GdipSetPenWidth pen, 3.0
+	return
+
+; ---- 持ち物 ----
+*ground_stick
+	if halo {
+		GdipSetPenWidth curpen, 6.0
+	} else {
+		GdipSetPenColor curpen, 0xFF8A5A2B : GdipSetPenWidth curpen, 2.6
+	}
+	GdipDrawLine gfx, curpen, 9.0, -1.6, 34.0, -2.8
+	GdipDrawLine gfx, curpen, 26.0, -2.4, 30.0, -6.0
+	gosub *pen_back
+	return
+
+*props
+	; やることがあれば、その紙を手に持って歩く
+	if (prop = PR_NONE) & carry_paper {
+		if halo {
+			GdipSetSolidFillColor brush, 0xE0FFFFFF
+			GdipFillRectangle gfx, brush, handx - 5.5, handy - 1.5, 11.0, 13.0
+			return
+		}
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillRectangle gfx, brush, handx - 4.0, handy, 8.0, 10.0
+		GdipSetPenWidth pen, 1.2
+		GdipDrawRectangle gfx, pen, handx - 4.0, handy, 8.0, 10.0
+		GdipSetPenColor pen, 0xFF9AA8C8 : GdipSetPenWidth pen, 1.0
+		GdipDrawLine gfx, pen, handx - 2.5, handy + 3.0, handx + 2.5, handy + 3.0
+		GdipDrawLine gfx, pen, handx - 2.5, handy + 5.5, handx + 2.5, handy + 5.5
+		GdipDrawLine gfx, pen, handx - 2.5, handy + 8.0, handx + 1.0, handy + 8.0
+		gosub *pen_back
+		return
+	}
+	if prop = PR_PAPERBALL {
+		; 紙が丸まっていく（tossb：1.0 で広げた紙、0.25 で丸い玉）
+		pr = 3.0 + tossb * 4.0
+		if halo {
+			GdipSetSolidFillColor brush, 0xE0FFFFFF
+			GdipFillEllipse gfx, brush, handx - pr - 1.5, handy - pr - 1.5, pr * 2.0 + 3.0, pr * 2.0 + 3.0
+			return
+		}
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillEllipse gfx, brush, handx - pr, handy - pr, pr * 2.0, pr * 2.0
+		GdipSetPenWidth pen, 1.2
+		GdipDrawEllipse gfx, pen, handx - pr, handy - pr, pr * 2.0, pr * 2.0
+		GdipDrawLine gfx, pen, handx - pr * 0.5, handy - pr * 0.2, handx + pr * 0.3, handy + pr * 0.4
+		gosub *pen_back
+		return
+	}
+	if (prop = PR_NONE) | (prop = PR_GROUNDSTICK) : return
+	if prop = PR_LAPTOP {
+		if halo {
+			GdipSetPenWidth curpen, 7.0
+		} else {
+			GdipSetPenColor curpen, 0xFF6A6A78 : GdipSetPenWidth curpen, 3.0
+		}
+		GdipDrawLine gfx, curpen, 7.0, -2.0, 25.0, -2.0
+		GdipDrawLine gfx, curpen, 25.0, -2.0, 29.0, -15.0
+		if halo = 0 {
+			; 画面の明かり
+			GdipSetPenColor pen, 0xFF9CD4FF : GdipSetPenWidth pen, 1.2
+			GdipDrawLine gfx, pen, 24.0, -5.0, 27.0, -13.0
+		}
+		gosub *pen_back
+		return
+	}
+	if (prop >= PR_KITE) & (prop <= PR_DANGO) {
+		gosub *season_prop
+		gosub *pen_back
+		return
+	}
+	if prop = PR_CLOTH {
+		if halo {
+			GdipSetSolidFillColor brush, 0xE0FFFFFF
+			GdipFillRectangle gfx, brush, handx - 5.0, handy - 4.0, 10.0, 7.0
+			return
+		}
+		GdipSetSolidFillColor brush, 0xFFDDEEFF
+		GdipFillRectangle gfx, brush, handx - 4.0, handy - 3.0, 8.0, 5.0
+		GdipSetPenWidth pen, 1.2
+		GdipDrawRectangle gfx, pen, handx - 4.0, handy - 3.0, 8.0, 5.0
+		gosub *pen_back
+		return
+	}
+	if prop = PR_TOMATO {
+		if halo {
+			GdipSetSolidFillColor brush, 0xE0FFFFFF
+			GdipFillEllipse gfx, brush, handx - 7.5, handy - 13.5, 15.0, 15.0
+			return
+		}
+		GdipSetSolidFillColor brush, 0xFFE0463C
+		GdipFillEllipse gfx, brush, handx - 5.5, handy - 11.0, 11.0, 10.0
+		GdipSetSolidFillColor brush, 0xFF3C9A4A
+		GdipFillEllipse gfx, brush, handx - 3.0, handy - 12.5, 6.0, 3.0
+		return
+	}
+	if prop = PR_STICK {
+		stickline propang, 28.0, 0xFF8A5A2B, 2.6
+		gosub *pen_back
+		return
+	}
+	if prop = PR_ROD {
+		stickline propang, 42.0, 0xFF6E4A2A, 2.0
+		gosub *pen_back
+		if halo = 0 {
+			; 糸と浮き（魚）
+			GdipSetPenColor pen, 0xA0505060 : GdipSetPenWidth pen, 1.0
+			liney = 22.0 + sin(double(frame) * 0.08) * 2.0
+			if fish : liney = tipy + 18.0
+			GdipDrawLine gfx, pen, tipx, tipy, tipx + 2.0, liney
+			if fish {
+				ckx = tipx : cky = liney : gosub *draw_catch
+			} else {
+				GdipSetSolidFillColor brush, 0xFFE04848
+				GdipFillEllipse gfx, brush, tipx, liney - 2.0, 4.0, 4.0
+			}
+			gosub *pen_back
+		}
+		return
+	}
+	if prop = PR_BROOM {
+		stickline propang, 30.0, 0xFFB08850, 2.4
+		; 穂先
+		if halo = 0 : GdipSetPenColor curpen, 0xFFD8B860 : GdipSetPenWidth curpen, 2.0
+		repeat 4
+			a = propang - 18.0 + double(cnt) * 12.0
+			GdipDrawLine gfx, curpen, tipx, tipy, tipx + sin(a * RAD) * 9.0, tipy + cos(a * RAD) * 9.0
+		loop
+		gosub *pen_back
+		if dust & (halo = 0) {
+			GdipSetSolidFillColor brush, 0x60909090
+			repeat 3
+				dt = double((frame + cnt * 13) \ 40) / 40.0
+				GdipFillEllipse gfx, brush, tipx + 6.0 + dt * 14.0, tipy + 6.0 - dt * 10.0 - double(cnt) * 2.0, 3.0 - dt * 2.0, 3.0 - dt * 2.0
+			loop
+		}
+		return
+	}
+	if prop = PR_CUP {
+		if halo {
+			GdipSetSolidFillColor brush, 0xE0FFFFFF
+			GdipFillRectangle gfx, brush, handx - 5.0, handy - 7.0, 10.0, 11.0
+			return
+		}
+		GdipSetSolidFillColor brush, 0xFF7FA86A
+		GdipFillRectangle gfx, brush, handx - 3.0, handy - 5.0, 6.0, 7.0
+		GdipSetPenWidth pen, 1.4
+		GdipDrawRectangle gfx, pen, handx - 3.0, handy - 5.0, 6.0, 7.0
+		if steam {
+			GdipSetPenColor pen, 0x80A0A0A8
+			st = double(frame \ 60) / 60.0
+			GdipDrawArc gfx, pen, handx - 2.0, handy - 12.0 - st * 4.0, 3.0, 5.0, 90.0, 180.0
+			GdipDrawArc gfx, pen, handx + 0.5, handy - 15.0 - st * 4.0, 3.0, 5.0, 270.0, 180.0
+		}
+		gosub *pen_back
+		return
+	}
+	if prop = PR_BOOK {
+		if halo {
+			GdipSetSolidFillColor brush, 0xE0FFFFFF
+			GdipFillRectangle gfx, brush, handx - 11.0, handy - 12.0, 22.0, 15.0
+			return
+		}
+		GdipSetSolidFillColor brush, 0xFFC0504D
+		GdipFillRectangle gfx, brush, handx - 10.0, handy - 11.0, 20.0, 13.0
+		GdipSetSolidFillColor brush, 0xFFFFFDF5
+		GdipFillRectangle gfx, brush, handx - 9.0, handy - 10.0, 8.5, 11.0
+		GdipFillRectangle gfx, brush, handx + 0.5, handy - 10.0, 8.5, 11.0
+		GdipSetPenColor pen, 0x60505060 : GdipSetPenWidth pen, 0.8
+		repeat 3
+			GdipDrawLine gfx, pen, handx - 7.5, handy - 7.5 + double(cnt) * 2.6, handx - 2.0, handy - 7.5 + double(cnt) * 2.6
+			GdipDrawLine gfx, pen, handx + 2.0, handy - 7.5 + double(cnt) * 2.6, handx + 7.5, handy - 7.5 + double(cnt) * 2.6
+		loop
+		if pagef {
+			; ページをめくる
+			GdipSetSolidFillColor brush, 0xFFFFFFFF
+			GdipFillRectangle gfx, brush, handx - 1.0, handy - 13.0, 5.0, 12.0
+		}
+		gosub *pen_back
+		return
+	}
+	return
+
+; 釣れたものを (ckx, cky) に描く
+*draw_catch
+	if (catchk = 0) | (catchk = 4) {
+		sz = 1.0 + (catchk = 4) * 0.8
+		GdipSetSolidFillColor brush, 0xFFF08A3C
+		if catchk = 4 : GdipSetSolidFillColor brush, 0xFF4A78B8
+		GdipFillEllipse gfx, brush, ckx - 3.0 * sz, cky, 10.0 * sz, 5.0 * sz
+		GdipFillEllipse gfx, brush, ckx - 7.0 * sz, cky, 4.0 * sz, 5.0 * sz
+	}
+	if catchk = 1 {
+		GdipSetSolidFillColor brush, 0xFFE03A2A
+		GdipFillEllipse gfx, brush, ckx - 3.0, cky, 8.0, 6.0
+		GdipSetSolidFillColor brush, 0xC0F07060
+		GdipFillEllipse gfx, brush, ckx - 8.0, cky - 1.0, 6.0, 8.0
+	}
+	if catchk = 2 {
+		; 長靴
+		GdipSetSolidFillColor brush, 0xFF5A6A3A
+		GdipFillRectangle gfx, brush, ckx - 2.0, cky, 5.0, 9.0
+		GdipFillRectangle gfx, brush, ckx - 2.0, cky + 6.0, 9.0, 4.0
+	}
+	if catchk = 3 {
+		; 空き缶
+		GdipSetSolidFillColor brush, 0xFFB8BCC4
+		GdipFillRectangle gfx, brush, ckx - 2.5, cky, 5.0, 8.0
+		GdipSetSolidFillColor brush, 0xFFD04040
+		GdipFillRectangle gfx, brush, ckx - 2.5, cky + 2.5, 5.0, 3.0
+	}
+	return
+
+*draw_boot
+	if halo {
+		GdipSetSolidFillColor brush, 0xE0FFFFFF
+		GdipFillEllipse gfx, brush, bfx - 6.0, bfy - 10.0, 14.0, 13.0
+		return
+	}
+	GdipSetSolidFillColor brush, 0xFF5A6A3A
+	GdipFillRectangle gfx, brush, bfx - 3.0, bfy - 8.0, 6.0, 9.0
+	GdipFillEllipse gfx, brush, bfx - 3.0, bfy - 2.0, 10.0, 4.0
+	return
+
+*draw_can_ground
+	if stimer < 82 {
+		ckx = 16.0 : cky = -8.0
+	} else {
+		q = double(stimer - 82) * 1.0
+		ckx = 16.0 + q * 3.2 : cky = -8.0 - q * 3.0 + q * q * 0.05
+	}
+	gosub *draw_catch_can
+	return
+
+*draw_catch_can
+	GdipSetSolidFillColor brush, 0xFFB8BCC4
+	GdipFillRectangle gfx, brush, ckx - 2.5, cky, 5.0, 8.0
+	GdipSetSolidFillColor brush, 0xFFD04040
+	GdipFillRectangle gfx, brush, ckx - 2.5, cky + 2.5, 5.0, 3.0
+	return
+
+; 水槽。飼っている魚が泳ぐ
+*draw_aquarium
+	GdipSetSolidFillColor brush, 0xE0FFFFFF
+	GdipFillRectangle gfx, brush, 13.0, -24.0, 34.0, 25.0
+	GdipSetSolidFillColor brush, 0x9078B8E8
+	GdipFillRectangle gfx, brush, 15.0, -18.0, 30.0, 17.0
+	GdipSetPenWidth pen, 1.4 : GdipSetPenColor pen, 0xFF7A8A9A
+	GdipDrawRectangle gfx, pen, 15.0, -22.0, 30.0, 21.0
+	gosub *pen_back
+	nf = aq_n
+	if nf > 6 : nf = 6
+	repeat nf
+		fxp = 18.0 + (sin(double(frame) * 0.025 + double(cnt) * 1.7) * 0.5 + 0.5) * 22.0
+		fyp = -15.0 + double(cnt) * 2.2 + sin(double(frame) * 0.05 + cnt) * 1.0
+		fdir = cos(double(frame) * 0.025 + double(cnt) * 1.7)
+		GdipSetSolidFillColor brush, 0xFFF08A3C
+		if cnt < aq_gold : GdipSetSolidFillColor brush, 0xFFE03A2A
+		if (cnt >= nf - aq_big) & (aq_big > 0) : GdipSetSolidFillColor brush, 0xFF4A78B8
+		GdipFillEllipse gfx, brush, fxp - 2.5, fyp - 1.5, 5.0, 3.0
+		GdipFillEllipse gfx, brush, fxp - 2.5 - fdir * 2.5, fyp - 1.5, 2.0, 3.0
+	loop
+	; 泡
+	GdipSetSolidFillColor brush, 0xC0FFFFFF
+	bt = double(frame \ 60) / 60.0
+	GdipFillEllipse gfx, brush, 40.0, -3.0 - bt * 14.0, 2.0, 2.0
+	GdipFillEllipse gfx, brush, 37.0, -8.0 - bt * 9.0, 1.6, 1.6
+	; エサ
+	if (stimer > 160) & (stimer < 230) {
+		GdipSetSolidFillColor brush, 0xFF8A6A3A
+		repeat 4
+			GdipFillEllipse gfx, brush, 24.0 + double(cnt) * 3.0, -22.0 + double((stimer - 160 + cnt * 7) \ 30) * 0.6, 1.4, 1.4
+		loop
+	}
+	return
+
+; 借りたアイコンを描く（体の座標系のまま）
+; 紙くずを投げ入れるゴミ箱と、飛んでいく紙の玉（体と同じ座標で描く）
+*draw_toss
+	if stimer >= 40 {
+		poly(0) = 54 : poly(1) = -20 : poly(2) = 72 : poly(3) = -20
+		poly(4) = 70 : poly(5) = 0
+		GdipSetSolidFillColor brush, 0xFFDCE2EA
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		poly(2) = 70 : poly(3) = 0 : poly(4) = 56 : poly(5) = 0
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		GdipSetPenWidth pen, 1.8
+		GdipDrawLine gfx, pen, 54.0, -20.0, 56.0, 0.0
+		GdipDrawLine gfx, pen, 72.0, -20.0, 70.0, 0.0
+		GdipDrawLine gfx, pen, 56.0, 0.0, 70.0, 0.0
+		GdipDrawLine gfx, pen, 52.0, -20.0, 74.0, -20.0
+		GdipSetPenWidth pen, 1.0
+		GdipDrawLine gfx, pen, 60.0, -15.0, 60.5, -4.0
+		GdipDrawLine gfx, pen, 66.0, -15.0, 65.5, -4.0
+		gosub *pen_back
+	}
+	if (stimer >= 92) & (stimer < 132) {
+		tt2 = double(stimer - 92) / 40.0
+		tbx = 8.0 + (63.0 - 8.0) * tt2
+		tby = -50.0 * (1.0 - tt2) + (-18.0) * tt2 - 46.0 * tt2 * (1.0 - tt2)
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillEllipse gfx, brush, tbx - 4.0, tby - 4.0, 8.0, 8.0
+		GdipSetPenWidth pen, 1.2
+		GdipDrawEllipse gfx, pen, tbx - 4.0, tby - 4.0, 8.0, 8.0
+		gosub *pen_back
+	}
+	return
+
+*draw_icons
+	if state != ST_ACT : return
+	if act = ACT_ICONBALL {
+		if icok(0) {
+			iy = -10.0 - absf(sin(double(stimer) * 0.09)) * 34.0
+			GdipDrawImageRectI gfx, icbmp(0), 12, int(iy) - 8, 16, 16
+		}
+		return
+	}
+	if act = ACT_PPAP {
+		if stimer < 195 {
+			if icok(0) : GdipDrawImageRectI gfx, icbmp(0), int(handx) - 8, int(handy) - 17, 16, 16
+			if (stimer >= 70) & icok(1) : GdipDrawImageRectI gfx, icbmp(1), int(lhx) - 8, int(lhy) - 17, 16, 16
+		} else {
+			; 合体：左半分と右半分をくっつける
+			mxp = int((handx + lhx) / 2)
+			myp = int(handy) : if lhy < handy : myp = int(lhy)
+			myp -= 28
+			GdipDrawImageRectRectI gfx, icbmp(0), mxp - 12, myp, 12, 24, 0, 0, 16, 32, 2, 0, 0, 0
+			GdipDrawImageRectRectI gfx, icbmp(1), mxp, myp, 12, 24, 16, 0, 16, 32, 2, 0, 0, 0
+			if (stimer \ 20) < 12 {
+				GdipSetPenColor pen, 0xFFF0C030 : GdipSetPenWidth pen, 1.6
+				GdipDrawLine gfx, pen, mxp - 18, myp - 2, mxp - 14, myp + 2
+				GdipDrawLine gfx, pen, mxp + 18, myp - 2, mxp + 14, myp + 2
+				GdipDrawLine gfx, pen, mxp, myp - 8, mxp, myp - 4
+				gosub *pen_back
+			}
+		}
+	}
+	return
+
+*pen_back
+	if halo {
+		GdipSetPenWidth halopen, 7.0
+	} else {
+		GdipSetPenColor pen, inkc : GdipSetPenWidth pen, 3.0
+	}
+	return
+
+; ---- 着せ替え：珠音（たまね）の髪型 ----
+; 珠音は HSP3 のオフィシャル素材のキャラクター（修正BSDライセンス。著作権はオガワコウサク（チームグリグリ）氏）
+; ドット絵に差し替えると今のポーズが使えなくなるので、棒人間の頭に髪だけをベクターで重ねる
+; 頭の中心から角度（右が0度、上が90度）と半径で点を並べて塗る。体の傾き（lean）に合わせて回す
+; 細かい形を出すため、点は4倍の整数で作り、描くあいだだけ座標を1/4にする
+*tamane_hair
+	hp_n = 0 : dim hpts, 160
+	hr2 = hr + 2.2
+	if view = 0 {
+		; 横向き（前が右）：前髪は目の上まで、うしろは首のあたりまで
+		repeat 23 : hp_t = 30.0 + double(cnt) * 10.0 : hp_r = hr2 : gosub *hp_add : loop
+		; 内側は、うしろ（頭の中心近く）から前髪の生えぎわへ、半径をなだらかに大きくしていく
+		repeat 6 : hp_t = 250.0 - double(cnt) * 20.0 : hp_r = hr * 0.25 : gosub *hp_add : loop
+		repeat 4 : hp_t = 140.0 - double(cnt) * 10.0 : hp_r = hr * (0.3 + double(cnt) * 0.09) : gosub *hp_add : loop
+		repeat 8 : hp_t = 100.0 - double(cnt) * 10.0 : hp_r = hr * 0.62 : gosub *hp_add : loop
+	}
+	if view = 1 {
+		; 正面：前髪と、ほおの横に下りる髪
+		repeat 27 : hp_t = -40.0 + double(cnt) * 10.0 : hp_r = hr2 : gosub *hp_add : loop
+		repeat 3 : hp_t = 220.0 - double(cnt) * 15.0 : hp_r = hr * 0.82 : gosub *hp_add : loop
+		repeat 15 : hp_t = 160.0 - double(cnt) * 10.0 : hp_r = hr * 0.55 : gosub *hp_add : loop
+		repeat 3 : hp_t = 10.0 - double(cnt) * 15.0 : hp_r = hr * 0.82 : gosub *hp_add : loop
+	}
+	if view = 2 {
+		; うしろ向き：頭ぜんぶ
+		repeat 36 : hp_t = double(cnt) * 10.0 : hp_r = hr2 : gosub *hp_add : loop
+	}
+	GdipScaleWorldTransform gfx, 0.25, 0.25, 0
+	GdipSetSolidFillColor brush, 0xFF9A6440
+	GdipFillPolygonI gfx, brush, hpts, hp_n, 0
+	; ふちは線の色ではなく、こげ茶の細い線にする（線の色だと髪が黒っぽく見える）
+	GdipSetPenColor pen, 0xFF5A3420 : GdipSetPenWidth pen, 1.2 * 4.0
+	GdipDrawPolygonI gfx, pen, hpts, hp_n
+	GdipSetPenColor pen, inkc : GdipSetPenWidth pen, 3.0
+	; 髪どめ（赤）
+	if view != 2 {
+		hp_t = 55.0 : if view = 1 : hp_t = 40.0
+		hp_t -= lean
+		hcx = headx + cos(hp_t * RAD) * (hr - 0.5) : hcy = heady - sin(hp_t * RAD) * (hr - 0.5)
+		GdipSetSolidFillColor brush, 0xFFE04848
+		GdipFillEllipse gfx, brush, (hcx - 2.2) * 4.0, (hcy - 2.2) * 4.0, 4.4 * 4.0, 4.4 * 4.0
+	}
+	GdipScaleWorldTransform gfx, 4.0, 4.0, 0
+	return
+
+; 角度 hp_t（度）・半径 hp_r の点を、4倍の整数で hpts に足す
+*hp_add
+	hp_a = (hp_t - lean) * RAD
+	hpts(hp_n * 2) = int((headx + cos(hp_a) * hp_r) * 4.0) : hpts(hp_n * 2 + 1) = int((heady - sin(hp_a) * hp_r) * 4.0)
+	hp_n++
+	return

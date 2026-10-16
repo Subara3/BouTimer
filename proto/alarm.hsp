@@ -1,0 +1,202 @@
+; 作業のおとも、棒人間：時刻を知らせる
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 時刻のお知らせ（alarm.txt に「時:分|くり返し|曜日か日|ひとこと」。1回だけのものは知らせたら消える） ----
+; くり返し（al_rep）：0 1回だけ　1 毎日　2 平日　3 土日　4 毎週（al_arg は曜日。0が日曜）　5 毎月（al_arg は日）
+*load_alarm
+	nal = 0
+	exist datadir + "\\alarm.txt"
+	if strsize < 0 : return
+	sdim atxt, 4096
+	notesel atxt
+	noteload datadir + "\\alarm.txt"
+	repeat notemax
+		noteget al_l, cnt
+		split al_l, "|", als
+		if (stat < 4) | (nal >= 20) : continue
+		p = instr(als(0), 0, ":")
+		if p < 1 : continue
+		ahh = int(strmid(als(0), 0, p)) : amm = int(strmid(als(0), p + 1, 2))
+		if (ahh < 0) | (ahh > 23) | (amm < 0) | (amm > 59) : continue
+		al_m(nal) = ahh * 60 + amm : al_rep(nal) = limit(int(als(1)), 0, 5) : al_arg(nal) = int(als(2)) : al_s(nal) = als(3) : nal++
+	loop
+	noteunsel
+	return
+
+*save_alarm
+	if testmode : return
+	sdim atxt, 4096
+	repeat nal
+		atxt += strf("%02d:%02d|%d|%d|", al_m(cnt) / 60, al_m(cnt) \ 60, al_rep(cnt), al_arg(cnt)) + al_s(cnt) + "\n"
+	loop
+	notesel atxt
+	notesave datadir + "\\alarm.txt"
+	noteunsel
+	return
+
+; くり返しの言い方（ai → al_rs）
+*alarm_repname
+	al_rs = ""
+	if al_rep(ai) = 1 : al_rs = "毎日"
+	if al_rep(ai) = 2 : al_rs = "平日"
+	if al_rep(ai) = 3 : al_rs = "土日"
+	if al_rep(ai) = 4 : wds2 = "日月火水木金土" : al_rs = "毎週" + strmid(wds2, al_arg(ai) * 3, 3) + "曜"
+	if al_rep(ai) = 5 : al_rs = "毎月" + al_arg(ai) + "日"
+	return
+
+; 今日その時刻に知らせるものか（ai → al_today）
+*alarm_istoday
+	gw = gettime(2) : gdd = gettime(3)
+	al_today = 1
+	if al_rep(ai) = 2 : al_today = (gw >= 1) & (gw <= 5)
+	if al_rep(ai) = 3 : al_today = (gw = 0) | (gw = 6)
+	if al_rep(ai) = 4 : al_today = (gw = al_arg(ai))
+	if al_rep(ai) = 5 : al_today = (gdd = al_arg(ai))
+	return
+
+*alarm_open
+	; 毎週・毎月は、今日の曜日と日付で決める
+	wds2 = "日月火水木金土" : al_wd0 = gettime(2) : al_dd0 = gettime(3)
+	al_repitems = "1回だけ\n毎日\n平日（月～金）\n土日\n毎週" + strmid(wds2, al_wd0 * 3, 3) + "曜\n毎月" + al_dd0 + "日"
+	if al_made = 0 {
+		screen 9, 440, 440, 2, (wa(0) + wa(2)) / 2 - 220, (wa(1) + wa(3)) / 2 - 220
+		title "時刻を知らせる"
+		color 250, 250, 246 : boxf
+		font "Meiryo UI", 14 : objmode 2
+		color 40, 40, 48
+		pos 16, 12 : mes "時刻になると、棒人間が手前の窓まで来て知らせます"
+		pos 16, 44 : mes "時" : pos 108, 44 : mes "分" : pos 200, 44 : mes "くり返し"
+		pos 16, 110 : mes "ひとこと（なくてもいい）"
+		sdim al_hlist, 512 : sdim al_mlist, 256
+		repeat 24 : al_hlist += str(cnt) + "時\n" : loop
+		repeat 12 : al_mlist += strf("%02d分\n", cnt * 5) : loop
+		al_hsel = 0 : al_msel = 0 : al_rsel = 0
+		objsize 84, 28
+		pos 16, 68 : combox al_hsel, 300, al_hlist : al_obj_h = stat
+		pos 108, 68 : combox al_msel, 300, al_mlist : al_obj_m = stat
+		objsize 224, 28
+		pos 200, 68 : combox al_rsel, 200, al_repitems : al_obj_r = stat
+		sdim al_in_s, 256
+		pos 16, 134 : input al_in_s, 408, 30, 120 : al_obj_s = stat
+		objsize 132, 34
+		pos 16, 178 : button gosub "追加", *alarm_add_btn
+		pos 154, 178 : button gosub "選んだのを消す", *alarm_del_btn
+		pos 292, 178 : button gosub "閉じる", *alarm_close
+		pos 16, 230 : mes "知らせる時刻"
+		al_lsel = -1
+		objsize 408, 24
+		pos 16, 254 : listbox al_lsel, 136, "" : al_obj_l = stat
+		al_made = 1
+	}
+	gsel 9
+	; くり返しの選択肢を今日の曜日と日付で作り直し、時刻は次の時間を選んでおく
+	objprm al_obj_r, al_repitems
+	sendmsg objinfo(al_obj_r, 2), 0x14E, 0, 0
+	sendmsg objinfo(al_obj_h, 2), 0x14E, (gettime(4) + 1) \ 24, 0
+	sendmsg objinfo(al_obj_m, 2), 0x14E, 0, 0
+	gosub *alarm_draw
+	win_id = 9 : gosub *show_win
+	return
+
+; 一覧を作り直す（時刻の早い順）
+*alarm_draw
+	dim al_map, 20 : sdim al_ltxt, 4096
+	dim al_used, 20
+	repeat nal
+		bi = -1 : bs = 99999
+		repeat nal
+			if (al_used(cnt) = 0) & (al_m(cnt) < bs) : bs = al_m(cnt) : bi = cnt
+		loop
+		if bi < 0 : break
+		al_used(bi) = 1 : al_map(cnt) = bi
+		ai = bi : gosub *alarm_repname
+		if al_rep(bi) = 0 : al_rs = "1回だけ"
+		al_ltxt += strf("%d:%02d　", al_m(bi) / 60, al_m(bi) \ 60) + al_rs + "　" + al_s(bi) + "\n"
+	loop
+	if nal = 0 : al_ltxt = "（まだありません）"
+	gsel 9
+	objprm al_obj_l, al_ltxt
+	gsel 1
+	return
+
+*alarm_add_btn
+	gsel 9
+	sendmsg objinfo(al_obj_h, 2), 0x147, 0, 0 : ahh = limit(stat, 0, 23)
+	sendmsg objinfo(al_obj_m, 2), 0x147, 0, 0 : amm = limit(stat, 0, 11) * 5
+	sendmsg objinfo(al_obj_r, 2), 0x147, 0, 0 : arp = limit(stat, 0, 5)
+	if nal >= 20 : gsel 1 : bubble = "もう覚えきれないぞ" : bubt = 80 : return
+	cu_s = strtrim(al_in_s) : cu_n = 30 : gosub *cut_utf8
+	strrep cu_s, "|", "｜"
+	al_s(nal) = cu_s : al_m(nal) = ahh * 60 + amm : al_rep(nal) = arp : al_arg(nal) = 0
+	if arp = 4 : al_arg(nal) = al_wd0
+	if arp = 5 : al_arg(nal) = al_dd0
+	ai = nal : nal++
+	gosub *save_alarm
+	gosub *alarm_repname
+	if arp = 0 {
+		bubble = strf("%d:%02dだな、覚えとく！", ahh, amm) : bubt = 90
+	} else {
+		bubble = al_rs + strf("%d:%02dだな！", ahh, amm) : bubt = 90
+	}
+	gsel 9
+	objprm al_obj_s, ""
+	gosub *alarm_draw
+	return
+
+*alarm_del_btn
+	gsel 9
+	sendmsg objinfo(al_obj_l, 2), 0x188, 0, 0
+	ls = stat
+	if (ls < 0) | (ls >= nal) : gsel 1 : return
+	tdi = al_map(ls) : gosub *alarm_remove
+	gosub *save_alarm
+	gosub *alarm_draw
+	return
+
+*alarm_remove
+	repeat nal - tdi - 1, tdi
+		al_s(cnt) = al_s(cnt + 1) : al_m(cnt) = al_m(cnt + 1) : al_rep(cnt) = al_rep(cnt + 1) : al_arg(cnt) = al_arg(cnt + 1)
+	loop
+	nal--
+	return
+
+*alarm_close
+	gsel 9, -1
+	gsel 1
+	return
+
+; 1分に1回、知らせる時刻になったものがあるか見る
+*alarm_check
+	nowm = gettime(4) * 60 + gettime(5)
+	if nowm = al_lastmin : return
+	al_lastmin = nowm
+	repeat nal
+		if al_m(cnt) = nowm {
+			ai = cnt : gosub *alarm_istoday
+			if al_today : al_due = cnt : break
+		}
+	loop
+	return
+
+*alarm_fire
+	if (al_due < 0) | (al_due >= nal) : al_due = -1 : return
+	al_time = strf("%d:%02d", al_m(al_due) / 60, al_m(al_due) \ 60)
+	cu_s = al_s(al_due) : cu_n = 13 : gosub *cut_utf8 : al_text = cu_s
+	if al_text = "" : al_text = al_time + "になったぞ！"
+	; 1回だけのものは、知らせたら消す
+	if al_rep(al_due) = 0 {
+		tdi = al_due : gosub *alarm_remove
+		gosub *save_alarm
+		if al_made : gosub *alarm_draw
+	}
+	al_due = -1
+	if behindh : gosub *restore_front
+	hangoff = 0
+	alh = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	; 自分の窓（内訳ややることリスト）には知らせに行かない
+	chk_h = alh : gosub *check_mine
+	if is_mine : alh = 0
+	state = ST_ALARM : stimer = 0 : alt = 0
+	bubble = al_time + "だぞ！" : bubt = 90
+	if sound_on : MessageBeep 0x30
+	return

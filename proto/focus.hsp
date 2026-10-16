@@ -1,0 +1,120 @@
+; 作業のおとも、棒人間：集中の見守り（アプリ別の時間・サボり先）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 集中の見守り ----
+; ih のプロセスの実行ファイル名（小文字）を exename に
+*exe_of
+	exename = ""
+	pid = 0
+	GetWindowThreadProcessId ih, pid
+	hp = OpenProcess(0x1000, 0, pid)
+	if hp = 0 : return
+	sdim pbuf, 1040 : plen = 520
+	QueryFullProcessImageName hp, 0, pbuf, plen
+	CloseHandle hp
+	exename = getpath(cnvwtos(pbuf), 8 + 16)
+	return
+
+; 窓（chk_h）がこのアプリ自身のものか（is_mine に 1）。プロセスの番号で見る
+*check_mine
+	chk_pid = 0
+	GetWindowThreadProcessId chk_h, chk_pid
+	is_mine = (chk_pid = GetCurrentProcessId())
+	return
+
+; 1秒ごと：前面のアプリの時間・切り替え回数・サボり先の見張り
+*track_apps
+	if (frame \ 60) != 0 : return
+	slack_now = 0
+	fgh = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	if fgh = 0 : return
+	; このアプリ自身の窓（棒人間・内訳・設定・やることリストなど）は数えない
+	chk_h = fgh : gosub *check_mine
+	if is_mine : return
+	if fgh != lastfg {
+		if lastfg : switches_today++ : swlog(swi \ 64) = frame : swi++
+		lastfg = fgh
+		ih = fgh : gosub *exe_of : fgexe = exename
+	}
+	if (idlems > 60000) | (fgexe = "") : return
+	ai = -1
+	repeat napp
+		if appname(cnt) = fgexe : ai = cnt : break
+	loop
+	if ai < 0 {
+		if napp >= 40 : return
+		ai = napp : appname(ai) = fgexe : appsec(ai) = 0 : napp++
+	}
+	appsec(ai)++
+	if (phase = 0) & (paused = 0) {
+		; タイトルとアプリ名に、登録した語が入っているか（タイトルは照合するだけで残さない）
+		memset wbuf, 0, 1024
+		GetWindowTextW fgh, wbuf, 255
+		ttl = getpath(cnvwtos(wbuf), 16) + " " + fgexe
+		hit = 0
+		hiti = 0
+		repeat ndl
+			if instr(ttl, 0, dlist(cnt)) >= 0 : hit = 1 : hiti = cnt : break
+		loop
+		if hit & slack_stop : slack_now = 1
+		if hit {
+			dsec++
+		} else {
+			dsec = 0
+		}
+		; 長く開いていたら、予告してから最小化するか閉じる（メニューで選ぶ。最初は「しない」）
+		if closetest : dbg += strf("C f=%d hit=%d dsec=%d mode=%d fg=%d", frame, hit, dsec, close_mode, fgh) + "\n"
+		if hit & (close_mode != 0) {
+			lim = close_min * 60
+			if dmin(hiti) > 0 : lim = dmin(hiti) * 60
+			if closetest : lim = 20
+			warnat = lim - 60
+			if warnat < lim / 2 : warnat = lim / 2
+			if dsec = warnat {
+				if close_mode = 1 : bubble = "そろそろしまうぞ" : bubt = 120
+				if close_mode = 2 : bubble = "あと少しで閉じるぞ" : bubt = 120
+			}
+			if dsec >= lim {
+				if close_mode = 1 : ShowWindow fgh, 6 : bubble = "しまっといたぞ" : bubt = 90
+				; 閉じるときは×ボタンを押したのと同じ通知（WM_SYSCOMMAND / SC_CLOSE）を送る。保存の確認はアプリ側が出す
+				if close_mode = 2 : PostMessage fgh, 0x112, 0xF060, 0 : bubble = "閉じといたぜ" : bubt = 90
+				if closetest : dbg += strf("CLOSE sent stat=%d to=%d", stat, fgh) + "\n"
+				dsec = 0
+			}
+		}
+		; 5分（scold_sec）続けて前面にあったら、注意しに行く。ちょっと見るくらいでは来ない
+		if (dsec >= scold_sec) & (scoldcool = 0) & (state != ST_SCOLD) & (state != ST_ALARM) & (dragging = 0) & (state != ST_CLIMB) & (state != ST_BEHIND) {
+			scoldh = fgh : state = ST_SCOLD : stimer = 0 : scoldt = 0 : scoldcool = 60 * 60 * 10 : bubble = "おーい" : bubt = 40 : evc(EV_SCOLD)++
+		}
+		; 直近5分で30回以上切り替えていたら、ひとこと
+		nrec = 0
+		repeat 64
+			if (swlog(cnt) > 0) & (frame - swlog(cnt) < 18000) : nrec++
+		loop
+		if (nrec >= 30) & (switchcool = 0) : bubble = "ひとつずついこうぜ" : bubt = 80 : switchcool = 60 * 60 * 5
+	}
+	return
+
+*load_distract
+	ndl = 0
+	exist datadir + "\\distract.txt"
+	if strsize < 0 {
+		sdim dtxt, 1024
+		dtxt = "# 作業中に前面にあったら注意する語（ウィンドウのタイトルかアプリ名に含まれる語。1行に1つ。#で始まる行は無視）\n# 「youtube=10」のように書くと、その語だけ、閉じる（最小化する）までの分数を変えられる\nyoutube\nニコニコ\ntwitch\n/ x\n"
+		notesel dtxt : notesave datadir + "\\distract.txt" : noteunsel
+	}
+	sdim dtxt, 8192
+	notesel dtxt
+	noteload datadir + "\\distract.txt"
+	repeat notemax
+		noteget dl, cnt
+		dl = getpath(strtrim(dl), 16)
+		if dl = "" : continue
+		if peek(dl, 0) = '#' : continue
+		dmn = 0
+		pe = instr(dl, 0, "=")
+		if pe > 0 : dmn = int(strmid(dl, pe + 1, 8)) : dl = strmid(dl, 0, pe) : dl = strtrim(dl)
+		if ndl < 32 : dlist(ndl) = dl : dmin(ndl) = dmn : ndl++
+	loop
+	noteunsel
+	return

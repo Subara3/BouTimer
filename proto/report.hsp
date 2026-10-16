@@ -1,0 +1,130 @@
+; 作業のおとも、棒人間：今日の内訳と1週間の記録
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; 今日の内訳を、小さなウィンドウに描く
+*show_report
+	if repinit = 0 {
+		screen 2, 440, 664, 2, (wa(0) + wa(2)) / 2 - 220, (wa(1) + wa(3)) / 2 - 332
+		title "今日の内訳と1週間の記録"
+		repinit = 1
+	}
+	gsel 2
+	redraw 0
+	color 250, 250, 246 : boxf
+	font "Meiryo UI", 18, 1 : color 40, 40, 48 : pos 20, 14 : mes "今日の内訳"
+	font "Meiryo UI", 14
+	pos 20, 54
+	mes strf("ポモドーロ：%dサイクル（作業%d時間%02d分）", pomos_today, workms_today / 3600000, (workms_today / 60000) \ 60)
+	if typecount_on : mes "タイピング" + keys_today + "打"
+	mes "ウィンドウの切り替え" + switches_today + "回"
+	gosub *todo_today_stat
+	if todos_today > td_n : td_n = todos_today
+	if td_n {
+		if td_avg >= 0 {
+			tm = td_avg : gosub *todo_took
+			mes "やること：" + td_n + "個終わった（平均" + strmid(took_s, 3, strlen(took_s) - 6) + "）"
+		} else {
+			mes "やること：" + td_n + "個終わった"
+		}
+	}
+	if aq_n : mes "水槽の魚" + aq_n + "匹"
+	color 110, 110, 120 : pos 20, 170 : mes "前面にあった時間（上位6つ）"
+	; 長い順に6つ選ぶ
+	dim used, 40 : maxsec = 1
+	repeat napp
+		if appsec(cnt) > maxsec : maxsec = appsec(cnt)
+	loop
+	repeat 6
+		bi = -1 : bs = -1
+		repeat napp
+			if used(cnt) = 0 {
+				if appsec(cnt) > bs : bs = appsec(cnt) : bi = cnt
+			}
+		loop
+		if bi < 0 : break
+		used(bi) = 1
+		ry = 200 + cnt * 30
+		bw2 = 200 * appsec(bi) / maxsec
+		color 120, 160, 225 : boxf 170, ry + 5, 170 + bw2, ry + 21
+		an = appname(bi)
+		if strlen(an) > 18 : an = strmid(an, 0, 17) + "…"
+		color 40, 40, 48 : pos 20, ry : mes an
+		pos 176 + bw2, ry : mes strf("%d分", appsec(bi) / 60)
+	loop
+	gosub *draw_week
+	redraw 1
+	win_id = 2 : gosub *show_win
+	return
+
+; この1週間の作業時間を棒グラフにする。いちばん高い棒の上には、棒人間が立つ
+*draw_week
+	color 40, 40, 48 : font "Meiryo UI", 18, 1 : pos 20, 396 : mes "この1週間"
+	if wk_fake = 0 : gosub *hist_load
+	dim wk_w, 7 : sdim wk_lab, 32, 7 : dim wk_wd, 7 : wk_tsum = 0
+	dy = int(strmid(curday, 0, 4)) : dm = int(strmid(curday, 5, 2)) : dd = int(strmid(curday, 8, 2))
+	repeat 7
+		wi = 6 - cnt
+		wdate = strf("%04d-%02d-%02d", dy, dm, dd)
+		if cnt = 0 {
+			wk_w(wi) = workms_today : wk_tsum += todos_today
+		} else {
+			repeat nhist
+				if hist_d(cnt) = wdate : wk_w(wi) = hist_w(cnt) : wk_tsum += hist_t(cnt) : break
+			loop
+			if wk_fake : wk_w(wi) = ((dd * 37) \ 9) * 20 * 60000 : wk_tsum += (dd \ 3)
+		}
+		gosub *weekday_of
+		wk_lab(wi) = strf("%d/%d", dm, dd) : wk_wd(wi) = wd
+		gosub *date_prev
+	loop
+	wmax = 60 * 60000 : wtop = 0 : wsum = 0
+	repeat 7
+		if wk_w(cnt) > wmax : wmax = wk_w(cnt)
+		if wk_w(cnt) > wk_w(wtop) : wtop = cnt
+		wsum += wk_w(cnt)
+	loop
+	font "Meiryo UI", 14 : color 110, 110, 120 : pos 150, 401
+	wk_s = strf("合計%d時間%02d分", wsum / 3600000, (wsum / 60000) \ 60)
+	if wk_tsum : wk_s += "・やること" + wk_tsum + "個"
+	mes wk_s
+	; 地面の線
+	wbase = 614
+	color 200, 200, 210 : line 24, wbase, 416, wbase
+	font "Meiryo UI", 12
+	repeat 7
+		wx = 34 + cnt * 56
+		wh = 120 * wk_w(cnt) / wmax
+		if (wk_w(cnt) > 0) & (wh < 2) : wh = 2
+		if cnt = 6 {
+			color 240, 150, 90
+		} else {
+			color 120, 160, 225
+		}
+		if wh > 0 : boxf wx, wbase - wh, wx + 36, wbase - 1
+		; 時間
+		color 90, 90, 100
+		if wk_w(cnt) >= 60000 : pos wx - 4, wbase - wh - 18 - (cnt = wtop) * 52 : mes strf("%d:%02d", wk_w(cnt) / 3600000, (wk_w(cnt) / 60000) \ 60)
+		; 日付と曜日（今日は太く）
+		color 60, 60, 70
+		if (wk_wd(cnt) = 0) : color 70, 110, 200
+		if (wk_wd(cnt) = 1) : color 210, 80, 80
+		pos wx, wbase + 4 : mes wk_lab(cnt)
+		pos wx + 10, wbase + 18 : wds = "土日月火水木金" : mes strmid(wds, wk_wd(cnt) * 3, 3)
+	loop
+	; いちばん高い棒の上で、棒人間がばんざいする
+	if wk_w(wtop) > 0 {
+		wx = 34 + wtop * 56 + 18 : wy = wbase - 120 * wk_w(wtop) / wmax - 1
+		color 46, 46, 54
+		repeat 3
+			wo = cnt - 1
+			line wx - 6 + wo, wy, wx + wo, wy - 14
+			line wx + 6 + wo, wy, wx + wo, wy - 14
+			line wx + wo, wy - 14, wx + wo, wy - 30
+			line wx + wo, wy - 26, wx - 9 + wo, wy - 40
+			line wx + wo, wy - 26, wx + 9 + wo, wy - 40
+		loop
+		color 255, 255, 255 : circle wx - 7, wy - 45, wx + 8, wy - 30, 1
+		color 46, 46, 54 : circle wx - 7, wy - 45, wx + 8, wy - 30, 0
+		circle wx - 6, wy - 44, wx + 7, wy - 31, 0
+	}
+	return

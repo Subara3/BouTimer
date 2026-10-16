@@ -1,0 +1,293 @@
+; 作業のおとも、棒人間：やることリスト
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 文字数で切る（cu_s を cu_n 文字まで。切ったら「…」を付ける） ----
+*cut_utf8
+	cu_b = 0 : cu_c = 0 : cu_len = strlen(cu_s)
+	repeat
+		if cu_b >= cu_len : break
+		if cu_c >= cu_n : cu_s = strmid(cu_s, 0, cu_b) + "…" : break
+		c0 = peek(cu_s, cu_b)
+		if c0 < 0x80 {
+			cu_b++
+		} else {
+			if c0 >= 0xF0 {
+				cu_b += 4
+			} else {
+				if c0 >= 0xE0 {
+					cu_b += 3
+				} else {
+					cu_b += 2
+				}
+			}
+		}
+		cu_c++
+	loop
+	return
+
+; ---- やることリスト（todo.txt。「- 」はまだ、「x 日付 」は済み） ----
+; 追加した時刻を「- @2026-10-17 14:05 内容」、かかった時間を「x 2026-10-17 [35分] 内容」の形で残す（時刻のない前の形も読める）
+*load_todo
+	ntodo = 0
+	exist datadir + "\\todo.txt"
+	if strsize < 0 : return
+	sdim ttxt, 16384
+	notesel ttxt
+	noteload datadir + "\\todo.txt"
+	repeat notemax
+		noteget tl, cnt
+		tl = strtrim(tl)
+		if strlen(tl) < 2 : continue
+		if ntodo >= 40 : break
+		if peek(tl, 0) = '-' {
+			; strtrim には式を渡せない（エラー23）ので、いったん tsv に入れてから整える
+			tsv = strmid(tl, 1, 255) : tsv = strtrim(tsv) : todo_d(ntodo) = 0 : todo_day(ntodo) = "" : todo_at(ntodo) = "" : todo_min(ntodo) = -1
+			if (peek(tsv, 0) = '@') & (strlen(tsv) > 18) : todo_at(ntodo) = strmid(tsv, 1, 16) : tsv = strmid(tsv, 17, 255) : tsv = strtrim(tsv)
+			todo_s(ntodo) = tsv
+			if tsv != "" : ntodo++
+			continue
+		}
+		if (peek(tl, 0) = 'x') & (strlen(tl) > 13) {
+			todo_day(ntodo) = strmid(tl, 2, 10) : tsv = strmid(tl, 13, 255) : tsv = strtrim(tsv) : todo_d(ntodo) = 1 : todo_at(ntodo) = "" : todo_min(ntodo) = -1
+			; [35分] があれば、かかった時間
+			if peek(tsv, 0) = '[' {
+				tq2 = instr(tsv, 0, "分]")
+				if (tq2 > 1) & (tq2 < 8) : todo_min(ntodo) = int(strmid(tsv, 1, tq2 - 1)) : tsv = strmid(tsv, tq2 + 4, 255) : tsv = strtrim(tsv)
+			}
+			todo_s(ntodo) = tsv
+			if tsv != "" : ntodo++
+		}
+	loop
+	noteunsel
+	return
+
+*save_todo
+	if testmode & (allow_save = 0) : return
+	sdim ttxt, 16384
+	ttxt = "# やることリスト（「- 」で始まる行がまだ、「x 日付 」で始まる行が済んだもの）\n"
+	repeat ntodo
+		if todo_d(cnt) {
+			if todo_min(cnt) >= 0 {
+				ttxt += "x " + todo_day(cnt) + " [" + todo_min(cnt) + "分] " + todo_s(cnt) + "\n"
+			} else {
+				ttxt += "x " + todo_day(cnt) + " " + todo_s(cnt) + "\n"
+			}
+		} else {
+			if todo_at(cnt) != "" {
+				ttxt += "- @" + todo_at(cnt) + " " + todo_s(cnt) + "\n"
+			} else {
+				ttxt += "- " + todo_s(cnt) + "\n"
+			}
+		}
+	loop
+	notesel ttxt
+	notesave datadir + "\\todo.txt"
+	noteunsel
+	return
+
+; まだ済んでいない、いちばん上のもの
+*todo_first
+	todo_top = -1
+	repeat ntodo
+		if todo_d(cnt) = 0 : todo_top = cnt : break
+	loop
+	return
+
+*todo_remove
+	if (tdi < 0) | (tdi >= ntodo) : return
+	repeat ntodo - tdi - 1, tdi
+		todo_s(cnt) = todo_s(cnt + 1) : todo_d(cnt) = todo_d(cnt + 1) : todo_day(cnt) = todo_day(cnt + 1) : todo_at(cnt) = todo_at(cnt + 1) : todo_min(cnt) = todo_min(cnt + 1)
+	loop
+	ntodo--
+	return
+
+*todo_add
+	todo_in = strtrim(todo_in)
+	if todo_in = "" : return
+	cu_s = todo_in : cu_n = 40 : gosub *cut_utf8 : todo_in = cu_s
+	if ntodo >= 40 {
+		; いっぱいなら、いちばん古い済んだものを消す
+		tdi = -1
+		repeat ntodo
+			if todo_d(cnt) : tdi = cnt : break
+		loop
+		if tdi < 0 : bubble = "もう持ちきれないぞ" : bubt = 80 : return
+		gosub *todo_remove
+	}
+	todo_s(ntodo) = todo_in : todo_d(ntodo) = 0 : todo_day(ntodo) = "" : todo_min(ntodo) = -1
+	todo_at(ntodo) = strf("%04d-%02d-%02d %02d:%02d", gettime(0), gettime(1), gettime(3), gettime(4), gettime(5)) : ntodo++
+	gosub *save_todo
+	bubble = "よし、持っとく！" : bubt = 80
+	return
+
+*todo_done
+	if (tdi < 0) | (tdi >= ntodo) : return
+	if todo_d(tdi) : return
+	todo_d(tdi) = 1 : todo_day(tdi) = curday : todo_min(tdi) = -1
+	; 追加してから終わるまでの時間（分）
+	if todo_at(tdi) != "" {
+		ta = todo_at(tdi) : gosub *todo_abs : tm0 = tm_abs
+		ta = strf("%04d-%02d-%02d %02d:%02d", gettime(0), gettime(1), gettime(3), gettime(4), gettime(5)) : gosub *todo_abs
+		if tm_abs >= tm0 : todo_min(tdi) = tm_abs - tm0
+	}
+	todos_today++
+	gosub *save_todo
+	todo_ask = 0 : toss_pending = 1
+	bubble = "ひとつ片づいたな！" : bubt = 90
+	return
+
+*todo_open
+	if todo_made = 0 {
+		screen 10, 440, 400, 2, (wa(0) + wa(2)) / 2 - 220, (wa(1) + wa(3)) / 2 - 200
+		title "やることリスト"
+		color 250, 250, 246 : boxf
+		font "Meiryo UI", 14 : objmode 2
+		color 40, 40, 48 : pos 16, 10 : mes "いちばん上のやることを、棒人間が持って歩きます"
+		tsel = -1
+		pos 16, 38 : objsize 408, 24 : listbox tsel, 176, "" : todo_lb = stat
+		sdim todo_in, 256
+		pos 16, 252 : input todo_in, 300, 30, 120 : todo_inp = stat
+		pos 324, 250 : objsize 100, 34 : button gosub "追加", *todo_add_btn
+		objsize 100, 34
+		pos 16, 300 : button gosub "終わった！", *todo_done_btn
+		pos 120, 300 : button gosub "いちばん上へ", *todo_up_btn
+		pos 224, 300 : button gosub "消す", *todo_del_btn
+		pos 328, 300 : button gosub "閉じる", *todo_close
+		font "Meiryo UI", 12 : color 130, 130, 140 : pos 16, 352
+		mes "済んだものはその日のうちはリストに残ります。（　）は追加してから終わるまでの時間"
+		todo_made = 1
+	}
+	gsel 10
+	gosub *todo_fill
+	win_id = 10 : gosub *show_win
+	return
+
+; リストの中身を作り直す（まだのもの → 今日済んだもの）
+*todo_fill
+	dim todo_map, 40 : nmap = 0 : sdim tlist, 16384
+	repeat ntodo
+		if todo_d(cnt) = 0 : tlist += "・" + todo_s(cnt) + "\n" : todo_map(nmap) = cnt : nmap++
+	loop
+	repeat ntodo
+		if todo_d(cnt) & (todo_day(cnt) = curday) {
+			tm = todo_min(cnt) : gosub *todo_took
+			tlist += "✓ " + todo_s(cnt) + took_s + "\n" : todo_map(nmap) = cnt : nmap++
+		}
+	loop
+	gsel 10
+	objprm todo_lb, tlist
+	gsel 1
+	return
+
+; 選んでいる行（LB_GETCURSEL）を、todo の番号にする
+*todo_sel
+	gsel 10
+	sendmsg objinfo(todo_lb, 2), 0x188, 0, 0
+	ts = stat : tdi = -1
+	if (ts >= 0) & (ts < nmap) : tdi = todo_map(ts)
+	return
+
+*todo_add_btn
+	gsel 10
+	gosub *todo_add
+	objprm todo_inp, ""
+	gosub *todo_fill
+	return
+
+*todo_done_btn
+	gosub *todo_sel
+	gosub *todo_done
+	gosub *todo_fill
+	return
+
+*todo_up_btn
+	gosub *todo_sel
+	if tdi <= 0 : gsel 1 : return
+	tk_s = todo_s(tdi) : tk_d = todo_d(tdi) : tk_day = todo_day(tdi) : tk_at = todo_at(tdi) : tk_min = todo_min(tdi)
+	gosub *todo_remove
+	repeat ntodo
+		ti = ntodo - cnt
+		todo_s(ti) = todo_s(ti - 1) : todo_d(ti) = todo_d(ti - 1) : todo_day(ti) = todo_day(ti - 1) : todo_at(ti) = todo_at(ti - 1) : todo_min(ti) = todo_min(ti - 1)
+	loop
+	todo_s(0) = tk_s : todo_d(0) = tk_d : todo_day(0) = tk_day : todo_at(0) = tk_at : todo_min(0) = tk_min : ntodo++
+	gosub *save_todo
+	gosub *todo_fill
+	return
+
+*todo_del_btn
+	gosub *todo_sel
+	gosub *todo_remove
+	gosub *save_todo
+	gosub *todo_fill
+	return
+
+*todo_close
+	gsel 10, -1
+	gsel 1
+	return
+
+; カーソルを乗せたときのやることの札をクリックしたとき
+*todo_hover_click
+	if (td_undo >= 0) & (frame < td_undo_t) & (td_undo < ntodo) {
+		; 済ませた直後なら、まだに戻す
+		tdi = td_undo
+		if todo_d(tdi) {
+			todo_d(tdi) = 0 : todo_day(tdi) = "" : todo_min(tdi) = -1
+			if todos_today > 0 : todos_today--
+			toss_pending = 0
+			if (state = ST_ACT) & (act = ACT_TOSS) : state = ST_IDLE : stimer = 0
+			gosub *save_todo
+			bubble = "おっと、まだだったか" : bubt = 70
+		}
+		td_undo = -1
+	} else {
+		gosub *todo_first
+		if todo_top < 0 : return
+		tdi = todo_top : gosub *todo_done
+		td_undo = tdi : td_undo_t = frame + 60 * 8
+	}
+	gosub *todo_first
+	if todo_made : gosub *todo_fill
+	return
+
+; 休憩中に聞かれたあと、つつかれたら「終わった？」の小さなメニューを出す
+*todo_ask_menu
+	todo_ask = 0
+	gosub *todo_first
+	if todo_top < 0 : return
+	hm = CreatePopupMenu()
+	AppendMenu hm, 0, 1, "終わった！"
+	AppendMenu hm, 0, 2, "まだ"
+	gosub *track_menu
+	r2 = menu_r
+	if r2 = 1 : tdi = todo_top : gosub *todo_done : if todo_made : gosub *todo_fill
+	if r2 = 2 : bubble = "おう、あとでな" : bubt = 60
+	return
+
+; 「2026-10-17 14:05」（ta）を、通しの分（tm_abs）にする
+*todo_abs
+	dy = int(strmid(ta, 0, 4)) : dm = int(strmid(ta, 5, 2)) : dd = int(strmid(ta, 8, 2))
+	gosub *day_num
+	tm_abs = dnum * 1440 + int(strmid(ta, 11, 2)) * 60 + int(strmid(ta, 14, 2))
+	return
+
+; かかった時間（tm 分）を「（35分）」のような文字（took_s）にする。わからなければ空
+*todo_took
+	took_s = ""
+	if tm < 0 : return
+	if tm < 60 : took_s = "（" + tm + "分）" : return
+	if tm < 1440 : took_s = strf("（%d時間%d分）", tm / 60, tm \ 60) : return
+	took_s = strf("（%d日%d時間）", tm / 1440, (tm / 60) \ 24)
+	return
+
+; 今日済んだものの数（td_n）と、かかった時間がわかるものの平均（td_avg。なければ -1）
+*todo_today_stat
+	td_n = 0 : td_sum = 0 : td_k = 0 : td_avg = -1
+	repeat ntodo
+		if todo_d(cnt) & (todo_day(cnt) = curday) {
+			td_n++
+			if todo_min(cnt) >= 0 : td_sum += todo_min(cnt) : td_k++
+		}
+	loop
+	if td_k : td_avg = td_sum / td_k
+	return

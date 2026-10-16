@@ -1,0 +1,102 @@
+; 作業のおとも、棒人間：ウィンドウのアイコンと線の色
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- アイコン ----
+; isl 番の置き場に、ウィンドウ ih のアイコンを描く
+*load_icon
+	icok(isl) = 0
+	if ih = 0 : return
+	res = 0 : hic = 0
+	SendMessageTimeout ih, 0x7F, 1, 0, 2, 50, res
+	hic = res
+	if hic = 0 : SendMessageTimeout ih, 0x7F, 2, 0, 2, 50, res : hic = res
+	if hic = 0 : hic = GetClassLong(ih, -14)
+	if hic = 0 : hic = GetClassLong(ih, -34)
+	if hic = 0 : return
+	if isl = 0 {
+		memset icb0, 0, 4096
+	} else {
+		memset icb1, 0, 4096
+	}
+	DrawIconEx icdc(isl), 0, 0, hic, 32, 32, 0, 0, 3
+	; 古い形式のアイコンはアルファが入らないので、色のある画素を不透明にする
+	nz = 0
+	repeat 1024
+		if isl = 0 {
+			v = lpeek(icb0, cnt * 4)
+		} else {
+			v = lpeek(icb1, cnt * 4)
+		}
+		if (v >> 24) & 255 : nz = 1 : break
+	loop
+	if nz = 0 {
+		repeat 1024
+			if isl = 0 {
+				v = lpeek(icb0, cnt * 4)
+				if v & 0xFFFFFF : lpoke icb0, cnt * 4, v | 0xFF000000
+			} else {
+				v = lpeek(icb1, cnt * 4)
+				if v & 0xFFFFFF : lpoke icb1, cnt * 4, v | 0xFF000000
+			}
+		loop
+	}
+	icok(isl) = 1 : ichwnd(isl) = ih
+	return
+
+; 0番：乗っているウィンドウ（なければ前面）、1番：ほかのウィンドウ
+*ensure_icons
+	isl = 0 : ih = onh : gosub *load_icon
+	if icok(0) = 0 {
+		ih = GetAncestor(GetForegroundWindow(), GA_ROOT)
+		if ih != myhwnd : gosub *load_icon
+	}
+	isl = 1 : icok(1) = 0
+	gosub *scan_platforms
+	repeat nplat
+		if plat_h(cnt) = ichwnd(0) : continue
+		ih = plat_h(cnt) : gosub *load_icon
+		if icok(1) : break
+	loop
+	return
+
+; ---- 主線の色をアイコンの色から決める（おまかせ） ----
+*ink_from_window
+	if onh = 0 : return
+	isl = 0 : ih = onh : gosub *load_icon
+	if icok(0) = 0 : inkt = INK : return
+	; 鮮やかな画素ほど重く平均する
+	sumr = 0.0 : sumg = 0.0 : sumb = 0.0 : sumw = 0.0
+	repeat 1024
+		v = lpeek(icb0, cnt * 4)
+		if ((v >> 24) & 255) < 160 : continue
+		cbl = v & 255 : cgr = (v >> 8) & 255 : cre = (v >> 16) & 255
+		cmx = cre
+		if cgr > cmx : cmx = cgr
+		if cbl > cmx : cmx = cbl
+		cmn = cre
+		if cgr < cmn : cmn = cgr
+		if cbl < cmn : cmn = cbl
+		if cmx < 50 : continue
+		sat = double(cmx - cmn) / cmx
+		if sat < 0.3 : continue
+		sumr += double(cre) * sat : sumg += double(cgr) * sat : sumb += double(cbl) * sat : sumw += sat
+	loop
+	if sumw < 3.0 : inkt = INK : return
+	cre = sumr / sumw : cgr = sumg / sumw : cbl = sumb / sumw
+	; 線として読めるよう暗くする（いちばん明るい成分を110に）
+	cmx = cre
+	if cgr > cmx : cmx = cgr
+	if cbl > cmx : cmx = cbl
+	k = 110.0 / maxf(cmx, 1.0)
+	inkt = 0xFF000000 | (int(cre * k) << 16) | (int(cgr * k) << 8) | int(cbl * k)
+	return
+
+; 主線の色を目標へ少しずつ寄せる
+*ink_step
+	ir = (inkc >> 16) & 255 : ig = (inkc >> 8) & 255 : ib = inkc & 255
+	tr = (inkt >> 16) & 255 : tg = (inkt >> 8) & 255 : tb = inkt & 255
+	ir += (tr - ir) / 8 + (tr > ir) - (tr < ir)
+	ig += (tg - ig) / 8 + (tg > ig) - (tg < ig)
+	ib += (tb - ib) / 8 + (tb > ib) - (tb < ib)
+	inkc = 0xFF000000 | (ir << 16) | (ig << 8) | ib
+	return

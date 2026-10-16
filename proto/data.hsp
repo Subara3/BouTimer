@@ -1,0 +1,194 @@
+; 作業のおとも、棒人間：記録と設定の読み書き
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 設定と今日の記録（settings.txt。キー入力の中身は保存しない） ----
+*load_settings
+	; 自分の実行ファイルの名前（小文字。前面のアプリの記録から外すのに使う）
+	sdim mfn, 1024
+	GetModuleFileName 0, mfn, 512
+	myexe = getpath(cnvwtos(mfn), 8 + 16)
+	boot_t = 0 : boot_day = ""
+	sdim appname, 64, 40 : dim appsec, 40 : napp = 0 : switches_today = 0 : todos_today = 0
+	dim evc, NEV : sdate = "" : diary_pending = 0
+	today = strf("%04d-%02d-%02d", gettime(0), gettime(1), gettime(3))
+	work_min = 25 : break_min = 5 : typecount_on = 1 : sound_on = 1 : inkmode = 0 : close_mode = 0 : close_min = 15
+	season_on = 1 : slack_stop = 0 : idle_stop = 1 : costume = 0 : act_level = 1 : my_fcode = "" : diary_hour = 21 : diary_asked = "" : voice_mode = 0 : voice_asked = 0 : vv_speaker = 11 : friend_on = 0 : myid = "" : gh_url = "https://boutimer-ghost.subara3.workers.dev/"
+	pomos_today = 0 : keys_today = 0 : pomos_total = 0 : workms_today = 0
+	aq_n = 0 : aq_gold = 0 : aq_big = 0
+	exist datadir + "\\settings.txt"
+	if strsize < 0 : return
+	sdim stxt, 1024
+	notesel stxt
+	noteload datadir + "\\settings.txt"
+	repeat notemax
+		noteget sl, cnt
+		p = instr(sl, 0, "=")
+		if p < 0 : continue
+		sk = strmid(sl, 0, p) : sv = strmid(sl, p + 1, 256)
+		if sk = "date" : sdate = sv
+		if sk = "pomos_today" : pomos_today = int(sv)
+		if sk = "keys_today" : keys_today = int(sv)
+		if sk = "work_ms_today" : workms_today = int(sv)
+		if sk = "aq_n" : aq_n = int(sv)
+		if sk = "aq_gold" : aq_gold = int(sv)
+		if sk = "aq_big" : aq_big = int(sv)
+		if sk = "pomos_total" : pomos_total = int(sv)
+		if sk = "work_min" : work_min = int(sv)
+		if sk = "break_min" : break_min = int(sv)
+		if sk = "typecount" : typecount_on = int(sv)
+		if sk = "sound" : sound_on = int(sv)
+		if sk = "ink" : inkmode = int(sv)
+		if sk = "close_mode" : close_mode = int(sv)
+		if sk = "close_min" : close_min = int(sv)
+		if sk = "voice" : voice_mode = int(sv)
+		if sk = "voice_asked" : voice_asked = int(sv)
+		if sk = "boot_day" : boot_day = sv
+		if sk = "speaker" : vv_speaker = int(sv)
+		if sk = "friend" : friend_on = int(sv)
+		if sk = "season" : season_on = int(sv)
+		if sk = "act_level" : act_level = int(sv)
+		if sk = "slack_stop" : slack_stop = int(sv)
+		if sk = "idle_stop" : idle_stop = int(sv)
+		if sk = "costume" : costume = int(sv)
+		if sk = "diary_hour" : diary_hour = int(sv)
+		if sk = "diary_asked" : diary_asked = sv
+		if sk = "myid" : myid = sv
+		if sk = "fcode" : my_fcode = sv
+		if sk = "ghost_url" : gh_url = sv
+		if sk = "switches" : switches_today = int(sv)
+		if sk = "todos_today" : todos_today = int(sv)
+		if sk = "ev" {
+			split sv, ",", evs
+			repeat limit(stat, 0, NEV)
+				evc(cnt) = int(evs(cnt))
+			loop
+		}
+		if sk = "app" {
+			p2 = instr(sv, 0, ",")
+			; このアプリ自身の分は読まない（前の版では、自分の小さな窓を開いている時間も数えていた）
+			if (p2 > 0) & (napp < 40) {
+				if strmid(sv, 0, p2) != myexe : appname(napp) = strmid(sv, 0, p2) : appsec(napp) = int(strmid(sv, p2 + 1, 32)) : napp++
+			}
+		}
+	loop
+	noteunsel
+	if strlen(myid) != 16 : myid = strf("%04x%04x%04x%04x", rnd(32768) * 2 + rnd(2), rnd(32768) * 2 + rnd(2), rnd(32768) * 2 + rnd(2), rnd(32768) * 2 + rnd(2))
+	; 長靴は釣った日のあいだだけはいている
+	if (boot_day != "") & (boot_day = today) : boot_t = 1
+	if boot_day != today : boot_day = ""
+	if (sdate != "") & (sdate != today) {
+		; 前の日の記録が残っていたら、それで絵日記を描いてから空にする（描くのは GDI+ の準備のあと）
+		if (pomos_today > 0) | (workms_today > 60000) | (napp > 0) : diary_pending = 1 : diary_date = sdate
+		if diary_pending = 0 : gosub *reset_today
+	}
+	return
+
+*save_settings
+	; 確認用モードでは記録も設定も書きかえない
+	if testmode & (allow_save = 0) : return
+	today = strf("%04d-%02d-%02d", gettime(0), gettime(1), gettime(3))
+	sdim stxt, 8192
+	; 日付は「記録が属する日」。0時をまたいだ直後に終了しても、前の日の記録を今日の分にしない
+	sday = curday
+	if sday = "" : sday = today
+	stxt = "date=" + sday + "\n"
+	stxt += "pomos_today=" + pomos_today + "\n"
+	stxt += "keys_today=" + keys_today + "\n"
+	stxt += "work_ms_today=" + workms_today + "\n"
+	stxt += "aq_n=" + aq_n + "\n"
+	stxt += "aq_gold=" + aq_gold + "\n"
+	stxt += "aq_big=" + aq_big + "\n"
+	stxt += "pomos_total=" + pomos_total + "\n"
+	stxt += "work_min=" + work_min + "\n"
+	stxt += "break_min=" + break_min + "\n"
+	stxt += "typecount=" + typecount_on + "\n"
+	stxt += "sound=" + sound_on + "\n"
+	stxt += "ink=" + inkmode + "\n"
+	stxt += "close_mode=" + close_mode + "\n"
+	stxt += "close_min=" + close_min + "\n"
+	stxt += "voice=" + voice_mode + "\n"
+	stxt += "voice_asked=" + voice_asked + "\n"
+	stxt += "boot_day=" + boot_day + "\n"
+	stxt += "speaker=" + vv_speaker + "\n"
+	stxt += "friend=" + friend_on + "\n"
+	stxt += "season=" + season_on + "\n"
+	stxt += "act_level=" + act_level + "\n"
+	stxt += "slack_stop=" + slack_stop + "\n"
+	stxt += "idle_stop=" + idle_stop + "\n"
+	stxt += "costume=" + costume + "\n"
+	stxt += "diary_hour=" + diary_hour + "\n"
+	stxt += "diary_asked=" + diary_asked + "\n"
+	stxt += "myid=" + myid + "\n"
+	stxt += "fcode=" + my_fcode + "\n"
+	stxt += "ghost_url=" + gh_url + "\n"
+	stxt += "switches=" + switches_today + "\n"
+	stxt += "todos_today=" + todos_today + "\n"
+	evline = ""
+	repeat NEV
+		if cnt : evline += ","
+		evline += str(evc(cnt))
+	loop
+	stxt += "ev=" + evline + "\n"
+	repeat napp
+		stxt += "app=" + appname(cnt) + "," + appsec(cnt) + "\n"
+	loop
+	notesel stxt
+	notesave datadir + "\\settings.txt"
+	noteunsel
+	; 1週間の記録用に、日ごとの合計も残す
+	hdate = curday
+	if hdate = "" : hdate = today
+	gosub *hist_put
+	return
+
+; ---- 日ごとの記録（history.txt に「日付,作業ミリ秒,ポモドーロ,打数,済んだやること」。60日分。前の版の4列も読める） ----
+*hist_load
+	nhist = 0
+	exist datadir + "\\history.txt"
+	if strsize < 0 : return
+	sdim htxt, 8192
+	notesel htxt
+	noteload datadir + "\\history.txt"
+	repeat notemax
+		noteget hl, cnt
+		split hl, ",", hvs
+		hn = stat
+		if hn < 4 : continue
+		if nhist >= 60 : break
+		hist_d(nhist) = hvs(0) : hist_w(nhist) = int(hvs(1)) : hist_p(nhist) = int(hvs(2)) : hist_k(nhist) = int(hvs(3)) : hist_t(nhist) = 0
+		if hn >= 5 : hist_t(nhist) = int(hvs(4))
+		nhist++
+	loop
+	noteunsel
+	return
+
+*hist_put
+	gosub *hist_load
+	hi = -1
+	repeat nhist
+		if hist_d(cnt) = hdate : hi = cnt : break
+	loop
+	if hi < 0 {
+		if (workms_today < 60000) & (pomos_today = 0) & (todos_today = 0) : return
+		if nhist >= 60 {
+			; いちばん古い日を消す
+			repeat 59
+				hist_d(cnt) = hist_d(cnt + 1) : hist_w(cnt) = hist_w(cnt + 1) : hist_p(cnt) = hist_p(cnt + 1) : hist_k(cnt) = hist_k(cnt + 1) : hist_t(cnt) = hist_t(cnt + 1)
+			loop
+			nhist = 59
+		}
+		hi = nhist : nhist++
+	}
+	hist_d(hi) = hdate : hist_w(hi) = workms_today : hist_p(hi) = pomos_today : hist_k(hi) = keys_today : hist_t(hi) = todos_today
+	sdim htxt, 8192
+	repeat nhist
+		htxt += hist_d(cnt) + "," + hist_w(cnt) + "," + hist_p(cnt) + "," + hist_k(cnt) + "," + hist_t(cnt) + "\n"
+	loop
+	notesel htxt
+	notesave datadir + "\\history.txt"
+	noteunsel
+	return
+
+*apply_minutes
+	work_ms = work_min * 60 * 1000 : break_ms = break_min * 60 * 1000
+	return

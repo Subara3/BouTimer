@@ -1,0 +1,39 @@
+; 作業のおとも、棒人間：音楽に合わせて動く（音量だけを読む）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+*open_meter
+	; 確認用：noaudio で起動すると、出力デバイスがない環境と同じく初期化しない
+	cmdn = dir_cmdline
+	if instr(cmdn, 0, "noaudio") >= 0 : return
+	; 既定の再生デバイスの IAudioMeterInformation を取る
+	; 受け取り用の COM 変数を先に空で作っておき、出力先として渡す（HSP付属 mod_mmaudio.as と同じ作法）
+	newcom mmde, IMMDeviceEnumerator
+	if varuse(mmde) = 0 : return
+	newcom mmdev, IMMDevice, -1, 0
+	newcom meter, IAudioMeterInformation, -1, 0
+	MMDE_GetDefaultAudioEndpoint mmde, 0, 0, mmdev
+	if varuse(mmdev) = 0 : return
+	iid = 0xC02216F6, 0x4B5B8C67, 0x08D0009D, 0x64003EE7
+	MMD_Activate mmdev, iid, 1, 0, meter
+	if varuse(meter) = 0 : return
+	meter_ok = 1
+	return
+
+; 拍を拾う：いまのピークが、ならした音量よりはっきり大きいときを拍の頭とみなす
+*listen
+	if meter_ok = 0 : return
+	pkb = 0
+	AMI_GetPeakValue meter, pkb
+	peak = f2d(pkb)
+	penv = penv * 0.96 + peak * 0.04
+	if bounce > 0.0 : bounce -= 0.12
+	if (peak > penv * 1.35) & (peak > 0.04) & (frame - lastbeat > 14) {
+		lastbeat = frame : bounce = 1.0 : beatn++
+	}
+	; しばらく鳴り続けていたら音楽とみなす
+	if penv > 0.02 {
+		if musicfr < 600 : musicfr++
+	} else {
+		if musicfr > 0 : musicfr -= 3
+	}
+	return

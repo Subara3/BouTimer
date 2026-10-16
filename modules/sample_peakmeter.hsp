@@ -1,0 +1,44 @@
+; mod_peakmeter.as の使用例：再生中の音の大きさを棒で出し、拍の頭を拾ったら丸を光らせる。
+; 何か音楽を流してから動かす。録音はせず、出力デバイスの「いまの音量」だけを読む。
+#include "hsp3utf.as"
+#include "mod_peakmeter.as"
+
+	cmd = dir_cmdline
+	testmode = instr(cmd, 0, "test") >= 0
+	screen 0, 360, 160
+	title "mod_peakmeter のサンプル"
+	font "Meiryo UI", 14
+	peak_open
+	ok = stat
+	flash = 0 : beats = 0
+	repeat
+		if testmode & (cnt > 120) : end
+		peak_update
+		if peak_beat() : flash = 12 : beats++
+		if flash > 0 : flash--
+		redraw 0
+		color 250, 250, 246 : boxf
+		color 40, 40, 48 : pos 12, 8
+		if ok = 0 {
+			mes "出力デバイスが見つかりません"
+		} else {
+			mes strf("ピーク %.2f　ならした音量 %.2f　拍 %d", peak_value(), peak_envelope(), beats)
+			color 220, 220, 228 : boxf 12, 44, 300, 70
+			color 74, 144, 226 : boxf 12, 44, 12 + int(288.0 * peak_value()), 70
+			color 240, 150, 90 : boxf 12, 80, 12 + int(288.0 * peak_envelope()), 92
+			if flash {
+				color 240, 90, 90
+			} else {
+				color 220, 220, 228
+			}
+			circle 312, 44, 344, 76, 1
+			color 110, 110, 120 : pos 12, 110
+			if peak_playing() {
+				mes "鳴っている"
+			} else {
+				mes "静か"
+			}
+		}
+		redraw 1
+		await 16
+	loop

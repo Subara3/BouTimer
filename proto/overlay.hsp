@@ -1,0 +1,99 @@
+; 作業のおとも、棒人間：認識の図示
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 認識の図示：認識している足場・隠れた辺・経路・内部の値を、画面に重ねて描く ----
+*ovl_toggle
+	ovl_on = 1 - ovl_on
+	if ovl_on = 0 : ShowWindow ovhwnd, 0 : return
+	if ovl_made = 0 {
+		vw = vright - vleft : vh = GetSystemMetrics(79)
+		bgscr 5, vw, vh, 2, vleft, vtop
+		ovhwnd = hwnd
+		exs = GetWindowLong(ovhwnd, GWL_EXSTYLE)
+		SetWindowLong ovhwnd, GWL_EXSTYLE, exs | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT
+		dim bmi3, 10
+		bmi3(0) = 40 : bmi3(1) = vw : bmi3(2) = -vh : bmi3(3) = 1 | (32 << 16)
+		ppv3 = 0
+		hbmp3 = CreateDIBSection(0, bmi3, 0, ppv3, 0, 0)
+		memdc3 = CreateCompatibleDC(0)
+		SelectObject memdc3, hbmp3
+		GdipCreateBitmapFromScan0 vw, vh, vw * 4, 0xE200B, ppv3, gbmp3
+		GdipGetImageGraphicsContext gbmp3, govl
+		GdipSetSmoothingMode govl, 4
+		GdipSetTextRenderingHint govl, 4
+		GdipCreatePen1 0xD000C8FF, 3.0, 2, ovpvis
+		GdipCreatePen1 0x90FF5050, 2.0, 2, ovphid
+		GdipSetPenDashStyle ovphid, 2
+		GdipCreatePen1 0xE0FFB020, 2.5, 2, ovppath
+		GdipSetPenDashStyle ovppath, 1
+		dim ptd3, 2 : dim psz3, 2
+		psz3(0) = vw : psz3(1) = vh
+		ovl_made = 1
+		gsel 1
+	}
+	ShowWindow ovhwnd, 4
+	SetWindowPos ovhwnd, -1, 0, 0, 0, 0, 0x13
+	; キャラのほうを前に
+	SetWindowPos myhwnd, -1, 0, 0, 0, 0, 0x13
+	return
+
+; 足場の上辺のひと続きの区間を描く（見えている=水色の線、隠れている=赤い点線）
+*ovl_seg
+	if lastvis = 1 {
+		GdipDrawLine govl, ovpvis, segl - vleft, plat_t(bp) - vtop, sxp - vleft, plat_t(bp) - vtop
+	} else {
+		GdipDrawLine govl, ovphid, segl - vleft, plat_t(bp) - vtop, sxp - vleft, plat_t(bp) - vtop
+	}
+	return
+
+*ovl_render
+	GdipGraphicsClear govl, 0
+	ndraw = 1 : gosub *build_nodes : ndraw = 0
+	ov_savg = gfx : gfx = govl
+	GdipResetWorldTransform gfx
+	; 乗っている足場を太く
+	gosub *find_cur
+	if cn >= 0 {
+		GdipSetPenColor pen, 0xE0FFE040 : GdipSetPenWidth pen, 6.0
+		GdipDrawLine gfx, pen, nd_l(cn) - vleft, nd_t(cn) - vtop, nd_r(cn) - vleft, nd_t(cn) - vtop
+		gosub *pen_back
+	}
+	; 計画中の経路（跳ぶ位置→着地する位置）
+	if (state = ST_GOTO) & (pathn > 1) {
+		repeat pathn - 1 - pk, pk
+			hh = path_h(cnt) : gosub *idx_of : u = ii
+			hh = path_h(cnt + 1) : gosub *idx_of : v = ii
+			if (u < 0) | (v < 0) : continue
+			gosub *jump_points
+			GdipDrawLine gfx, ovppath, xa - vleft, nd_t(u) - vtop - 4, xb - vleft, nd_t(v) - vtop - 4
+			GdipSetSolidFillColor brush, 0xE0FFB020
+			GdipFillEllipse gfx, brush, xb - vleft - 5, nd_t(v) - vtop - 9, 10, 10
+		loop
+		GdipSetSolidFillColor brush, 0xC0FF5030
+		hh = path_h(pathn - 1) : gosub *idx_of
+		if ii >= 0 : GdipFillEllipse gfx, brush, gt_x - vleft - 9, nd_t(ii) - vtop - 18, 18, 18
+	}
+	; 内部の値（キャラの右上）
+	hx = int(cx) + CW - vleft : hy = int(cy) - vtop + 4
+	if hx > vw - 250 : hx = int(cx) - vleft - 240
+	if hy < 0 : hy = 0
+	GdipSetSolidFillColor brush, 0xC0202028
+	GdipFillRectangle gfx, brush, hx, hy, 240, 118
+	pct = vis_n * 100 / limit(all_n, 1, 999999)
+	dtext "認識の図示", hx + 10, hy + 6, 220, 18, gfont, 0xFFFFE070
+	dtext strf("足場%d枚・見えている上辺%d%%", nn - 1, pct), hx + 10, hy + 26, 228, 18, gfont, 0xFFFFFFFF
+	dtext "主線の色（アイコンから）", hx + 10, hy + 46, 180, 18, gfont, 0xFFFFFFFF
+	GdipSetSolidFillColor brush, inkc
+	GdipFillRectangle gfx, brush, hx + 190, hy + 48, 34, 14
+	dtext "音量", hx + 10, hy + 66, 40, 18, gfont, 0xFFFFFFFF
+	GdipSetSolidFillColor brush, 0xFF60D080
+	GdipFillRectangle gfx, brush, hx + 50, hy + 70, limit(int(penv * 600.0), 1, 120), 10
+	GdipSetSolidFillColor brush, 0x60FFFFFF
+	if bounce > 0.4 : GdipSetSolidFillColor brush, 0xFFFF6060
+	GdipFillEllipse gfx, brush, hx + 186, hy + 67, 14, 14
+	dtext "拍", hx + 204, hy + 66, 30, 18, gfont, 0xFFFFFFFF
+	dtext strf("%d fps（1コマ %dms）", fps_now, 1000 / limit(fps_now, 1, 999)), hx + 10, hy + 86, 228, 18, gfont, 0xFFB0B0B8
+	gfx = ov_savg
+	ptd3(0) = vleft : ptd3(1) = vtop
+	UpdateLayeredWindow ovhwnd, 0, ptd3, psz3, memdc3, pts, 0, blend, 2
+	return

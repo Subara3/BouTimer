@@ -1,0 +1,19 @@
+; proto フォルダの start.ax と packfile から実行ファイルを組み立てる（hsp3cl で動かす）
+; コンパイルは hspcmp.exe -i -u で済ませておく（DLL の hsc_comp は UTF-8 ソースを読めなかった）
+;   C:\hsp37\hsp3cl.exe build.ax <protoフォルダのフルパス>
+#runtime "hsp3cl"
+#include "hspcmp.as"
+
+	src = dir_cmdline
+	if src = "" : mes "usage: build.ax <folder>" : end 1
+	chdir src
+	sdim msg, 65536
+
+	pack_ini "start"
+	hsc3_make "C:\\hsp37\\runtime\\", 0
+	res = stat
+	hsc_getmes msg
+	mes msg
+	if res : mes "make failed" : end 1
+	mes "done"
+	end 0

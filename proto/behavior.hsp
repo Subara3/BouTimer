@@ -1,0 +1,639 @@
+; 作業のおとも、棒人間：ふるまい（何をするかを決める）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- ふるまい（地面にいるとき） ----
+*brain
+	stimer++
+	; 小さなしぐさは、決めた長さが過ぎるか、ほかの状態になったらやめる
+	if pose_t > 0 : pose_t--
+	if (pose_t <= 0) | (state != ST_IDLE) : pose_kind = 0
+	if behindh & (state != ST_BEHIND) : gosub *restore_front
+	if hangoff & ((state != ST_ACT) | (act != ACT_HANG)) : hangoff = 0
+	if state = ST_BEHIND : gosub *behind_brain : return
+	; カーソルが重なっているあいだは、つまんだりクリックしたりしやすいように、その場で立ち止まる
+	if hovering & (dragging = 0) & (showmode = 0) {
+		hv_stop = (state = ST_WALK) | (state = ST_GOTO) | (state = ST_IDLE) | (state = ST_FRONT)
+		if state = ST_ACT {
+			; 紙を投げる・伸び・ぶら下がり・窓の裏・非常口は、とちゅうでやめると位置や持ち物がおかしくなるので続ける
+			hv_stop = (act != ACT_TOSS) & (act != ACT_STRETCH) & (act != ACT_HANG) & (act != ACT_BEHIND) & (act != ACT_EXIT)
+		}
+		if hv_stop {
+			state = ST_IDLE : stimer = 0 : vx = 0.0 : pose_kind = 0
+			think = 90
+			return
+		}
+	}
+	if boot_t > 0 {
+		if (state = ST_WALK) & ((frame \ 5400) = 450) : bubble = "片っぽだけ長靴だぜ" : bubt = 50
+	}
+	if (state != ST_FRONT) & (state != ST_WAVE) : vx = 0.0
+	if state = ST_ALARM {
+		; 手前の窓の上まで行って、時刻の札を上げる（一時停止中や休憩中でも）
+		if alt = 0 {
+			okrect = 0
+			if alh : onh_bak = onh : onh = alh : gosub *getrect_on : onh = onh_bak
+			if (okrect = 0) | (onh = alh) | (stimer > 300) {
+				alt = stimer
+			} else {
+				; 最大化されている窓や、上辺が画面の上端にある窓には乗れないので、その場で知らせる
+				if IsZoomed(alh) | (rc(1) < wa(1) + 40) {
+					alt = stimer
+				} else {
+					tx = (rc(0) + rc(2)) / 2 : ty = rc(1)
+					if jumpcd = 0 : gosub *jump_to
+					return
+				}
+			}
+		}
+		k = stimer - alt
+		if (k \ 240) = 120 : bubble = al_text : bubt = 110
+		if (k \ 240) = 0 : bubble = al_time + "だぞ！" : bubt = 60
+		if (k > 0) & ((k \ 240) = 0) & sound_on : MessageBeep 0x30
+		if k > 720 {
+			state = ST_IDLE : stimer = 0 : alt = 0 : bubble = "忘れんなよ！" : bubt = 60
+			if testmode : dbg += "ALARM END\n"
+		}
+		return
+	}
+	if paused {
+		if autopaused {
+			if (state != ST_POKED) | (stimer > 40) : state = ST_SLEEP
+		} else {
+			state = ST_PAUSE
+		}
+		return
+	}
+	if state = ST_PAUSE : state = ST_IDLE
+	if hop > 0 {
+		vy = -7.0 : onh = 0 : hop-- : state = ST_CHEER
+		return
+	}
+	if state = ST_CHEER : state = ST_IDLE : stimer = 0
+	if state = ST_LAND {
+		if stimer > 75 : state = ST_IDLE : stimer = 0
+		return
+	}
+	if state = ST_DIZZY {
+		if stimer > 150 : state = ST_IDLE : stimer = 0
+		return
+	}
+	if state = ST_HAPPY {
+		if stimer > 90 : state = ST_IDLE : stimer = 0
+		return
+	}
+	if state = ST_CALL {
+		if stimer > 150 : state = ST_IDLE : stimer = 0
+		return
+	}
+	if state = ST_SIGN {
+		if stimer > 150 : state = ST_IDLE : stimer = 0 : signcool = 600
+		return
+	}
+	; しばらく文字を打っていたら、文字カーソルの上の窓まで来てのぞきこむ
+	if (phase = 0) & (peek_cd <= 0) & caret_ok & (caret_moves > 6.0) & ((state = ST_IDLE) | (state = ST_WALK) | (state = ST_TYPE)) & (showmode = 0) {
+		peek_cd = 60 * 60 * 5
+		gosub *peek_start
+		if state = ST_GOTO : return
+	}
+	if state = ST_TYPE {
+		if (frame - lastkey > 120) | (stimer > 1200) : state = ST_IDLE : stimer = 0 : typecool = 3600
+		if (stimer \ 150) = 1 : bubble = "カタカタ" : bubt = 50
+		if (krate > 7.0) & ((stimer \ 200) = 100) : bubble = "速いな～！" : bubt = 50
+		return
+	}
+	; 大ジャンプで飛び乗ったあと、ねらった窓に着いていたらのぞきこむ
+	if peek_land {
+		peek_land_t--
+		if onh = peek_land {
+			peek_land = 0 : state = ST_PEEK : stimer = 0 : bubble = "おっ、進んでるな" : bubt = 90
+			return
+		}
+		if peek_land_t <= 0 : peek_land = 0
+	}
+	if state = ST_PEEK {
+		if stimer > 240 : state = ST_IDLE : stimer = 0
+		return
+	}
+	if state = ST_GOTO {
+		gosub *goto_step
+		; 文字カーソルへ向かう途中であきらめたときは、何も言わない（頼まれて行ったわけではないので）
+		if gt_mode & (state != ST_GOTO) & testmode : dbg += strf("PEEK give up f=%d st=%d cn=%d goal=%d pathn=%d ", frame, state, cn, goal, pathn) + bubble + "\n"
+		if gt_mode & (state != ST_GOTO) {
+			gt_mode = 0 : bubble = "" : bubt = 0
+			; 道がなくても、のぞきに行くときだけは大ジャンプで飛び乗る
+			if (pathn = 0) & (goal >= 0) {
+				tx = limit(caret_x, nd_l(goal) + 12, nd_r(goal) - 12) : ty = nd_t(goal)
+				gosub *jump_to
+				state = ST_IDLE : bubble = "よっと！" : bubt = 50
+				peek_land = nd_h(goal) : peek_land_t = 60 * 8
+			}
+		}
+		return
+	}
+	if state = ST_SCOLD {
+		onh_bak = onh : onh = scoldh : gosub *getrect_on : onh = onh_bak
+		if (okrect = 0) | (stimer > 900) : state = ST_IDLE : stimer = 0 : scoldt = 0 : return
+		; 最大化されていたら上に乗れないので、その場で掲げる
+		if (onh = scoldh) | IsZoomed(scoldh) {
+			if scoldt = 0 : scoldt = stimer : signtext = "作業しようぜ～？"
+			if stimer - scoldt > 240 : state = ST_IDLE : stimer = 0 : scoldt = 0 : bubble = "あとでな！" : bubt = 50
+			return
+		}
+		tx = (rc(0) + rc(2)) / 2 : ty = rc(1)
+		if jumpcd = 0 : gosub *jump_to
+		return
+	}
+	if state = ST_GROOVE {
+		if musicfr < 60 : state = ST_IDLE : stimer = 0 : bubble = "いい曲だった" : bubt = 50
+		; やることが片づいたら、ノるのをやめて紙を捨てに行く
+		if toss_pending : state = ST_IDLE : stimer = 0
+		; 動画を流しっぱなしのときもあるので、ノるのは2分まで（黙ってやめる）
+		if stimer > 60 * 120 : state = ST_IDLE : stimer = 0
+		return
+	}
+	; 曲にノるのは60分に1回まで
+	if (musicfr >= 180) & (frame >= groove_next) & (bubt <= 0) & (diary_ask = 0) & (todo_ask = 0) & (toss_pending = 0) & ((state = ST_IDLE) | (state = ST_WALK)) & (phase = 0) & (showmode = 0) {
+		state = ST_GROOVE : stimer = 0 : bubble = "お、いい曲" : bubt = 60 : evc(EV_GROOVE)++
+		groove_next = frame + 60 * 60 * 60
+		return
+	}
+	; 打ち込み具合に反応する
+	if (state != ST_ACT) & (state != ST_POKED) & (state != ST_ANGRY) & (state != ST_WAVE) & (state != ST_FRONT) {
+		if (phase = 0) & (krate > 2.5) & (typecool = 0) {
+			state = ST_TYPE : stimer = 0
+			return
+		}
+		if (phase = 1) & (frame - lastkey < 30) & (krate > 1.5) & (signcool = 0) {
+			state = ST_SIGN : stimer = 0 : bubble = "" : bubt = 0 : signtext = "休憩しようぜ"
+			return
+		}
+	}
+	if state = ST_POKED {
+		if stimer > 40 {
+			stimer = 0
+			if pokes >= 4 {
+				state = ST_ANGRY
+			} else {
+				state = ST_IDLE
+			}
+		}
+		return
+	}
+	if state = ST_ANGRY {
+		if stimer > 60 {
+			; ぷいっと離れていく
+			state = ST_WALK : stimer = 0 : fastwalk = 90 : think = 90 : pokes = 0
+			if mx < int(cx) + CW / 2 {
+				wdir = 1
+			} else {
+				wdir = -1
+			}
+		}
+		return
+	}
+	if state = ST_WAVE {
+		if stimer > 90 : state = ST_REST : stimer = 0
+		return
+	}
+	if state = ST_FRONT {
+		if stimer > 330 : state = ST_IDLE : stimer = 0
+		return
+	}
+	if state = ST_ACT {
+		gosub *act_brain
+		return
+	}
+	; やることが片づいたら、紙を丸めて捨てる（休憩中でも）
+	if toss_pending : toss_pending = 0 : act = ACT_TOSS : gosub *start_act : return
+	if phase = 1 {
+		gosub *go_rest
+		return
+	}
+	if state = ST_REST : state = ST_IDLE
+	if state = ST_SLACK {
+		if stimer > sdur {
+			stimer = 0
+			if rnd(2) {
+				state = ST_SLEEP : sdur = 300 + rnd(400) : evc(EV_NAP)++
+			} else {
+				state = ST_IDLE
+			}
+		}
+		return
+	}
+	if state = ST_SLEEP {
+		if stimer > sdur : state = ST_IDLE : stimer = 0
+		return
+	}
+	; 休憩をとらずに長く続けていたら、伸びをして合図する
+	if stretch_due : stretch_due = 0 : act = ACT_STRETCH : gosub *start_act : return
+	; 一定時間ごとにお茶（何か言っている途中なら、言い終わるまで待つ）
+	if (frame >= next_tea) & (bubt <= 0) {
+		act = ACT_TEA : gosub *start_act
+		return
+	}
+	gosub *wander
+	return
+
+*start_act
+	state = ST_ACT : stimer = 0 : vx = 0.0
+	sdur = 300
+	if act = ACT_TEA {
+		sdur = 420 : bubble = "茶でも飲むか" : bubt = 70 : evc(EV_TEA)++
+		; 動きの多さが「ときどき」なら1.5倍、「なし」なら3倍あけて飲む
+		next_tea = frame + tea_every
+		if act_level = 1 : next_tea = frame + tea_every * 3 / 2
+		if act_level = 0 : next_tea = frame + tea_every * 3
+	}
+	if act = ACT_STICK {
+		sdur = 420
+		; 棒の使いみちはウィンドウの種で決まる
+		stickuse = (wseed >> 5) \ 4
+		if showmode : stickuse = (actn / NACT) \ 4
+		; 釣れるもの：0小魚 1金魚 2長靴 3空き缶 4大物
+		r = rnd(100)
+		catchk = 0
+		if r >= 45 : catchk = 1
+		if r >= 60 : catchk = 2
+		if r >= 80 : catchk = 3
+		if r >= 95 : catchk = 4
+	}
+	if act = ACT_PUSHUP : sdur = 320
+	if act = ACT_READ : sdur = 420
+	if act = ACT_SWEEP : sdur = 300
+	if act = ACT_DANCE : sdur = 260 : bubble = "♪" : bubt = 60
+	if act = ACT_WIPE : sdur = 260 : bubble = "あちっ！" : bubt = 50 : evc(EV_SPILL)++
+	if act = ACT_FLAT : sdur = 90 : bubble = "ぐえっ" : bubt = 50
+	if act = ACT_KICKCAN : sdur = 200
+	if act = ACT_AQUA : sdur = 380 : bubble = "かわいいな" : bubt = 60
+	if act = ACT_EXIT : sdur = 150 : bubble = "非常口" : bubt = 80
+	if act = ACT_HANG : sdur = 330 : bubble = "ぶら下がるか" : bubt = 50
+	if act = ACT_BEHIND : sdur = 99999 : bubble = "裏はどうなってんだ？" : bubt = 70 : evc(EV_BEHIND)++
+	if act = ACT_ICONBALL : sdur = 300 : bubble = "アイコン借りるぞ" : bubt = 60
+	if act = ACT_PPAP : sdur = 300 : dir = 1 : evc(EV_PPAP)++
+	if act = ACT_SEASON : sdur = 360
+	if act = ACT_STRETCH : sdur = 400 : bubble = "ちょっと伸びようぜ" : bubt = 90
+	if act = ACT_TOSS {
+		sdur = 220 : bubble = "" : bubt = 0
+		; 丸めた紙が届くように、ゴミ箱を置く向きを決める（足場の端に近いときは内側へ）
+		if onh {
+			fxx = int(cx) + CW / 2
+			if (dir > 0) & (fxx + int(70.0 * uis) > onr) : dir = -1
+			if (dir < 0) & (fxx - int(70.0 * uis) < onl) : dir = 1
+		}
+	}
+	if act >= ACT_ROPE : gosub *play_start
+	if showmode = 0 : actn++
+	return
+
+*got_catch
+	evc(EV_FISH + catchk)++
+	if catchk = 0 : bubble = "よし、飼うか" : aq_n++
+	if catchk = 1 : bubble = "金魚だ、珍しいな" : aq_n++ : aq_gold++
+	if catchk = 2 : bubble = "長靴だ！はいてみよ" : boot_t = 1 : boot_day = today : gosub *save_settings
+	if catchk = 3 : bubble = "空き缶だ！蹴ろう"
+	if catchk = 4 : bubble = "大物だ！" : aq_n++ : aq_big++
+	bubt = 70
+	if aq_n > 12 : aq_n = 12
+	gosub *save_settings
+	return
+
+*restore_front
+	SetWindowPos myhwnd, -1, 0, 0, 0, 0, 0x13
+	behindh = 0 : ignoreh = 0
+	return
+
+; 裏側に落ちたあと：ウィンドウの外まで歩いて出てきて、飛び乗って戻る
+*behind_brain
+	onh_bak = onh : onh = behindh : gosub *getrect_on : onh = onh_bak
+	if okrect = 0 : gosub *restore_front : state = ST_IDLE : return
+	fx = int(cx) + CW / 2
+	if (fx > rc(0) - 14) & (fx < rc(2) + 14) {
+		if stimer = 1 : bubble = "探検だ～" : bubt = 60
+		if (rc(0) + rc(2)) / 2 > fx {
+			vx = -1.4
+		} else {
+			vx = 1.4
+		}
+		return
+	}
+	gosub *restore_front
+	bubble = "ただいま" : bubt = 60
+	if fx < rc(0) {
+		tx = rc(0) + 30
+	} else {
+		tx = rc(2) - 30
+	}
+	ty = rc(1) : state = ST_IDLE : gosub *jump_to
+	return
+
+*act_brain
+	if stimer > sdur {
+		state = ST_IDLE : stimer = 0 : think = 30
+		if act = ACT_STICK : bubble = "ほいっと" : bubt = 40
+		if act = ACT_TEA : bubble = "ふう、うまい" : bubt = 50
+		if act = ACT_WIPE : bubble = "よし、元通りだ" : bubt = 60
+		if act = ACT_AQUA : bubble = "よく食うな" : bubt = 60
+
+		if act = ACT_ICONBALL : bubble = "返しとくぞ" : bubt = 50
+		if act >= ACT_ROPE : gosub *play_end
+		if act = ACT_STRETCH : bubble = "よし、もうひと息！" : bubt = 60
+		if act = ACT_TOSS {
+			gosub *todo_first
+			if todo_top >= 0 {
+				bubble = "次いこうぜ" : bubt = 60
+			} else {
+				bubble = "全部片づいたな！" : bubt = 80 : celebrate = 150
+			}
+		}
+		if act = ACT_HANG : hangoff = 0
+		; 空き缶を釣ったら、そのまま蹴っ飛ばす
+		if (act = ACT_STICK) & (stickuse = USE_FISH) & (catchk = 3) : act = ACT_KICKCAN : gosub *start_act : bubt = 0
+		return
+	}
+	if act = ACT_STICK {
+		if stimer = 1 : bubble = "お？" : bubt = 40
+		if (stickuse = USE_CANE) & (stimer > 80) & (stimer < 380) {
+			vx = 0.6 * wdir
+			if onh {
+				nfx = int(cx + vx) + CW / 2
+				if (nfx < onl + 10) | (nfx >= onr - 10) : wdir = -wdir : vx = -vx
+			}
+		}
+		if (stickuse = USE_SWORD) & ((stimer \ 70) = 20) & (stimer > 80) : bubble = "せいっ" : bubt = 25
+		if (stickuse = USE_TAP) & ((stimer \ 100) = 90) & (stimer > 80) : bubble = "コンコン" : bubt = 40
+		if (stickuse = USE_FISH) & (stimer = 300) : bubble = "かかった！" : bubt = 50
+		if (stickuse = USE_FISH) & (stimer = 330) : gosub *got_catch
+	}
+	if act = ACT_PUSHUP {
+		if ((stimer \ 52) = 26) & (stimer > 40) : bubble = str((stimer - 40) / 52 + 1) : bubt = 30
+	}
+	if act = ACT_DANCE {
+		if (stimer \ 40) = 0 : dir = -dir
+	}
+	if act = ACT_KICKCAN {
+		if stimer = 20 : bubble = "そらっ" : bubt = 30
+		if stimer = 140 : bubble = "カーン" : bubt = 40
+	}
+	if act = ACT_AQUA {
+		if stimer = 170 : bubble = "ほら、メシだ" : bubt = 50
+	}
+	if act = ACT_HANG {
+		hangoff = 0
+		if (stimer >= 20) & (stimer < 40) : hangoff = (stimer - 20) * 3
+		if (stimer >= 40) & (stimer < 290) : hangoff = 58
+		if stimer >= 290 : hangoff = limit(58 - (stimer - 290) * 58 / 40, 0, 58)
+		if stimer = 120 : bubble = "ぶらーん" : bubt = 60
+		if stimer = 295 : bubble = "よいしょ" : bubt = 50
+	}
+	if act = ACT_BEHIND {
+		if stimer = 50 {
+			; 自分の重なり順を、乗っているウィンドウのすぐ後ろにする
+			behindh = onh : ignoreh = onh
+			SetWindowPos myhwnd, -2, 0, 0, 0, 0, 0x13
+			SetWindowPos myhwnd, behindh, 0, 0, 0, 0, 0x13
+			onh = 0 : vy = -4.0 : state = ST_BEHIND : stimer = 0
+		}
+	}
+	if act = ACT_STRETCH {
+		if stimer = 150 : bubble = "横にも、ぐいーっと" : bubt = 80
+		if stimer = 270 : bubble = "遠くを見ると目が休まるぞ" : bubt = 110
+	}
+	if act = ACT_TOSS {
+		if stimer = 10 : bubble = "くしゃくしゃっと" : bubt = 50 : se_name = "se_paper" : gosub *se_play
+		if stimer = 150 : bubble = "ナイスシュート！" : bubt = 60 : se_name = "se_goal" : gosub *se_play
+	}
+	if act >= ACT_ROPE : gosub *play_brain
+	if act = ACT_PPAP {
+		if stimer = 1 : bubble = "アイハブアアイコン" : bubt = 60
+		if stimer = 70 : bubble = "アイハブアアイコン" : bubt = 60
+		if stimer = 140 : bubble = "うーん…" : bubt = 50
+		if stimer = 195 : bubble = "合体！" : bubt = 90
+	}
+	return
+
+; ---- 作業中：勝手に歩き回る ----
+*wander
+	think--
+	if think > 0 : goto *wander_move
+	think = rnd(150) + 60
+	; 動きの多さ：ときどき（1）は間を長くあける。なし（0）はその場で立つか座るだけ
+	if act_level = 1 : think = rnd(420) + 240
+	if (act_level = 0) & (showmode = 0) {
+		think = rnd(900) + 600
+		if rnd(3) = 0 {
+			state = ST_SLACK : stimer = 0 : sdur = 300 + rnd(600)
+		} else {
+			state = ST_IDLE
+		}
+		goto *wander_move
+	}
+	; 絵日記や「終わった？」を聞いているあいだは、新しい遊びを始めない（セリフが上書きされるので）
+	if (diary_ask > 0) | (todo_ask > 0) : state = ST_IDLE : goto *wander_move
+	if showmode {
+		; 見た目確認用：小さな動きを順番に
+		think = 40
+		gosub *show_next
+		return
+	}
+	if rnd(100) < 6 {
+		; メモ帳で直したぶんも拾えるように、言う前に読み直す
+		gosub *load_kotoba
+		if nkoto > 0 : bubble = kotoba(rnd(nkoto)) : bubt = 120
+	}
+	if (sea_kind != 0) & (rnd(100) < 8) {
+		act = ACT_SEASON : gosub *start_act
+		sea_show = 60 * 10
+		return
+	}
+	r2 = rnd(100)
+	if r2 < 4 {
+		act = ACT_EXIT : gosub *start_act
+		return
+	}
+	if (r2 < 9) & (onh != 0) {
+		act = ACT_HANG : gosub *start_act
+		return
+	}
+	if (r2 < 13) & (onh != 0) & (ont < ground - 150) {
+		act = ACT_BEHIND : gosub *start_act
+		return
+	}
+	if r2 < 18 {
+		gosub *ensure_icons
+		if icok(0) {
+			act = ACT_ICONBALL : gosub *start_act
+			return
+		}
+	}
+	if r2 < 22 {
+		gosub *ensure_icons
+		if icok(0) & icok(1) {
+			act = ACT_PPAP : gosub *start_act
+			return
+		}
+	}
+	if (aq_n > 0) & (rnd(100) < 10) {
+		act = ACT_AQUA : gosub *start_act
+		return
+	}
+	r = rnd(100)
+	if r < 34 {
+		state = ST_WALK : wdir = rnd(2) * 2 - 1
+		goto *wander_move
+	}
+	if r < 46 {
+		state = ST_IDLE
+		; ときどき考えこんだり、頭をかいたりする
+		r2 = rnd(10)
+		if r2 < 2 : pose_kind = 2 : pose_t = 180 + rnd(180) : if rnd(2) = 0 : bubble = "うーん…" : bubt = 70
+		if r2 = 2 : pose_kind = 3 : pose_t = 120
+		goto *wander_move
+	}
+	if r < 54 {
+		state = ST_SLACK : stimer = 0 : sdur = 120 + rnd(180) : bubble = "ちょいとサボるか" : bubt = 90
+		return
+	}
+	if r < 61 {
+		state = ST_FRONT : stimer = 0
+		return
+	}
+	if r < 84 {
+		; 何をするかは、乗っているウィンドウの種から引く
+		act = ((wseed >> ((actn \ 8) * 3)) + rnd(2) * rnd(NACT)) \ NACT
+		if act = ACT_TEA : act = ACT_STICK
+		; ときどき、あそびの動き（どれが出やすいかも窓の種で変わる）
+		if rnd(100) < 40 : act = ACT_ROPE + ((wseed >> 11) + rnd(3)) \ NPLAY
+		gosub *start_act
+		return
+	}
+	; 近くの上にあるウィンドウへ飛び移る
+	gosub *scan_platforms
+	fx = int(cx) + CW / 2 : foot = int(cy) + FOOTY
+	best = -1
+	repeat nplat
+		if plat_h(cnt) = onh : continue
+		up = foot - plat_t(cnt)
+		if (up > 20) & (up < 240) {
+			tx = limit(fx, plat_l(cnt) + 20, plat_r(cnt) - 20)
+			if abs(tx - fx) < 280 : best = cnt : break
+		}
+	loop
+	if best >= 0 {
+		tx = limit(fx, plat_l(best) + 20, plat_r(best) - 20) : ty = plat_t(best)
+		gosub *jump_to
+		return
+	}
+	state = ST_IDLE
+
+*wander_move
+	if state = ST_WALK {
+		sp = 1.3
+		if fastwalk > 0 : sp = 3.0 : fastwalk--
+		vx = sp * wdir
+		; ウィンドウの端では、たいてい引き返す（たまに落ちる）
+		if onh {
+			nfx = int(cx + vx) + CW / 2
+			if (nfx < onl + 6) | (nfx >= onr - 6) {
+				if rnd(4) : wdir = -wdir : vx = -vx
+			}
+		}
+	} else {
+		; 立ち止まっているときは、近くのカーソルの方を向く
+		if abs(mx - (int(cx) + CW / 2)) < 250 {
+			if mx < int(cx) + CW / 2 {
+				dir = -1
+			} else {
+				dir = 1
+			}
+		}
+	}
+	return
+
+*show_next
+	k = actn
+	if k < NACT * 4 {
+		; 棒の使いみち4通りを含めて一巡
+		act = k \ NACT
+		if (k >= NACT) & (act != ACT_STICK) : actn++ : goto *show_next
+		actn++
+		gosub *start_act
+		sdur = 220
+		return
+	}
+	k -= NACT * 4
+	actn++
+	if k = 0 : state = ST_FRONT : stimer = 0 : return
+	if k = 1 : state = ST_SLACK : stimer = 0 : sdur = 100 : bubble = "ちょいとサボるか" : bubt = 90 : return
+	if k = 2 : state = ST_TYPE : stimer = 0 : lastkey = frame + 120 : krate = 8.0 : return
+	if k = 3 : state = ST_SIGN : stimer = 0 : return
+	if k = 4 : state = ST_DIZZY : stimer = 0 : bubble = "うおお、揺れる～" : bubt = 60 : return
+	if k = 5 : state = ST_HAPPY : stimer = 0 : bubble = "へへっ、くすぐってえ" : bubt = 70 : return
+	if k = 6 : state = ST_CALL : stimer = 0 : bubble = "おーい、どこ行った～？" : bubt = 90 : return
+	if k = 7 : celebrate = 150 : hop = 3 : bubble = "1個目！やったな" : bubt = 120 : return
+	if k = 8 : night = 1 : state = ST_IDLE : bubble = "そろそろ寝ようぜ" : bubt = 120 : return
+	if (k >= 9) & (k <= 13) : night = 0 : state = ST_LAND : stimer = 0 : landpose = k - 9 : bubt = 0 : return
+	if k = 14 : act = ACT_WIPE : gosub *start_act : return
+	if k = 15 : act = ACT_FLAT : gosub *start_act : return
+	if k = 16 : act = ACT_STICK : gosub *start_act : stickuse = USE_FISH : catchk = 2 : return
+	if k = 17 : act = ACT_STICK : gosub *start_act : stickuse = USE_FISH : catchk = 3 : return
+	if k = 18 : act = ACT_STICK : gosub *start_act : stickuse = USE_FISH : catchk = 1 : return
+	if k = 19 : act = ACT_AQUA : gosub *start_act : return
+	if k = 20 : act = ACT_EXIT : gosub *start_act : return
+	if k = 21 : act = ACT_HANG : gosub *start_act : return
+	if k = 22 {
+		gosub *ensure_icons
+		if icok(0) : act = ACT_ICONBALL : gosub *start_act : return
+	}
+	if k = 23 {
+		gosub *ensure_icons
+		if icok(0) & icok(1) : act = ACT_PPAP : gosub *start_act : return
+	}
+	if k = 24 : act = ACT_STRETCH : gosub *start_act : sdur = 400 : return
+	if k = 25 : act = ACT_TOSS : gosub *start_act : return
+	if (k >= 26) & (k < 26 + NPLAY) : act = ACT_ROPE + k - 26 : gosub *start_act : return
+	state = ST_IDLE
+	return
+
+; ---- 休憩：使っているウィンドウのふちへ ----
+*go_rest
+	h = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	if (h != 0) & (h != myhwnd) : tgt = h
+	ok = 0
+	if tgt {
+		if IsWindowVisible(tgt) & (IsIconic(tgt) = 0) {
+			onh_bak = onh : onh = tgt : gosub *rect_of_onh : onh = onh_bak
+			if (rc(2) - rc(0) >= 160) & (rc(1) > vtop + 60) & (IsZoomed(tgt) = 0) : ok = 1
+		}
+	}
+	if ok = 0 {
+		; 行き先がない（最大化など）ときはその場で座る
+		gosub *rest_here
+		return
+	}
+	tx = (rc(0) + rc(2)) / 2 + 80
+	fx = int(cx) + CW / 2
+	if onh = tgt {
+		if abs(tx - fx) <= 2 {
+			gosub *rest_here
+		} else {
+			state = ST_WALK
+			if tx > fx {
+				vx = 1.6
+			} else {
+				vx = -1.6
+			}
+		}
+		return
+	}
+	state = ST_IDLE
+	if jumpcd = 0 : ty = rc(1) : gosub *jump_to
+	return
+
+*rest_here
+	if state != ST_REST : state = ST_REST : stimer = 0
+	; 休憩中もときどき水槽を眺める
+	if (aq_n > 0) & (rnd(2400) = 0) : act = ACT_AQUA : gosub *start_act : return
+	; 休憩中もときどきお茶
+	if frame >= next_tea : act = ACT_TEA : gosub *start_act
+	return

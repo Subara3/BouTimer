@@ -1,0 +1,219 @@
+; 作業のおとも、棒人間：はじめての起動のあいさつと、いくつかの質問
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+;
+; 質問は小さな窓（screen 11）のボタンで答える。棒人間は窓の左の床に立って話し、終わったら窓から飛び出す
+; スキップすると、ふつうの設定のまま案内だけする
+; ボタンの中で部品を作りなおさないよう、押された番号を wz_pick に入れて、メインループの *wz_tick で進める
+; ページ：0 あいさつ　1 作業の長さ　2 休憩の長さ　3 タイピング　4 声（VOICEVOX があるときだけ）　5 フレンド　6 起動時　7 おわり
+
+#const WZ_W 560
+#const WZ_H 300
+; 棒人間が立つ場所（窓の中の座標）
+#const WZ_FX 100
+#const WZ_FY 262
+
+*wz_open
+	wz_on = 1 : wz_page = 0 : wz_pick = -1 : wz_start = 0
+	; 質問のあいだはタイマーを止めておく
+	if paused = 0 : paused = 1 : pause_at = timeGetTime() : wz_paused = 1
+	if wz_made = 0 {
+		screen 11, WZ_W, WZ_H, 2, (wa(0) + wa(2)) / 2 - WZ_W / 2, (wa(1) + wa(3)) / 2 - WZ_H / 2
+		title "はじめまして"
+		wz_hwnd = hwnd
+		; 窓を動かしたら（ドラッグ中も）棒人間をついて行かせる。ドラッグ中はメインループが止まるので、ここで動かす
+		oncmd gosub *wz_moved, 0x0003
+		wz_made = 1
+	}
+	if behindh : gosub *restore_front
+	hangoff = 0 : state = ST_CALL : stimer = 0
+	gosub *wz_build
+	win_id = 11 : gosub *show_win
+	; 質問の窓は手前に置き、棒人間はさらにその上に描く（窓の中にいるように見せる）
+	SetWindowPos wz_hwnd, -1, 0, 0, 0, 0, 0x13
+	SetWindowPos myhwnd, -1, 0, 0, 0, 0, 0x13
+	return
+
+; いまのページの文とボタンを作りなおす
+*wz_build
+	; 声のページは、VOICEVOX が見つかったときだけ
+	; 声のページは使わない（声はメニューと設定画面から）
+	if wz_page = 4 : wz_page = 5
+	gsel 11
+	clrobj
+	redraw 0
+	color 250, 250, 246 : boxf
+	; 左は棒人間の場所。床の線を引く
+	color 236, 236, 228 : boxf 0, 0, 200, WZ_H
+	color 190, 190, 200 : line 24, WZ_FY + 1, 176, WZ_FY + 1
+	font "Meiryo UI", 15 : objmode 2
+	sdim wz_t1, 256 : sdim wz_t2, 256 : sdim wz_c, 64, 4 : wz_n = 0 : sdim wz_def, 64
+	if wz_page = 0 {
+		wz_t1 = "よっ、はじめまして。\n作業のおともの棒人間だ。\n最初にちょっと聞いていいか？"
+		wz_t2 = "あとで変えられるからな"
+		wz_c(0) = "答える" : wz_c(1) = "スキップ" : wz_n = 2
+		bubble = "よっ、はじめまして！" : bubt = 200 : pose_kind = 1
+	}
+	if wz_page = 1 {
+		wz_t1 = "1回の作業は何分にする？"
+		wz_t2 = "ふつうは25分やって5分休む。\n30分でひと回り（1サイクル）だ"
+		wz_c(0) = "15分" : wz_c(1) = "25分" : wz_c(2) = "50分" : wz_n = 3 : wz_def = "25分"
+		bubble = "作業は何分にする？" : bubt = 400 : pose_kind = 2
+	}
+	if wz_page = 2 {
+		wz_t1 = "休憩は何分にする？"
+		wz_t2 = "休憩が終わったら、また作業だ"
+		wz_c(0) = "5分" : wz_c(1) = "10分" : wz_c(2) = "15分" : wz_n = 3 : wz_def = "5分"
+		bubble = "休憩は何分？" : bubt = 400 : pose_kind = 4
+	}
+	if wz_page = 3 {
+		wz_t1 = "キーを打った回数、数えていいか？"
+		wz_t2 = "何を打ったかは見てないぞ。\n速く打つと、おれも一緒にカタカタするぜ"
+		wz_c(0) = "数えていい" : wz_c(1) = "数えない" : wz_n = 2 : wz_def = "数える"
+		bubble = "打った回数、数えていいか？" : bubt = 400 : pose_kind = 3
+	}
+	if wz_page = 4 {
+		wz_t1 = "VOICEVOXが入ってるな。\n声、出していいか？"
+		wz_t2 = "声は、このPCの中のVOICEVOXで作るぜ"
+		wz_c(0) = "決まったセリフだけ" : wz_c(1) = "よくしゃべる" : wz_c(2) = "しゃべらない" : wz_n = 3
+		bubble = "声、出していいか？" : bubt = 400
+	}
+	if wz_page = 5 {
+		wz_t1 = "サーバーと通信していいか？\n通信すると、ほかの人の棒人間が\n休憩中に遊びに来るぜ（ゴースト機能）"
+		wz_t2 = "名前やアプリのことは送らないぞ。\n送るのはポモドーロ数みたいな数字だ"
+		wz_c(0) = "通信しない" : wz_c(1) = "通信する" : wz_n = 2 : wz_def = "通信しない"
+		bubble = "仲間を呼んでいいか？" : bubt = 400 : pose_kind = 2
+	}
+	if wz_page = 6 {
+		wz_t1 = "Windowsを起動したら、\nおれもいっしょに起動していいか？"
+		wz_t2 = "スタートアップフォルダにショートカットを置くぜ。\nレジストリはさわらない"
+		wz_c(0) = "いっしょに起動する" : wz_c(1) = "しない" : wz_n = 2 : wz_def = "しない"
+		bubble = "毎日来ていいか？" : bubt = 400 : pose_kind = 3
+	}
+	if wz_page = 7 {
+		wz_t1 = "ありがとな！\nじゃ、始めるか。"
+		wz_t2 = "右クリックでメニューが出る。\nつまんで投げてもいいぜ"
+		wz_c(0) = "始める" : wz_n = 1
+		bubble = "ありがとな！" : bubt = 150 : pose_kind = 1
+	}
+	color 40, 40, 48
+	pos 220, 20 : mes wz_t1
+	font "Meiryo UI", 12 : color 110, 110, 120
+	pos 220, 100 : mes wz_t2
+	if (wz_page >= 1) & (wz_page <= 6) {
+		; 何問目か（声のページがないときは5問）
+		wz_all = 5
+		wz_no = wz_page - (wz_page > 4)
+		pos 220, 262 : mes strf("%d / %d", wz_no, wz_all)
+	}
+	font "Meiryo UI", 14
+	; ボタンは右側に横に並べる
+	wz_bw = 104 : if wz_n <= 2 : wz_bw = 150
+	objsize wz_bw, 40
+	repeat wz_n
+		pos 220 + cnt * (wz_bw + 10), 160
+		if cnt = 0 : button gosub wz_c(0), *wz_b0
+		if cnt = 1 : button gosub wz_c(1), *wz_b1
+		if cnt = 2 : button gosub wz_c(2), *wz_b2
+	loop
+	; デフォルトの設定（スキップしたときもこれ）
+	if wz_def != "" {
+		font "Meiryo UI", 12 : color 110, 110, 120
+		pos 220, 210 : mes "デフォルト：" + wz_def
+		font "Meiryo UI", 14
+	}
+	; 途中でやめる道も残す
+	if (wz_page >= 1) & (wz_page <= 6) {
+		objsize 150, 30
+		pos WZ_W - 166, 254 : button gosub "残りはスキップ", *wz_bskip
+	}
+	redraw 1
+	gsel 1
+	return
+
+*wz_b0
+	wz_pick = 0 : return
+*wz_b1
+	wz_pick = 1 : return
+*wz_b2
+	wz_pick = 2 : return
+*wz_bskip
+	wz_pick = 9 : return
+
+; 質問の窓が動いたとき（WM_MOVE）。棒人間をその床の位置へ動かし、質問の窓より上に重ね直す
+*wz_moved
+	if wz_on = 0 : return
+	dim wzp, 2 : wzp(0) = WZ_FX : wzp(1) = WZ_FY
+	ClientToScreen wz_hwnd, wzp
+	cx = double(wzp(0) - CW / 2) : cy = double(wzp(1) - FOOTY)
+	SetWindowPos myhwnd, -1, int(cx), int(cy), 0, 0, 0x11
+	return
+
+; 質問のあいだは、棒人間を窓の中の床に立たせておく（窓を動かしたらついて行く）
+*wz_hold
+	pressing = 0 : dragging = 0
+	dim wzp, 2 : wzp(0) = WZ_FX : wzp(1) = WZ_FY
+	ClientToScreen wz_hwnd, wzp
+	cx = double(wzp(0) - CW / 2) : cy = double(wzp(1) - FOOTY)
+	vx = 0.0 : vy = 0.0 : onh = 0 : grounded = 1 : wasground = 1 : dir = 1
+	; 質問の窓が手前に出なおしても隠れないように、ときどき上に重ね直す
+	if (frame \ 10) = 0 : SetWindowPos myhwnd, -1, 0, 0, 0, 0, 0x13
+	stimer++
+	if (state = ST_HAPPY) & (stimer > 70) : state = ST_IDLE : stimer = 0
+	if (state = ST_CALL) & (stimer > 150) : state = ST_IDLE : stimer = 0
+	if (state != ST_HAPPY) & (state != ST_CALL) : state = ST_IDLE
+	return
+
+; メインループから毎フレーム呼ぶ。押されたボタンに応じて設定し、次のページへ
+*wz_tick
+	if wz_pick < 0 : return
+	k = wz_pick : wz_pick = -1
+	if testmode : dbg += strf("WZ page=%d pick=%d", wz_page, k) + "\n"
+	if k = 9 : wz_page = 7 : gosub *wz_build : return
+	if wz_page = 0 {
+		if k = 1 : gosub *wz_close : guide = 1 : return
+		wz_start = 1
+	}
+	if wz_page = 1 : r = 11 + k : gosub *menu_do
+	if wz_page = 2 : r = 21 + k : gosub *menu_do
+	if wz_page = 3 {
+		if (k = 0) != typecount_on : r = 31 : gosub *menu_do
+	}
+	if wz_page = 4 {
+		if k = 0 : r = 71
+		if k = 1 : r = 72
+		if k = 2 : r = 70
+		gosub *menu_do
+	}
+	if wz_page = 5 {
+		if k != friend_on : r = 80 : gosub *menu_do
+	}
+	if wz_page = 6 {
+		sw_start = (k = 0)
+		if sw_start : gosub *startup_set
+	}
+	if wz_page = 7 {
+		gosub *wz_close
+		; 答えてくれたので、案内は操作の話から
+		guide = 3
+		return
+	}
+	state = ST_HAPPY : stimer = 0
+	wz_page++
+	gosub *wz_build
+	return
+
+; 窓を閉じて、棒人間は窓から外へ飛び出す
+*wz_close
+	wz_on = 0 : wz_closef = frame : pose_kind = 0
+	gsel 11, -1
+	gsel 1
+	if wz_paused : wz_paused = 0 : paused = 0 : phase_start += timeGetTime() - pause_at
+	gosub *save_settings
+	state = ST_IDLE : stimer = 0 : onh = 0 : thrown = 0
+	; 画面の広いほうへ、ぴょーん
+	vy = -15.0 * uis : vx = 6.0 * uis
+	if cx + double(CW / 2) > double((vleft + vright) / 2) : vx = -vx
+	wasground = 0 : grounded = 0
+	bubble = "ぴょーん！" : bubt = 70
+	se_jump_next = 0 : gosub *se_jump
+	return

@@ -1,0 +1,188 @@
+; 作業のおとも、棒人間：季節のイベント
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 季節 ----
+*season_update
+	sm = gettime(1) : sday = gettime(3)
+	if sea_force : sm = sea_force / 100 : sday = sea_force \ 100
+	md = sm * 100 + sday
+	sea_part = 0 : sea_hat = 0 : sea_kind = SK_NONE : sea_line = ""
+	; 季節の空気（1=雪 2=桜 3=雨 4=紅葉）
+	if (md >= 1201) | (md <= 228) : sea_part = 1
+	if (md >= 320) & (md <= 415) : sea_part = 2
+	if (md >= 601) & (md <= 630) : sea_part = 3 : sea_kind = SK_UMBRELLA
+	if (md >= 1001) & (md <= 1130) : sea_part = 4
+	if (md >= 720) & (md <= 831) : sea_kind = SK_FAN : sea_line = "暑いな～"
+	; 行事
+	if (md >= 101) & (md <= 107) : sea_kind = SK_KITE : sea_line = "あけましておめでとう"
+	if md = 203 : sea_kind = SK_BEAN : sea_line = "鬼は外！"
+	if md = 214 : sea_kind = SK_HEART : sea_line = "チョコくれよ～"
+	if md = 303 : sea_line = "ひなあられ食うか"
+	if (md >= 325) & (md <= 410) : sea_line = "花見だな"
+	if md = 505 : sea_hat = 3 : sea_line = "こどもの日だ"
+	if md = 707 : sea_kind = SK_TANZAKU : sea_line = "作業がはかどりますように！"
+	if (md >= 915) & (md <= 930) : sea_kind = SK_DANGO : sea_line = "団子でも食うか"
+	if (md >= 1025) & (md <= 1031) : sea_hat = 1 : sea_line = "トリック・オア・トリートだ"
+	if (md >= 1220) & (md <= 1225) : sea_hat = 2 : sea_line = "メリークリスマス"
+	if md = 1231 : sea_line = "今年もおつかれ"
+	if season_on = 0 : sea_part = 0 : sea_hat = 0 : sea_kind = SK_NONE : sea_line = ""
+	return
+
+; 季節の持ち物（体の座標系、手の位置 handx, handy から）
+*season_prop
+	if prop = PR_KITE {
+		kx = handx + 28.0 + sin(double(frame) * 0.05) * 4.0 : ky = handy - 46.0 + cos(double(frame) * 0.07) * 3.0
+		if halo = 0 {
+			GdipSetPenColor pen, 0x90606070 : GdipSetPenWidth pen, 1.0
+			GdipDrawLine gfx, pen, handx, handy, kx, ky + 9.0
+			poly(0) = int(kx) : poly(1) = int(ky) - 9 : poly(2) = int(kx) + 7 : poly(3) = int(ky)
+			poly(4) = int(kx) : poly(5) = int(ky) + 9
+			GdipSetSolidFillColor brush, 0xFFE04848
+			GdipFillPolygonI gfx, brush, poly, 3, 0
+			poly(2) = int(kx) - 7
+			GdipSetSolidFillColor brush, 0xFFF8F0E0
+			GdipFillPolygonI gfx, brush, poly, 3, 0
+			GdipDrawLine gfx, pen, kx, ky + 9.0, kx - 4.0, ky + 18.0
+		}
+		return
+	}
+	if prop = PR_BEANS {
+		if halo : return
+		GdipSetSolidFillColor brush, 0xFFD8B070
+		repeat 5
+			bt2 = double((stimer + cnt * 8) \ 40) / 40.0
+			GdipFillEllipse gfx, brush, handx + bt2 * 60.0, handy - bt2 * 24.0 + bt2 * bt2 * 50.0, 3.0, 3.0
+		loop
+		return
+	}
+	if prop = PR_HEART {
+		mx2 = (handx + lhx) / 2.0 : my2 = (handy + lhy) / 2.0 - 4.0
+		if halo {
+			GdipSetSolidFillColor brush, 0xE0FFFFFF
+			GdipFillEllipse gfx, brush, mx2 - 9.0, my2 - 8.0, 18.0, 17.0
+			return
+		}
+		GdipSetSolidFillColor brush, 0xFFD83A5A
+		GdipFillEllipse gfx, brush, mx2 - 7.0, my2 - 6.0, 8.0, 8.0
+		GdipFillEllipse gfx, brush, mx2 - 1.0, my2 - 6.0, 8.0, 8.0
+		poly(0) = int(mx2) - 7 : poly(1) = int(my2) - 1 : poly(2) = int(mx2) + 7 : poly(3) = int(my2) - 1
+		poly(4) = int(mx2) : poly(5) = int(my2) + 7
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		return
+	}
+	if prop = PR_UMBRELLA {
+		stickline 180.0, 22.0, 0xFF6A6A78, 1.8
+		if halo = 0 {
+			GdipSetSolidFillColor brush, 0xFF4A80C8
+			GdipFillPie gfx, brush, tipx - 18.0, tipy - 10.0, 36.0, 20.0, 180.0, 180.0
+		}
+		return
+	}
+	if prop = PR_FAN {
+		stickline 170.0, 8.0, 0xFF8A6A3A, 1.6
+		if halo = 0 {
+			GdipSetSolidFillColor brush, 0xFF9CD0F0
+			GdipFillEllipse gfx, brush, tipx - 6.0, tipy - 11.0, 12.0, 12.0
+		}
+		return
+	}
+	if prop = PR_TANZAKU {
+		stickline 175.0, 34.0, 0xFF4A9A4A, 2.0
+		if halo = 0 {
+			repeat 3
+				if cnt = 0 : GdipSetSolidFillColor brush, 0xFFF06080
+				if cnt = 1 : GdipSetSolidFillColor brush, 0xFFF0D040
+				if cnt = 2 : GdipSetSolidFillColor brush, 0xFF60A0F0
+				GdipFillRectangle gfx, brush, tipx - 10.0 + cnt * 7.0, tipy + 6.0 + cnt * 5.0, 4.0, 10.0
+			loop
+		}
+		return
+	}
+	if prop = PR_DANGO {
+		stickline 160.0, 16.0, 0xFF9A7A4A, 1.4
+		if halo = 0 {
+			repeat 3
+				if cnt = 0 : GdipSetSolidFillColor brush, 0xFFF8B0C0
+				if cnt = 1 : GdipSetSolidFillColor brush, 0xFFFFFFF0
+				if cnt = 2 : GdipSetSolidFillColor brush, 0xFF90C870
+				GdipFillEllipse gfx, brush, handx + (tipx - handx) * (0.45 + cnt * 0.2) - 3.5, handy + (tipy - handy) * (0.45 + cnt * 0.2) - 3.5, 7.0, 7.0
+			loop
+		}
+		return
+	}
+	return
+
+; かぶりもの（頭の座標 headx, heady）
+*season_hat
+	ix = int(headx) : iy = int(heady)
+	if sea_hat = 1 {
+		; かぼちゃ頭（顔ごとかぶる）
+		GdipSetSolidFillColor brush, 0xFFF08A2A
+		GdipFillEllipse gfx, brush, headx - 13.0, heady - 12.0, 26.0, 24.0
+		GdipSetPenWidth pen, 1.4
+		GdipDrawEllipse gfx, pen, headx - 13.0, heady - 12.0, 26.0, 24.0
+		GdipSetSolidFillColor brush, 0xFF4A7A3A
+		GdipFillRectangle gfx, brush, headx - 1.5, heady - 16.0, 3.0, 5.0
+		GdipSetSolidFillColor brush, 0xFF3A2A20
+		poly(0) = ix - 7 : poly(1) = iy - 1 : poly(2) = ix - 2 : poly(3) = iy - 1 : poly(4) = ix - 4 : poly(5) = iy - 6
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		poly(0) = ix + 2 : poly(2) = ix + 7 : poly(4) = ix + 5
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		GdipFillRectangle gfx, brush, headx - 6.0, heady + 4.0, 12.0, 2.5
+		GdipSetPenWidth pen, 3.0
+		return
+	}
+	if sea_hat = 2 {
+		; サンタ帽
+		poly(0) = ix - 11 : poly(1) = iy - 6 : poly(2) = ix + 10 : poly(3) = iy - 9 : poly(4) = ix + 14 : poly(5) = iy - 26
+		GdipSetSolidFillColor brush, 0xFFD83A3A
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillRectangle gfx, brush, headx - 12.0, heady - 10.0, 24.0, 5.0
+		GdipFillEllipse gfx, brush, ix + 11, iy - 30, 7, 7
+		return
+	}
+	if sea_hat = 3 {
+		; 新聞紙の兜
+		poly(0) = ix - 14 : poly(1) = iy - 5 : poly(2) = ix + 14 : poly(3) = iy - 5 : poly(4) = ix : poly(5) = iy - 24
+		GdipSetSolidFillColor brush, 0xFF7A8AA8
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		GdipSetPenColor pen, 0xFFE0B030 : GdipSetPenWidth pen, 2.0
+		GdipDrawLine gfx, pen, headx - 6.0, heady - 8.0, headx - 12.0, heady - 20.0
+		GdipDrawLine gfx, pen, headx + 6.0, heady - 8.0, headx + 12.0, heady - 20.0
+		gosub *pen_back
+		return
+	}
+	return
+
+; 季節の空気：キャラのまわりに、雪・桜・雨・紅葉が舞う（画面座標）
+*season_particles
+	; 終わりぎわは数を減らして、ふっと止まるようにする
+	repeat limit(sea_show / 15, 0, 12)
+		pxs = double((cnt * 37 + frame * (1 + cnt \ 3)) \ LW)
+		pys = double((cnt * 53 + frame * (2 + cnt \ 2)) \ LH)
+		if sea_part = 1 {
+			GdipSetSolidFillColor brush, 0xD0E8F0FF
+			GdipFillEllipse gfx, brush, pxs, pys, 4.0, 4.0
+			GdipSetSolidFillColor brush, 0x50808AA0
+			GdipFillEllipse gfx, brush, pxs + 1.0, pys + 1.0, 2.0, 2.0
+		}
+		if sea_part = 2 {
+			GdipSetSolidFillColor brush, 0xD0F8B8C8
+			GdipFillEllipse gfx, brush, pxs + sin(double(frame + cnt * 9) * 0.08) * 6.0, pys, 5.0, 3.5
+		}
+		if sea_part = 3 {
+			GdipSetPenColor pen, 0x8070A8E0 : GdipSetPenWidth pen, 1.2
+			GdipDrawLine gfx, pen, pxs, pys, pxs - 2.0, pys + 8.0
+		}
+		if sea_part = 4 {
+			if cnt \ 2 {
+				GdipSetSolidFillColor brush, 0xD0E06030
+			} else {
+				GdipSetSolidFillColor brush, 0xD0F0A030
+			}
+			GdipFillEllipse gfx, brush, pxs + sin(double(frame + cnt * 7) * 0.06) * 8.0, pys, 6.0, 4.0
+		}
+	loop
+	if sea_part = 3 : gosub *pen_back
+	return

@@ -1,0 +1,218 @@
+; 作業のおとも、棒人間：窓を渡る道さがし
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 足場ノード：各窓の上辺を 12px おきに調べ、見えているいちばん長い区間を足場にする ----
+*build_nodes
+	gosub *scan_platforms
+	nn = 0 : vis_n = 0 : all_n = 0
+	repeat nplat
+		bp = cnt
+		if nn >= 62 : break
+		bestl = 0 : bestr = 0 : lastvis = -1 : segl = plat_l(bp)
+		ns = (plat_r(bp) - plat_l(bp)) / 12 + 1
+		repeat ns + 1
+			if cnt < ns {
+				sxp = plat_l(bp) + cnt * 12
+				if sxp > plat_r(bp) - 1 : sxp = plat_r(bp) - 1
+				vs = GetAncestor(WindowFromPoint(sxp, plat_t(bp) + 3), GA_ROOT) = plat_h(bp)
+				all_n++ : vis_n += vs
+			} else {
+				vs = -1 : sxp = plat_r(bp)
+			}
+			if vs != lastvis {
+				if lastvis = 1 {
+					if sxp - segl > bestr - bestl : bestl = segl : bestr = sxp
+				}
+				if ndraw & (lastvis >= 0) : gosub *ovl_seg
+				segl = sxp : lastvis = vs
+			}
+		loop
+		if bestr - bestl >= 40 {
+			nd_h(nn) = plat_h(bp) : nd_l(nn) = bestl : nd_r(nn) = bestr : nd_t(nn) = plat_t(bp) : nn++
+		}
+	loop
+	; 地面（いまいるモニターの作業領域の下端）
+	nd_h(nn) = 0 : nd_l(nn) = wa(0) : nd_r(nn) = wa(2) : nd_t(nn) = ground : gnd_i = nn : nn++
+	return
+
+; いま乗っているノード
+*find_cur
+	cn = -1
+	if onh {
+		repeat nn
+			if nd_h(cnt) = onh : cn = cnt : break
+		loop
+	} else {
+		if grounded : cn = gnd_i
+	}
+	return
+
+; u から v へ跳べるか、跳べるならその手間（ec）
+*edge_cost
+	ec = -1
+	ovl_x = (nd_l(v) < nd_r(u)) & (nd_r(v) > nd_l(u))
+	gap = nd_l(v) - nd_r(u)
+	if nd_l(u) - nd_r(v) > gap : gap = nd_l(u) - nd_r(v)
+	if gap < 0 : gap = 0
+	rise = nd_t(u) - nd_t(v)
+	if gap > 380 : return
+	if rise > 330 : return
+	; 真下にすっぽり隠れている足場へは降りられない
+	if ovl_x & (rise < 0) & (nd_l(v) >= nd_l(u)) & (nd_r(v) <= nd_r(u)) : return
+	ec = gap + abs(rise) + 60
+	return
+
+; u から v へ跳ぶ位置（xa：u の上、xb：v の上）
+*jump_points
+	ovl_x = (nd_l(v) < nd_r(u)) & (nd_r(v) > nd_l(u))
+	vcx = (nd_l(v) + nd_r(v)) / 2
+	xa = limit(vcx, nd_l(u) + 12, nd_r(u) - 12)
+	xb = limit(xa, nd_l(v) + 20, nd_r(v) - 20)
+	if ovl_x & (nd_t(v) > nd_t(u)) {
+		; 下の足場へは、上の足場の端から降りる
+		if nd_r(v) > nd_r(u) {
+			xa = nd_r(u) - 12 : xb = limit(nd_r(u) + 40, nd_l(v) + 15, nd_r(v) - 15)
+		} else {
+			xa = nd_l(u) + 12 : xb = limit(nd_l(u) - 40, nd_l(v) + 15, nd_r(v) - 15)
+		}
+	}
+	return
+
+; ダイクストラ法で、いまのノード（cn）から目的のノード（goal）までの経路を path に入れる
+*plan_path
+	dim dist, 64 : dim prv, 64 : dim dn, 64
+	repeat nn
+		dist(cnt) = 0x3fffffff : prv(cnt) = -1
+	loop
+	dist(cn) = 0
+	repeat nn
+		uu = -1 : bd = 0x3fffffff
+		repeat nn
+			if (dn(cnt) = 0) & (dist(cnt) < bd) : bd = dist(cnt) : uu = cnt
+		loop
+		if uu < 0 : break
+		dn(uu) = 1
+		if uu = goal : break
+		repeat nn
+			if dn(cnt) = 0 {
+				u = uu : v = cnt
+				gosub *edge_cost
+				if ec >= 0 {
+					if dist(uu) + ec < dist(cnt) : dist(cnt) = dist(uu) + ec : prv(cnt) = uu
+				}
+			}
+		loop
+	loop
+	pathn = 0
+	if dist(goal) >= 0x3fffffff : return
+	dim rev_p, 64 : rn = 0 : w = goal
+	repeat 64
+		rev_p(rn) = w : rn++
+		if w = cn : break
+		w = prv(w)
+		if w < 0 : rn = 0 : break
+	loop
+	; 経路は窓のハンドルで持つ（足場を作り直すと番号がずれるため。地面は 0）
+	repeat rn
+		path_h(cnt) = nd_h(rev_p(rn - 1 - cnt))
+	loop
+	pathn = rn : pk = 0
+	return
+
+; 窓のハンドル hh から、いまの足場の番号 ii を探す（地面は 0）
+*idx_of
+	ii = -1
+	if hh = 0 : ii = gnd_i : return
+	repeat nn
+		if nd_h(cnt) = hh : ii = cnt : break
+	loop
+	return
+
+*find_goal
+	goal = -1
+	if goal_h = 0 {
+		goal = gnd_i
+	} else {
+		repeat nn
+			if nd_h(cnt) = goal_h : goal = cnt : break
+		loop
+	}
+	return
+
+*goto_start
+	gosub *build_nodes
+	; 目的地：クリックした点の真下にある、いちばん上の足場
+	goal = -1 : gbest = 0x3fffffff
+	repeat nn
+		if (gt_x >= nd_l(cnt)) & (gt_x < nd_r(cnt)) & (nd_t(cnt) >= gt_y - 10) & (nd_t(cnt) < gbest) : gbest = nd_t(cnt) : goal = cnt
+	loop
+	if goal < 0 : bubble = "そこは行けないや" : bubt = 60 : return
+	goal_h = nd_h(goal) : goal_t = nd_t(goal) : gt_mode = 0
+	state = ST_GOTO : stimer = 0 : gt_timer = 0 : gt_replans = 0 : pathn = 0 : gt_need = 1
+	bubble = "今行く" : bubt = 60
+	return
+
+*goto_step
+	gt_timer++
+	vx = 0.0
+	if gt_timer > 60 * 45 : state = ST_IDLE : bubble = "遠いな、また今度" : bubt = 60 : return
+	if gt_need {
+		; 計画（はじめてのときと、思った足場に乗れなかったとき）
+		gt_need = 0 : gt_replans++
+		if gt_replans > 8 : state = ST_IDLE : bubble = "うーん、行けなかった" : bubt = 60 : return
+		gosub *build_nodes
+		gosub *find_cur
+		gosub *find_goal
+		if (cn < 0) | (goal < 0) : state = ST_IDLE : bubble = "そこは行けないや" : bubt = 60 : return
+		gosub *plan_path
+		if pathn = 0 : state = ST_IDLE : bubble = "道が見つからない！" : bubt = 60 : return
+	}
+	gosub *find_cur
+	curh = -1
+	if cn >= 0 : curh = nd_h(cn)
+	if curh != path_h(pk) {
+		if (pk + 1 < pathn) & (curh = path_h(pk + 1)) {
+			pk++
+		} else {
+			gt_need = 1
+			return
+		}
+	}
+	fx = int(cx) + CW / 2
+	if pk = pathn - 1 {
+		; 目的の足場の上：横に歩いて近づく
+		gxt = limit(gt_x, nd_l(cn) + 12, nd_r(cn) - 12)
+		if abs(gxt - fx) <= 4 {
+			if gt_mode {
+				gt_mode = 0 : state = ST_PEEK : stimer = 0
+				r2 = rnd(3)
+				if r2 = 0 : bubble = "おっ、進んでるな"
+				if r2 = 1 : bubble = "いい調子だな"
+				if r2 = 2 : bubble = "その調子！"
+				bubt = 90
+			} else {
+				state = ST_HAPPY : stimer = 0 : bubble = "来たぞ" : bubt = 70
+			}
+			return
+		}
+		if gxt > fx {
+			vx = 2.2
+		} else {
+			vx = -2.2
+		}
+		return
+	}
+	hh = path_h(pk) : gosub *idx_of : u = ii
+	hh = path_h(pk + 1) : gosub *idx_of : v = ii
+	if (u < 0) | (v < 0) : gt_need = 1 : return
+	gosub *jump_points
+	if abs(fx - xa) > 3 {
+		if xa > fx {
+			vx = 2.2
+		} else {
+			vx = -2.2
+		}
+		return
+	}
+	if jumpcd = 0 : tx = xb : ty = nd_t(v) : gosub *jump_to
+	return

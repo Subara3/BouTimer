@@ -1,0 +1,142 @@
+; 作業のおとも、棒人間：設定画面とスタートアップ登録
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 設定画面：メニューに散らばった設定を1枚にまとめる ----
+*settings_open
+	; いまの設定を、画面の選択肢の番号にする
+	sw_work = (work_min = 25) + (work_min = 50) * 2
+	sw_break = (break_min = 10) + (break_min = 15) * 2
+	sw_voice = voice_mode
+	sw_act = act_level
+	sw_ink = inkmode
+	sw_close = close_mode
+	sw_cmin = (close_min = 10) + (close_min = 15) * 2 + (close_min = 30) * 3
+	sw_type = typecount_on : sw_sound = sound_on : sw_season = season_on : sw_friend = friend_on
+	sw_idle = idle_stop : sw_slack = slack_stop : sw_ovl = ovl_on : sw_cos = costume
+	sw_dh = 0 : if diary_hour >= 17 : sw_dh = diary_hour - 16
+	gosub *startup_path
+	exist su_lnk
+	sw_start0 = (strsize >= 0) : sw_start = sw_start0
+	; 前の題名（ぼうタイマー）のときに置いたショートカットも、オンとして見せる
+	; （OK を押すと、変わったものとして新しい名前で置きなおし、古いほうを消す）
+	exist su_old
+	if strsize >= 0 : sw_start = 1
+	dim sw_obj, 8
+	; 開くたびに作り直す（screen で前の部品は消える）
+	; 左によく使う設定、右に「高度な設定」
+	screen 8, 940, 470, 2, (wa(0) + wa(2)) / 2 - 470, (wa(1) + wa(3)) / 2 - 235
+	title "作業のおとも、棒人間の設定"
+	; チェックボックスの地の色（システムのボタン面の色）に合わせる
+	color 240, 240, 240 : boxf
+	color 220, 220, 224 : line 462, 16, 462, 390
+	font "Meiryo UI", 14 : objmode 2
+	color 40, 40, 48
+	pos 18, 22 : mes "作業の長さ"
+	pos 18, 62 : mes "休憩の長さ"
+	pos 18, 102 : mes "声"
+	pos 18, 142 : mes "動きの多さ"
+	pos 18, 182 : mes "絵日記をすすめる時刻"
+	pos 484, 54 : mes "線の色"
+	pos 484, 94 : mes "サボり先を長く開いていたら"
+	pos 484, 134 : mes "何分たったら"
+	font "Meiryo UI", 14, 1 : pos 484, 16 : mes "高度な設定"
+	font "Meiryo UI", 14
+	objsize 260, 28
+	pos 180, 18 : combox sw_work, 120, "15分\n25分\n50分" : sw_obj(0) = stat
+	pos 180, 58 : combox sw_break, 120, "5分\n10分\n15分" : sw_obj(1) = stat
+	pos 180, 98 : combox sw_voice, 120, "しゃべらない\n決まったセリフだけ\nよくしゃべる" : sw_obj(2) = stat
+	pos 180, 138 : combox sw_act, 120, "なし（ほとんど動かない）\nときどき\nたくさん" : sw_obj(3) = stat
+	pos 180, 178 : combox sw_dh, 200, "しない\n17時\n18時\n19時\n20時\n21時\n22時\n23時" : sw_obj(7) = stat
+	objsize 220, 28
+	pos 700, 50 : combox sw_ink, 150, "おまかせ（ウィンドウのアイコンの色）\n黒\n紺\n茶\n緑" : sw_obj(4) = stat
+	pos 700, 90 : combox sw_close, 120, "しない\n最小化する\n閉じる（保存していない内容が消えることがあります）" : sw_obj(5) = stat
+	; 長い選択肢が切れないように、開いたときの幅だけ広げる（CB_SETDROPPEDWIDTH）
+	sendmsg objinfo(sw_obj(5), 2), 0x160, 400, 0
+	sendmsg objinfo(sw_obj(4), 2), 0x160, 300, 0
+	pos 700, 130 : combox sw_cmin, 150, "5分\n10分\n15分\n30分" : sw_obj(6) = stat
+	objsize 430, 26
+	pos 18, 232 : chkbox "音を鳴らす", sw_sound
+	pos 18, 262 : chkbox "Windowsの起動時に、いっしょに起動する", sw_start
+	pos 484, 180 : chkbox "タイピングを数える（回数だけ）", sw_type
+	pos 484, 210 : chkbox "席を離れたら一時停止する（10分さわらなかったら）", sw_idle
+	pos 484, 240 : chkbox "サボり先を見ているあいだはタイマーを止める", sw_slack
+	pos 484, 270 : chkbox "季節のイベント", sw_season
+	pos 484, 300 : chkbox "認識の図示（足場や道を画面に描く）", sw_ovl
+	pos 484, 330 : chkbox "サーバーと通信する（ゴースト機能用）", sw_friend
+	pos 484, 360 : chkbox "着せ替え：珠音（たまね）の髪型", sw_cos
+	objsize 150, 34
+	pos 316, 414 : button gosub "OK", *settings_ok
+	pos 476, 414 : button gosub "キャンセル", *settings_cancel
+	win_id = 8 : gosub *show_win
+	return
+
+*settings_cancel
+	gsel 8, -1
+	gsel 1
+	return
+
+*settings_ok
+	gsel 8
+	; 選ばれている番号はコンボボックスから直接読む（CB_GETCURSEL）。objinfo は gsel している窓の部品を見るので、窓を閉じる前に読む
+	sendmsg objinfo(sw_obj(0), 2), 0x147, 0, 0 : sw_work = stat
+	sendmsg objinfo(sw_obj(1), 2), 0x147, 0, 0 : sw_break = stat
+	sendmsg objinfo(sw_obj(2), 2), 0x147, 0, 0 : sw_voice = stat
+	sendmsg objinfo(sw_obj(3), 2), 0x147, 0, 0 : sw_act = stat
+	sendmsg objinfo(sw_obj(4), 2), 0x147, 0, 0 : sw_ink = stat
+	sendmsg objinfo(sw_obj(5), 2), 0x147, 0, 0 : sw_close = stat
+	sendmsg objinfo(sw_obj(6), 2), 0x147, 0, 0 : sw_cmin = stat
+	sendmsg objinfo(sw_obj(7), 2), 0x147, 0, 0 : sw_dh = stat
+	gsel 8, -1
+	gsel 1
+	; 変わったところだけ、メニューと同じ番号で実行する
+	if testmode : dbg += strf("SET work=%d start=%d/%d wmin=%d", sw_work, sw_start, sw_start0, work_min) + "\n"
+	if sw_work != ((work_min = 25) + (work_min = 50) * 2) : r = 11 + sw_work : gosub *menu_do
+	if sw_break != ((break_min = 10) + (break_min = 15) * 2) : r = 21 + sw_break : gosub *menu_do
+	if sw_voice != voice_mode : r = 70 + sw_voice : gosub *menu_do
+	if sw_act != act_level : r = 91 + sw_act : gosub *menu_do
+	if sw_ink != inkmode : r = 40 + sw_ink : gosub *menu_do
+	if sw_close != close_mode : r = 60 + sw_close : gosub *menu_do
+	if sw_cmin != ((close_min = 10) + (close_min = 15) * 2 + (close_min = 30) * 3) : r = 65 + sw_cmin : gosub *menu_do
+	if sw_type != typecount_on : r = 31 : gosub *menu_do
+	if sw_sound != sound_on : r = 32 : gosub *menu_do
+	if sw_season != season_on : r = 95 : gosub *menu_do
+	if sw_friend != friend_on : r = 80 : gosub *menu_do
+	if sw_idle != idle_stop : r = 97 : gosub *menu_do
+	if sw_slack != slack_stop : r = 96 : gosub *menu_do
+	if sw_ovl != ovl_on : r = 90 : gosub *menu_do
+	if sw_cos != costume : r = 85 + sw_cos : gosub *menu_do
+	if sw_start != sw_start0 : gosub *startup_set
+	if sw_dh >= 1 : sw_dh += 16
+	if sw_dh != diary_hour : diary_hour = sw_dh : gosub *save_settings
+	if testmode : dbg += strf("SET after wmin=%d", work_min) + "\n"
+	bubble = "設定したぜ" : bubt = 60
+	return
+
+; ---- スタートアップ：スタートアップフォルダにショートカットを置く（レジストリは使わない） ----
+*startup_path
+	su_lnk = dirinfo(0x10007) + "\\作業のおとも、棒人間.lnk"
+	su_old = dirinfo(0x10007) + "\\ぼうタイマー.lnk"
+	return
+
+*startup_set
+	gosub *startup_path
+	; 前の題名のショートカットは、オンでもオフでも消す（オンなら新しい名前で置きなおす）
+	exist su_old
+	if strsize >= 0 : delete su_old
+	if sw_start {
+		sdim mfn, 1024
+		GetModuleFileName 0, mfn, 512
+		su_exe = cnvwtos(mfn)
+		newcom wsh, "WScript.Shell"
+		comres sc
+		mcall wsh, "CreateShortcut", su_lnk
+		sc("TargetPath") = su_exe
+		sc("WorkingDirectory") = getpath(su_exe, 32)
+		mcall sc, "Save"
+		delcom sc
+		delcom wsh
+	} else {
+		exist su_lnk
+		if strsize >= 0 : delete su_lnk
+	}
+	return

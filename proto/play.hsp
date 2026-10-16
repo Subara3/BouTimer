@@ -1,0 +1,234 @@
+; 作業のおとも、棒人間：あそびの動き（縄跳び・ジャグリング・しゃぼん玉・紙飛行機・おにぎり・ヨーヨー）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+; 体のポーズは *play_pose、道具や飛んでいくものは *draw_play で、体と同じ座標（足もとが 0）に描く
+
+; 始めるとき（長さと最初のひとこと）
+*play_start
+	; 絵日記に書けるように数える（あそびの動きと出来事は同じ並び）
+	evc(EV_ROPE + act - ACT_ROPE)++
+	if act = ACT_ROPE : sdur = 330 : bubble = "縄跳びするか" : bubt = 60
+	if act = ACT_JUGGLE : sdur = 330 : bubble = "ジャグリング！" : bubt = 60
+	if act = ACT_BUBBLE : sdur = 380 : bubble = "しゃぼん玉だ" : bubt = 60
+	if act = ACT_PLANE : sdur = 300 : bubble = "紙飛行機、折るか" : bubt = 60
+	if act = ACT_ONIGIRI : sdur = 320 : bubble = "腹へったな" : bubt = 60 : oni_ume = rnd(3)
+	if act = ACT_YOYO : sdur = 320 : bubble = "ヨーヨー" : bubt = 50
+	return
+
+; とちゅうのひとこと
+*play_brain
+	if act = ACT_ROPE {
+		if stimer = 150 : bubble = "ほっ、ほっ" : bubt = 60
+	}
+	if act = ACT_JUGGLE {
+		if stimer = 260 : bubble = "おっと" : bubt = 50
+	}
+	if act = ACT_BUBBLE {
+		if stimer = 40 : bubble = "ふーっ" : bubt = 50
+		if stimer = 230 : bubble = "きれいだな" : bubt = 60
+	}
+	if act = ACT_PLANE {
+		if stimer = 92 : bubble = "それっ" : bubt = 40
+		if stimer = 200 : bubble = "よく飛んだ！" : bubt = 60
+	}
+	if act = ACT_ONIGIRI {
+		if stimer = 150 {
+			if oni_ume = 0 : bubble = "梅干しだ、すっぱ！" : bubt = 70
+			if oni_ume = 1 : bubble = "鮭だ、うまい" : bubt = 60
+			if oni_ume = 2 : bubble = "ツナマヨだ" : bubt = 60
+		}
+	}
+	if act = ACT_YOYO {
+		if stimer = 170 : bubble = "犬の散歩！" : bubt = 70
+	}
+	return
+
+; 終わったときのひとこと
+*play_end
+	if act = ACT_ROPE : bubble = "30回は跳んだな" : bubt = 60
+	if act = ACT_JUGGLE : bubble = "次は落とさないぞ" : bubt = 60
+	if act = ACT_ONIGIRI : bubble = "ごちそうさん" : bubt = 60
+	if act = ACT_YOYO : bubble = "よし、戻ってきた" : bubt = 50
+	return
+
+*play_pose
+	if act = ACT_ROPE {
+		; 縄が足の下を通るときに跳ぶ
+		view = 1 : mouth = 3
+		ra = double(stimer) * 0.16
+		rhop = maxf(0.0, cos(ra))
+		hipy = -24.0 - rhop * rhop * 15.0
+		aa1(0) = 45.0 + sin(ra) * 8.0 : aa2(0) = 70.0 : aa1(1) = 45.0 + sin(ra) * 8.0 : aa2(1) = 70.0
+		la1(0) = -4.0 - rhop * 6.0 : la2(0) = 10.0 * rhop : la1(1) = 4.0 + rhop * 6.0 : la2(1) = -10.0 * rhop
+		return
+	}
+	if act = ACT_JUGGLE {
+		view = 1 : mouth = 2 : lookdown = 0
+		ja = double(stimer) * 0.22
+		aa1(0) = 70.0 + sin(ja) * 12.0 : aa2(0) = 120.0
+		aa1(1) = 70.0 - sin(ja) * 12.0 : aa2(1) = 120.0
+		if (stimer >= 260) & (stimer < 300) : eyes = 6 : mouth = 4
+		return
+	}
+	if act = ACT_BUBBLE {
+		; 片手でストローを口に当てて吹く
+		mouth = 0 : lean = -3.0
+		aa1(0) = 100.0 : aa2(0) = 175.0
+		aa1(1) = 20.0 : aa2(1) = 40.0
+		if (stimer \ 80) < 30 : eyes = 1
+		return
+	}
+	if act = ACT_PLANE {
+		if stimer < 80 {
+			; 手もとで折る
+			lookdown = 1 : mouth = 2
+			fo = sin(double(stimer) * 0.6) * 6.0
+			aa1(0) = 55.0 + fo : aa2(0) = 110.0 : aa1(1) = 50.0 - fo : aa2(1) = 105.0
+			return
+		}
+		if stimer < 92 {
+			; ふりかぶる
+			lean = -6.0 : mouth = 4
+			aa1(0) = 160.0 : aa2(0) = 200.0 : aa1(1) = 30.0 : aa2(1) = 50.0
+			return
+		}
+		if stimer < 110 {
+			lean = 6.0 : mouth = 3
+			aa1(0) = 100.0 : aa2(0) = 95.0 : aa1(1) = -20.0 : aa2(1) = -10.0
+			return
+		}
+		; 見送る（片手をおでこにかざす）
+		mouth = 3 : lean = -4.0
+		aa1(0) = 150.0 : aa2(0) = 70.0
+		return
+	}
+	if act = ACT_ONIGIRI {
+		gosub *sit_floor_pose
+		k = stimer \ 70
+		if (k > 30) & (k < 50) {
+			; かじる
+			aa1(0) = 60.0 : aa2(0) = 190.0 : mouth = 3 : eyes = 1
+		} else {
+			aa1(0) = 50.0 : aa2(0) = 140.0 : mouth = 1
+		}
+		if (oni_ume = 0) & (stimer > 150) & (stimer < 200) : eyes = 5 : mouth = 4
+		return
+	}
+	if act = ACT_YOYO {
+		mouth = 1
+		yo = double(stimer) * 0.12
+		aa1(0) = 40.0 : aa2(0) = 70.0 + sin(yo) * 15.0
+		aa1(1) = 10.0 : aa2(1) = 25.0
+		if stimer >= 170 : aa2(0) = 80.0 : lookdown = 1
+		return
+	}
+	return
+
+; 道具と、飛んでいくもの
+*draw_play
+	if act = ACT_ROPE {
+		; 縄：左手から右手へ、回っている位置に合わせてたわませる
+		ra = double(stimer) * 0.16
+		rmx = (lhx + handx) / 2.0 : rmy = (lhy + handy) / 2.0 + cos(ra) * 46.0 - 4.0
+		GdipSetPenColor pen, 0xFFB0603A : GdipSetPenWidth pen, 1.6
+		px1 = lhx : py1 = lhy
+		repeat 12
+			tq = double(cnt + 1) / 12.0
+			px2 = (1.0 - tq) * (1.0 - tq) * lhx + 2.0 * tq * (1.0 - tq) * rmx + tq * tq * handx
+			py2 = (1.0 - tq) * (1.0 - tq) * lhy + 2.0 * tq * (1.0 - tq) * (rmy * 2.0 - (lhy + handy) / 2.0) + tq * tq * handy
+			GdipDrawLine gfx, pen, px1, py1, px2, py2
+			px1 = px2 : py1 = py2
+		loop
+		gosub *pen_back
+		return
+	}
+	if act = ACT_JUGGLE {
+		; 3つの玉が手の上で回る（最後のほうで1つ落とす）
+		ja = double(stimer) * 0.11
+		repeat 3
+			jp = ja + double(cnt) * 2.094
+			jx = cos(jp) * 14.0 : jy = -66.0 - absf(sin(jp)) * 24.0
+			if (cnt = 2) & (stimer >= 260) {
+				jt = double(limit(stimer - 260, 0, 40)) / 40.0
+				jx = 14.0 + jt * 10.0 : jy = -66.0 + jt * 64.0
+			}
+			if cnt = 0 : GdipSetSolidFillColor brush, 0xFFE05050
+			if cnt = 1 : GdipSetSolidFillColor brush, 0xFF4A80E0
+			if cnt = 2 : GdipSetSolidFillColor brush, 0xFFF0C030
+			GdipFillEllipse gfx, brush, jx - 4.0, jy - 4.0, 8.0, 8.0
+		loop
+		return
+	}
+	if act = ACT_BUBBLE {
+		; 口もとから、しゃぼん玉がゆらゆら上がる
+		GdipSetPenColor pen, 0xF06A9ED8 : GdipSetPenWidth pen, 1.4
+		repeat 7
+			age = stimer - 30 - cnt * 45
+			if (age <= 0) | (age > 220) : continue
+			br = 4.5 + double(cnt \ 3) * 2.0
+			bx2 = headx + 14.0 + double(age) * 0.32 : by2 = heady + 2.0 - double(age) * 0.36 + sin(double(age) * 0.1 + double(cnt)) * 3.0
+			if by2 < -112.0 : continue
+			GdipDrawEllipse gfx, pen, bx2 - br, by2 - br, br * 2.0, br * 2.0
+			GdipSetSolidFillColor brush, 0xA0FFFFFF
+			GdipFillEllipse gfx, brush, bx2 - br * 0.5, by2 - br * 0.6, br * 0.6, br * 0.5
+		loop
+		gosub *pen_back
+		return
+	}
+	if act = ACT_PLANE {
+		if stimer < 92 {
+			px = handx : py = handy - 3.0 : psz2 = 5.0 + double(limit(stimer, 0, 80)) / 16.0
+		} else {
+			if stimer < 100 : return
+			pt = double(stimer - 100)
+			px = 12.0 + pt * 0.55 : py = -62.0 - sin(pt * 0.035) * 22.0 + pt * 0.12 : psz2 = 10.0
+			if px > 104.0 : return
+		}
+		poly(0) = int(px - psz2) : poly(1) = int(py - psz2 * 0.35)
+		poly(2) = int(px + psz2) : poly(3) = int(py)
+		poly(4) = int(px - psz2) : poly(5) = int(py + psz2 * 0.45)
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		GdipSetPenWidth pen, 1.2
+		GdipDrawLine gfx, pen, px - psz2, py - psz2 * 0.35, px + psz2, py
+		GdipDrawLine gfx, pen, px + psz2, py, px - psz2, py + psz2 * 0.45
+		GdipDrawLine gfx, pen, px - psz2, py + psz2 * 0.05, px + psz2, py
+		gosub *pen_back
+		return
+	}
+	if act = ACT_ONIGIRI {
+		; かじるたびに小さくなる三角のおにぎり（のりつき）
+		os = 9.0 - double(limit(stimer / 70, 0, 4)) * 1.6
+		ox = handx + 2.0 : oy = handy - 3.0
+		poly(0) = int(ox) : poly(1) = int(oy - os)
+		poly(2) = int(ox + os) : poly(3) = int(oy + os * 0.7)
+		poly(4) = int(ox - os) : poly(5) = int(oy + os * 0.7)
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillPolygonI gfx, brush, poly, 3, 0
+		GdipSetPenWidth pen, 1.2
+		GdipDrawLine gfx, pen, ox, oy - os, ox + os, oy + os * 0.7
+		GdipDrawLine gfx, pen, ox + os, oy + os * 0.7, ox - os, oy + os * 0.7
+		GdipDrawLine gfx, pen, ox - os, oy + os * 0.7, ox, oy - os
+		GdipSetSolidFillColor brush, 0xFF24302A
+		GdipFillRectangle gfx, brush, ox - os * 0.35, oy + os * 0.05, os * 0.7, os * 0.62
+		gosub *pen_back
+		return
+	}
+	if act = ACT_YOYO {
+		GdipSetPenColor pen, 0xFF606070 : GdipSetPenWidth pen, 1.0
+		if stimer < 170 {
+			; 上下にのびちぢみ
+			yl = (1.0 - cos(double(stimer) * 0.12)) * 20.0 + 4.0
+			yx = handx : yy = handy + yl
+		} else {
+			; 犬の散歩：床を転がっていく
+			yt = double(limit(stimer - 170, 0, 120))
+			yx = handx + 6.0 + yt * 0.3 : yy = -4.0
+			if stimer > 290 : yx = handx : yy = handy + 6.0
+		}
+		GdipDrawLine gfx, pen, handx, handy, yx, yy
+		GdipSetSolidFillColor brush, 0xFFE05050
+		GdipFillEllipse gfx, brush, yx - 4.0, yy - 4.0, 8.0, 8.0
+		gosub *pen_back
+		return
+	}
+	return

@@ -1,0 +1,195 @@
+; 作業のおとも、棒人間：跳ぶ・落ちる・登る・足場を探す
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- (tx, ty) に着地する放物線で跳ぶ ----
+*jump_to
+	gosub *se_jump
+	fx = int(cx) + CW / 2 : foot = int(cy) + FOOTY
+	apex = foot
+	if ty < apex : apex = ty
+	apex -= 40
+	vy = -sqrt(2.0 * GRAV * (foot - apex))
+	t = -vy / GRAV + sqrt(2.0 * (ty - apex) / GRAV)
+	vx = double(tx - fx) / t
+	onh = 0 : jumpcd = 30
+	return
+
+; ---- 落下と着地 ----
+*fall
+	; 投げられて飛んでいる間は、窓の横の辺にぶつかったら跳ね返る
+	if thrown & (absf(vx) > 1.0) : gosub *wall_bounce
+	vy += GRAV
+	if vy > 18.0 : vy = 18.0
+	foot = int(cy) + FOOTY
+	nfoot = int(cy + vy) + FOOTY
+	if vy > 0.0 {
+		gosub *scan_platforms
+		fx = int(cx) + CW / 2
+		best = -1 : bestt = 0x7fffffff
+		repeat nplat
+			if plat_h(cnt) = ignoreh : continue
+			if (fx >= plat_l(cnt)) & (fx < plat_r(cnt)) {
+				if (foot <= plat_t(cnt)) & (nfoot >= plat_t(cnt)) & (plat_t(cnt) < bestt) {
+					; 手前の別ウィンドウに隠れていない辺だけ
+					if GetAncestor(WindowFromPoint(fx, plat_t(cnt) + 3), GA_ROOT) = plat_h(cnt) {
+						best = cnt : bestt = plat_t(cnt)
+					}
+				}
+			}
+		loop
+		if best >= 0 {
+			onh = plat_h(best) : onl = plat_l(best) : ont = plat_t(best) : onr = plat_r(best)
+			cy = double(ont - FOOTY) : vy = 0.0 : vx = 0.0
+			gosub *on_land
+			return
+		}
+	}
+	cy += vy
+	if cy + FOOTY >= ground {
+		landing = vy > 1.0
+		cy = double(ground - FOOTY) : vy = 0.0 : vx = 0.0
+		if landing : gosub *on_land
+	}
+	return
+
+*wall_bounce
+	gosub *scan_platforms
+	fxn = int(cx) + CW / 2 : fxo = int(cx - vx) + CW / 2
+	midy = int(cy) + FOOTY - 30
+	repeat nplat
+		if plat_h(cnt) = ignoreh : continue
+		if (midy <= plat_t(cnt) + 4) | (midy >= plat_b(cnt)) : continue
+		if (vx > 0.0) & (fxo < plat_l(cnt)) & (fxn >= plat_l(cnt)) {
+			if GetAncestor(WindowFromPoint(plat_l(cnt) + 2, midy), GA_ROOT) = plat_h(cnt) {
+				cx = double(plat_l(cnt) - CW / 2 - 1) : vx = -vx * 0.55 : gosub *bump : break
+			}
+		}
+		if (vx < 0.0) & (fxo > plat_r(cnt)) & (fxn <= plat_r(cnt)) {
+			if GetAncestor(WindowFromPoint(plat_r(cnt) - 3, midy), GA_ROOT) = plat_h(cnt) {
+				cx = double(plat_r(cnt) - CW / 2 + 1) : vx = -vx * 0.55 : gosub *bump : break
+			}
+		}
+	loop
+	return
+
+*bump
+	squash = 6
+	if rnd(3) = 0 : bubble = "いてっ" : bubt = 40
+	return
+; 投げられたり高いところから落ちたりしたら、ポーズを決めて着地する
+*on_land
+	if (thrown | (cy - fallstart > 160.0)) & (state != ST_DIZZY) & (state != ST_POKED) & (state != ST_CHEER) & (state != ST_BEHIND) {
+		state = ST_LAND : stimer = 0 : landpose = rnd(5) : bubt = 70
+		if landpose = 0 : bubble = "着地、成功だ"
+		if landpose = 1 : bubble = "決まった！"
+		if landpose = 2 : bubble = "シュタッ"
+		if landpose = 3 : bubble = "ふっ、余裕だ"
+		if landpose = 4 : bubble = "ほっ"
+	}
+	thrown = 0
+	return
+
+; ウィンドウの左右の縁のそばなら、つかまって登りはじめる
+*try_grab
+	gosub *scan_platforms
+	fx = int(cx) + CW / 2 : foot = int(cy) + FOOTY
+	best = -1 : bestd = 24
+	repeat nplat
+		if (foot > plat_t(cnt) + 20) & (foot + 30 < plat_b(cnt)) {
+			d = abs(fx - plat_l(cnt))
+			if d < bestd {
+				if GetAncestor(WindowFromPoint(plat_l(cnt) + 3, foot + 30), GA_ROOT) = plat_h(cnt) : best = cnt : bestd = d : side = -1
+			}
+			d = abs(fx - plat_r(cnt))
+			if d < bestd {
+				if GetAncestor(WindowFromPoint(plat_r(cnt) - 4, foot + 30), GA_ROOT) = plat_h(cnt) : best = cnt : bestd = d : side = 1
+			}
+		}
+	loop
+	if best < 0 : return
+	climbh = plat_h(best) : state = ST_CLIMB : stimer = 0 : vx = 0.0 : vy = 0.0 : onh = 0 : evc(EV_CLIMB)++
+	bubble = "よし、登るか" : bubt = 70 : thrown = 0
+	return
+
+; 縁をよじ登る
+*climb
+	stimer++
+	onh_bak = onh : onh = climbh : gosub *getrect_on : onh = onh_bak
+	if okrect = 0 {
+		state = ST_IDLE : bubble = "おっと" : bubt = 45 : fallstart = cy
+		return
+	}
+	if side < 0 {
+		cx = double(rc(0) - 7 - CW / 2) : dir = 1
+	} else {
+		cx = double(rc(2) + 7 - CW / 2) : dir = -1
+	}
+	cy -= 1.1
+	if cy + FOOTY <= rc(1) + 2 {
+		; のぼりきって上に乗る
+		onh = climbh : onl = rc(0) : ont = rc(1) : onr = rc(2)
+		cy = double(ont - FOOTY) : vy = 0.0 : wasground = 1
+		if side < 0 {
+			cx = double(rc(0) + 16 - CW / 2)
+		} else {
+			cx = double(rc(2) - 16 - CW / 2)
+		}
+		state = ST_LAND : stimer = 0 : landpose = 3 : bubble = "よっこらせ" : bubt = 60
+	}
+	return
+
+; 乗っているウィンドウの現在位置
+; キャラクターの足元にあるモニターの作業領域を、地面と端にする
+*monitor_at
+	hmon = MonitorFromPoint(int(cx) + CW / 2, int(cy) + FOOTY - 10, 2)
+	if hmon = 0 : return
+	mi(0) = 40
+	GetMonitorInfo hmon, mi
+	wa(0) = mi(5) : wa(1) = mi(6) : wa(2) = mi(7) : wa(3) = mi(8)
+	ground = wa(3)
+	return
+
+*getrect_on
+	okrect = 0
+	if IsWindowVisible(onh) = 0 : return
+	if IsIconic(onh) : return
+	gosub *rect_of_onh
+	okrect = 1
+	return
+
+*rect_of_onh
+	DwmGetWindowAttribute onh, DWMWA_EXTENDED_FRAME_BOUNDS, rc, 16
+	if stat != 0 : GetWindowRect onh, rc
+	return
+
+; 足場になるウィンドウを手前から順に集める
+*scan_platforms
+	nplat = 0
+	h = GetTopWindow(0)
+	repeat
+		if h = 0 : break
+		if nplat >= MAXPLAT : break
+		if h != myhwnd {
+		if IsWindowVisible(h) {
+		if IsIconic(h) = 0 {
+			ex = GetWindowLong(h, GWL_EXSTYLE)
+			if (ex & WS_EX_TRANSPARENT) = 0 {
+				cloak = 0
+				DwmGetWindowAttribute h, DWMWA_CLOAKED, cloak, 4
+				if cloak = 0 {
+					onh_bak = onh : onh = h
+					gosub *rect_of_onh
+					onh = onh_bak
+					if (rc(2) - rc(0) >= 60) & (rc(3) - rc(1) >= 20) & (rc(1) > vtop) & (IsZoomed(h) = 0) {
+						plat_h(nplat) = h : plat_l(nplat) = rc(0)
+						plat_t(nplat) = rc(1) : plat_r(nplat) = rc(2) : plat_b(nplat) = rc(3)
+						nplat++
+					}
+				}
+			}
+		}
+		}
+		}
+		h = GetWindow(h, GW_HWNDNEXT)
+	loop
+	return

@@ -1,0 +1,150 @@
+; 作業のおとも、棒人間：フレンド（ゴースト）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- フレンド（ゴースト）：数字だけを送り、ほかの人の数字を1人分もらう ----
+*gh_tick
+	if friend_on = 0 : return
+	if gh_stage = 0 {
+		if gh_post {
+			gh_post = 0
+			myfav = ACT_TEA
+			if evc(EV_TEA) < 2 {
+				myfav = rnd(4)
+				if myfav = 0 : myfav = ACT_READ
+				if myfav = 1 : myfav = ACT_DANCE
+				if myfav = 2 : myfav = ACT_PUSHUP
+				if myfav = 3 : myfav = ACT_SWEEP
+			}
+			gbody = "id=" + myid + "&c=" + (inkc & 0xFFFFFF) + "&p=" + pomos_today + "&m=" + (workms_today / 60000) + "&f=" + myfav
+			neturl gh_url
+			netheader "Content-Type: application/x-www-form-urlencoded\n"
+			netrequest_post "ghost", gbody
+			gh_stage = 1
+			return
+		}
+		if gh_fetch {
+			gh_fetch = 0
+			neturl gh_url
+			netheader ""
+			netrequest_get "ghosts?n=1&me=" + myid
+			gh_stage = 2
+		}
+		return
+	}
+	netexec gres
+	if gres = 0 : return
+	if gres < 0 : gh_stage = 0 : gh_err++ : return
+	if gh_stage = 1 : gh_stage = 0 : gh_sent++ : return
+	if gh_stage = 2 {
+		gh_stage = 0
+		netgetv gtxt
+		gl = instr(gtxt, 0, "\n")
+		if gl > 0 : gtxt = strmid(gtxt, 0, gl)
+		; 数字とカンマだけの行のときだけ使う（エラーページなどが返ってきたら無視する）
+		gok = (strlen(gtxt) > 4) & (strlen(gtxt) < 64)
+		repeat strlen(gtxt)
+			gc = peek(gtxt, cnt)
+			if ((gc < '0') | (gc > '9')) & (gc != ',') & (gc != 13) : gok = 0 : break
+		loop
+		if gok : gline = gtxt : gosub *ghost_spawn : gh_got++
+	}
+	return
+
+*ghost_spawn
+	split gline, ",", gparts
+	gn = stat
+	if gn < 4 : return
+	gcolor = 0xFF000000 | (int(gparts(0)) & 0xFFFFFF) : gpomos = int(gparts(1)) : gmins = int(gparts(2)) : gact = int(gparts(3))
+	; 5つ目が1なら、参加者がまだいないときの見本
+	gsample = 0
+	if gn >= 5 : gsample = int(gparts(4))
+	if (gact != ACT_TEA) & (gact != ACT_READ) & (gact != ACT_DANCE) & (gact != ACT_PUSHUP) & (gact != ACT_SWEEP) : gact = ACT_TEA
+	; 本体の左右どちらかの、画面の上から降ってくる
+	ghx = cx + 260.0 * uis : gdir = -1
+	if ghx > double(vright - CW) : ghx = cx - 260.0 * uis : gdir = 1
+	; 本体より少し上から降ってくる（画面のいちばん上だと、遠くの窓に着地して気づかれにくい）
+	ghy = cy - 220.0 * uis
+	if ghy < double(wa(1) - FOOTY) : ghy = double(wa(1) - FOOTY)
+	gvy = 0.0 : gland = 0 : gtimer = 0 : galpha = 170
+	gh_on = 1
+	ShowWindow ghwnd, 4
+	SetWindowPos ghwnd, -1, 0, 0, 0, 0, 0x13
+	return
+
+*ghost_tick
+	if gh_on = 0 : return
+	if gland = 0 {
+		gvy += GRAV
+		if gvy > 14.0 : gvy = 14.0
+		gfoot = int(ghy) + FOOTY : gnf = int(ghy + gvy) + FOOTY : gxc = int(ghx) + CW / 2
+		if gvy > 0.0 {
+			gosub *scan_platforms
+			repeat nplat
+				if (gxc >= plat_l(cnt)) & (gxc < plat_r(cnt)) & (gfoot <= plat_t(cnt)) & (gnf >= plat_t(cnt)) {
+					if GetAncestor(WindowFromPoint(gxc, plat_t(cnt) + 3), GA_ROOT) = plat_h(cnt) : ghy = double(plat_t(cnt) - FOOTY) : gland = 1 : gvy = 0.0 : break
+				}
+			loop
+		}
+		if gland = 0 {
+			ghy += gvy
+			if ghy + FOOTY >= ground : ghy = double(ground - FOOTY) : gland = 1 : gvy = 0.0
+		}
+		if gland {
+			gbubble = "よう" : gbubt = 90
+			; フレンドが来たときは、呼び名で迎える
+			if gvis_name != "" {
+				bubble = "お、" + gvis_name + "が来た" : bubt = 90 : gvis_name = ""
+			} else {
+				bubble = "お、誰か来た" : bubt = 90
+			}
+		}
+		return
+	}
+	gtimer++
+	if gtimer = 150 : gbubble = "今日" + gpomos + "ポモドーロだ" : gbubt = 150
+	if (gtimer = 300) & gsample : gbubble = "見本で来たぞ" : gbubt = 120
+	if gtimer = 420 : gbubble = str(gmins) + "分やったぞ" : gbubt = 120
+	if gtimer = 900 : gbubble = "じゃあな" : gbubt = 90
+	if gtimer > 960 {
+		galpha -= 8
+		if galpha <= 0 : gh_on = 0 : ShowWindow ghwnd, 0
+	}
+	return
+
+; ゴーストを本体と同じ描き方で、半透明に描く（本体の状態は保存して戻す）
+*ghost_render
+	sv_state = state : sv_act = act : sv_st = stimer : sv_gr = grounded : sv_dir = dir : sv_cel = celebrate
+	sv_drag = dragging : sv_vx = vx : sv_vy = vy : sv_su = stickuse : sv_hang = hangoff : sv_cx = cx : sv_cy = cy : sv_mx = mx : sv_my = my
+	dragging = 0 : celebrate = 0 : hangoff = 0 : vx = 0.0 : vy = gvy : dir = gdir : grounded = gland
+	cx = ghx : cy = ghy : mx = int(ghx) + CW / 2 + gdir * 200 : my = int(ghy)
+	state = ST_IDLE
+	if gland {
+		state = ST_WAVE : stimer = gtimer
+		if (gtimer >= 120) & (gtimer < 880) : state = ST_ACT : act = gact : stimer = (gtimer - 120) \ 300
+	}
+	gosub *make_pose
+	savg = gfx : gfx = gfx2
+	GdipGraphicsClear gfx, 0
+	GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
+	GdipTranslateWorldTransform gfx, LW / 2, LF, 0
+	GdipScaleWorldTransform gfx, sx * dir, sy, 0
+	neckx = hipx + sin(lean * RAD) * 18.0 : necky = hipy - cos(lean * RAD) * 18.0
+	shx = hipx + (neckx - hipx) * 0.82 : shy = hipy + (necky - hipy) * 0.82
+	headx = neckx + sin(lean * RAD) * 11.0 : heady = necky - cos(lean * RAD) * 11.0
+	GdipSetPenColor pen, gcolor
+	curpen = halopen : halo = 1 : gosub *figure
+	curpen = pen : halo = 0 : gosub *figure
+	GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
+	if gbubt > 0 {
+		gbubt--
+		gbw = 22.0 + strlen(gbubble) * 4.0
+		cpill 7, gbubble, (double(LW) - gbw) / 2.0, 24.0, gbw, 18, 0xF0FFFFFF, 0xFF3A3A44
+	}
+	gfx = savg
+	GdipSetPenColor pen, inkc
+	state = sv_state : act = sv_act : stimer = sv_st : grounded = sv_gr : dir = sv_dir : celebrate = sv_cel
+	dragging = sv_drag : vx = sv_vx : vy = sv_vy : stickuse = sv_su : hangoff = sv_hang : cx = sv_cx : cy = sv_cy : mx = sv_mx : my = sv_my
+	ptd2(0) = int(ghx) : ptd2(1) = int(ghy)
+	gblend = 0x01000000 | (galpha << 16)
+	UpdateLayeredWindow ghwnd, 0, ptd2, psz, memdc2, pts, 0, gblend, 2
+	return

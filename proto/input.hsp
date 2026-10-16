@@ -1,0 +1,208 @@
+; 作業のおとも、棒人間：キー入力の回数・離席・マウス（つつく・つまむ・なでる）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 入力の見守り ----
+*watch_input
+	; 最後に操作した時刻だけで離席を判定する
+	GetLastInputInfo lii
+	idlems = GetTickCount() - lii(1)
+	; キーは「押された回数」だけ数える。どのキーかは変数にも残さない
+	newk = 0
+	; 前のフレームから入力がなければ、キーの状態も変わっていないので調べない
+	inputchanged = (lii(1) != lastinput) : lastinput = lii(1)
+	if typecount_on & inputchanged {
+		repeat 246, 8
+			if (cnt >= 0x10) & (cnt <= 0x12) : continue
+			kd = (GetAsyncKeyState(cnt) & 0x8000) != 0
+			if kd & (kprev(cnt) = 0) : newk++
+			kprev(cnt) = kd
+		loop
+		if newk {
+			keys_session += newk : keys_today += newk : lastkey = frame
+		}
+	}
+	krate = krate * 0.98 + newk
+	if signcool > 0 : signcool--
+	if typecool > 0 : typecool--
+	if scoldcool > 0 : scoldcool--
+	if switchcool > 0 : switchcool--
+
+	; 離席：作業中にマウスもキーも5分さわらなかったら呼んで、10分で寝て待つ（メニューで止めないようにもできる）
+	if (phase = 0) & idle_stop {
+		if (idlems > idle_warn) & (called = 0) & (paused = 0) & (dragging = 0) {
+			called = 1 : state = ST_CALL : stimer = 0 : bubble = "おーい、どこ行った～？" : bubt = 90
+		}
+		if (idlems > idle_pause) & (paused = 0) {
+			paused = 1 : autopaused = 1 : pause_at = now
+		}
+	}
+	if idlems < 1500 {
+		called = 0
+		if autopaused {
+			autopaused = 0 : paused = 0 : phase_start += now - pause_at
+			state = ST_IDLE : stimer = 0 : bubble = "おう、おかえり！" : bubt = 90
+		}
+	}
+	return
+
+; ---- 乗っているウィンドウのクラス名とタイトルから種を作る ----
+*window_seed
+	if onh = seedh : return
+	seedh = onh
+	if inkmode = 0 : gosub *ink_from_window
+	if onh = 0 : wseed = 12345 : actn = 0 : return
+	hs = 5381
+	memset wbuf, 0, 1024
+	GetClassNameW onh, wbuf, 255
+	gosub *hash_wbuf
+	memset wbuf, 0, 1024
+	GetWindowTextW onh, wbuf, 255
+	gosub *hash_wbuf
+	wseed = hs & 0x7FFFFFFF
+	if showmode = 0 : actn = 0
+	return
+
+*hash_wbuf
+	repeat 255
+		w = wpeek(wbuf, cnt * 2)
+		if w = 0 : break
+		hs = hs * 33 + w
+	loop
+	return
+
+; ---- マウス：つつく／つまむ／メニュー ----
+*poll_mouse
+	getkey ml, 1 : getkey mr, 2
+	mx = ginfo_mx : my = ginfo_my
+	; 確認用：偽のマウス入力に差しかえる（interact モードのみ）
+	if fakein : ml = fml : mx = fmx : my = fmy : mr = 0
+	; 描いた絵の上（不透明な画素）にカーソルがあるか
+	lx = mx - int(cx) : ly = my - int(cy)
+	over = 0
+	if (lx >= 0) & (lx < CW) & (ly >= 0) & (ly < CHH) & (behindh = 0) {
+		if ((lpeek(bits, (ly * CW + lx) * 4) >> 24) & 255) > 16 : over = 1
+	}
+	hovering = over
+	; デスクトップをダブルクリックすると、その場所まで窓を渡ってくる
+	if ml & (ml_old = 0) & (over = 0) & (dragging = 0) {
+		dkh = GetAncestor(WindowFromPoint(mx, my), GA_ROOT)
+		memset wbuf, 0, 1024
+		GetClassNameW dkh, wbuf, 255
+		dcls = cnvwtos(wbuf)
+		if (dcls = "Progman") | (dcls = "WorkerW") {
+			if (now - dclk_t < 450) & (abs(mx - dclk_x) < 8) & (abs(my - dclk_y) < 8) {
+				gt_x = mx : gt_y = my : dclk_t = 0
+				gosub *goto_start
+			} else {
+				dclk_t = now : dclk_x = mx : dclk_y = my
+			}
+		}
+	}
+	; なでる：頭の上でカーソルを左右に動かす
+	pet *= 0.97
+	if (pressing = 0) & (dragging = 0) {
+		hdx = mx - headsx : hdy = my - headsy
+		if hdx * hdx + hdy * hdy < 400 {
+			if abs(mx - pmx) > 2 {
+				sg2 = (mx > pmx) * 2 - 1
+				if sg2 != petsg : pet += 1.0
+				petsg = sg2
+			}
+		}
+	}
+	if (pet > 4.0) & (state != ST_HAPPY) & grounded {
+		pet = 0.0 : state = ST_HAPPY : stimer = 0 : bubble = "へへっ、くすぐってえ" : bubt = 70 : evc(EV_PET)++
+	}
+	if ml & (ml_old = 0) & over {
+		pressing = 1 : px0 = mx : py0 = my
+	}
+	if pressing & ml {
+		if dragging = 0 {
+			if abs(mx - px0) + abs(my - py0) > 6 {
+				dragging = 1 : onh = 0 : bubt = 70
+				sleepdrag = (state = ST_SLEEP)
+				if behindh : gosub *restore_front
+				hangoff = 0
+				if sleepdrag = 0 : state = ST_IDLE
+				r = rnd(3)
+				if r = 0 : bubble = "空中散歩か？"
+				if r = 1 : bubble = "どこ行くんだ？"
+				if r = 2 : bubble = "たかーい！"
+				if sleepdrag : bubble = "zzz…"
+			}
+		}
+		if dragging {
+			dvx = double(mx - pmx) : dvy = double(my - pmy)
+			cx = double(mx - CW / 2) : cy = double(my - FOOTY) + 62.0 * uis
+		}
+	}
+	if pressing & (ml = 0) {
+		if dragging {
+			; 離したら投げる
+			vx = limitf(dvx * 0.8, -14.0, 14.0) : vy = limitf(dvy * 0.8, -16.0, 10.0)
+			dragging = 0 : wasground = 0 : thrown = 1 : bubble = "とうっ" : bubt = 40 : evc(EV_THROW)++
+			if sleepdrag : thrown = 0 : bubt = 0
+			; ウィンドウの縁のそばで離すと、つかまって登る
+			gosub *try_grab
+		} else {
+			; 頭の上のタイマーの表示をクリックしたら、一時停止と再開を切りかえる。それ以外はつつく
+			clx = double(mx - int(cx)) / uis : cly = double(my - int(cy)) / uis
+			; カーソルを乗せたときに出るやることの札：クリックで済み／もどす
+			cl_td = td_vis & hovering & (wz_on = 0) & (clx >= td_x) & (clx <= td_x + td_w) & (cly >= 37.0) & (cly <= 57.0)
+			cl_tl = (wz_on = 0) & (clx >= tl_x) & (clx <= tl_x + tl_w) & (cly >= 0.0) & (cly <= 22.0)
+			if cl_td {
+				gosub *todo_hover_click
+			} else {
+				if cl_tl {
+					r = 1 : gosub *menu_do
+					if paused {
+						bubble = "いってらっしゃい！" : bubt = 80
+					} else {
+						bubble = "おかえり！続きやろうぜ" : bubt = 80
+					}
+				} else {
+					gosub *poked
+				}
+			}
+		}
+		pressing = 0
+	}
+	if mr & (mr_old = 0) & over : gosub *popup
+	ml_old = ml : mr_old = mr : pmx = mx : pmy = my
+	return
+
+*poked
+	evc(EV_POKE)++
+	if frame - lastpoke < 120 {
+		pokes++
+	} else {
+		pokes = 1
+	}
+	lastpoke = frame
+	if state = ST_CLIMB : bubble = "今登ってるとこ！" : bubt = 50 : return
+	; 時刻を知らせているときにつつかれたら、伝わったことにする
+	if state = ST_ALARM : state = ST_HAPPY : stimer = 0 : alt = 0 : bubble = "よし、行ってこい！" : bubt = 70 : return
+	; 「終わった？」と聞いているときは、答えを選んでもらう
+	if diary_ask > 0 : gosub *diary_ask_menu : return
+	if todo_ask > 0 : gosub *todo_ask_menu : return
+	; 茶を飲んでいるときにつつかれたら、こぼす
+	if (state = ST_ACT) & (act = ACT_TEA) & (stimer > 30) : act = ACT_WIPE : gosub *start_act : return
+	; 腕立て中につつかれたら、つぶれる
+	if (state = ST_ACT) & (act = ACT_PUSHUP) : act = ACT_FLAT : gosub *start_act : return
+	if (state = ST_REST) | (state = ST_PAUSE) {
+		state = ST_WAVE : stimer = 0 : bubble = "おう" : bubt = 60
+		return
+	}
+	if state = ST_SLEEP {
+		state = ST_POKED : stimer = 0 : bubble = "うおっ!?" : bubt = 60
+		vy = -8.0 : onh = 0 : vx = 0.0
+		return
+	}
+	state = ST_POKED : stimer = 0 : vx = 0.0
+	if pokes >= 4 {
+		bubble = "くすぐったいって！" : bubt = 70
+	} else {
+		bubble = "っと" : bubt = 40
+	}
+	if grounded : vy = -4.0 : onh = 0
+	return

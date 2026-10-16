@@ -1,0 +1,65 @@
+; 作業のおとも、棒人間：文字カーソルをのぞきに来る・全画面と電池
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 文字カーソル（キャレット）の位置だけを見る。打った中身は読まない ----
+*watch_caret
+	if peek_cd > 0 : peek_cd -= 20
+	caret_ok = 0
+	fgw = GetAncestor(GetForegroundWindow(), GA_ROOT)
+	if fgw = 0 : caret_moves = 0.0 : return
+	if instr(cmd, 0, "peektest") >= 0 : caret_fg = fgw : caret_ok = 1 : return
+	; スレッドに 0 を渡すと、手前の窓のスレッドの情報が返る（GUITHREADINFO は 32bit で48バイト）
+	dim gti, 12 : gti(0) = 48
+	GetGUIThreadInfo 0, gti
+	; 手前の窓のものでなければ使わない
+	if GetAncestor(gti(7), GA_ROOT) != fgw : caret_moves *= 0.8 : return
+	cpt(0) = gti(8) : cpt(1) = gti(9)
+	ClientToScreen gti(7), cpt
+	caret_ok = 1
+	if (abs(cpt(0) - caret_x) > 2) | (abs(cpt(1) - caret_y) > 2) : caret_moves += 1.0
+	caret_moves *= 0.93
+	caret_x = cpt(0) : caret_y = cpt(1) : caret_fg = fgw
+	if testmode & ((frame \ 120) = 0) : dbg += strf("C ok=%d x=%d y=%d moves=%.1f", caret_ok, caret_x, caret_y, caret_moves) + "\n"
+	return
+
+*peek_start
+	gosub *build_nodes
+	goal = -1
+	repeat nn
+		if nd_h(cnt) = caret_fg : goal = cnt : break
+	loop
+	if goal < 0 : return
+	if instr(cmd, 0, "peektest") >= 0 : caret_x = (nd_l(goal) * 2 + nd_r(goal)) / 3
+	gt_x = caret_x : gt_y = nd_t(goal)
+	goal_h = nd_h(goal) : goal_t = nd_t(goal)
+	gt_mode = 1
+	state = ST_GOTO : stimer = 0 : gt_timer = 0 : gt_replans = 0 : pathn = 0 : gt_need = 1
+	if testmode : dbg += strf("PEEK start caret=%d,%d goal_t=%d", caret_x, caret_y, goal_t) + "\n"
+	return
+
+; ---- 全画面のアプリやプレゼンの最中は隠れる。電池のときは控えめに動く ----
+*watch_env
+	qns = 0
+	SHQueryUserNotificationState qns
+	; QUNS_BUSY=2（全画面のアプリ）、QUNS_RUNNING_D3D_FULL_SCREEN=3、QUNS_PRESENTATION_MODE=4
+	fsnow = (qns = 2) | (qns = 3) | (qns = 4)
+	if instr(cmd, 0, "fstest") >= 0 : fsnow = (frame >= 150) & (frame < 600)
+	if fsnow != fs_hide {
+		fs_hide = fsnow
+		if fs_hide {
+			ShowWindow myhwnd, 0
+			ShowWindow ghwnd, 0
+			if ovl_on : ShowWindow ovhwnd, 0
+		} else {
+			ShowWindow myhwnd, 4
+			if gh_on : ShowWindow ghwnd, 4
+			if ovl_on : ShowWindow ovhwnd, 4
+		}
+		if testmode : dbg += strf("FS f=%d hide=%d qns=%d", frame, fs_hide, qns) + "\n"
+	}
+	sps = 0, 0, 0
+	GetSystemPowerStatus sps
+	; ACLineStatus=0 は電池。SystemStatusFlag の1は省電力モード
+	lowpow = (peek(sps, 0) = 0) | ((peek(sps, 3) & 1) != 0)
+	if instr(cmd, 0, "lowpow") >= 0 : lowpow = 1
+	return

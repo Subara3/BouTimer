@@ -1,0 +1,1049 @@
+; デスクトップのウィンドウを歩き回るポモドーロタイマー 試作
+; 作業中は勝手に歩き回って色々し、休憩になると使っているウィンドウに来て座る
+; 左クリック：つつく　ドラッグ：つまんで投げる　右クリック：メニュー
+#include "hsp3utf.as"
+#include "hspinet.as"
+; 実行ファイル名は題名が決まるまでの仮
+#packopt name "BouTimer"
+#packopt hide 1
+
+#uselib "user32.dll"
+#func SetProcessDPIAware "SetProcessDPIAware"
+#cfunc GetTopWindow "GetTopWindow" int
+#cfunc GetWindow "GetWindow" int, int
+#cfunc IsWindowVisible "IsWindowVisible" int
+#cfunc IsIconic "IsIconic" int
+#cfunc GetWindowLong "GetWindowLongW" int, int
+#func SetWindowLong "SetWindowLongW" int, int, int
+#cfunc WindowFromPoint "WindowFromPoint" int, int
+#cfunc GetAncestor "GetAncestor" int, int
+#cfunc GetForegroundWindow "GetForegroundWindow"
+#func SetForegroundWindow "SetForegroundWindow" int
+#func GetWindowRect "GetWindowRect" int, var
+#func GetWindowTextW "GetWindowTextW" int, var, int
+#func GetClassNameW "GetClassNameW" int, var, int
+#func SystemParametersInfo "SystemParametersInfoW" int, int, var, int
+#func MessageBeep "MessageBeep" int
+#func SetWindowPos "SetWindowPos" int, int, int, int, int, int, int
+#func ShowWindow "ShowWindow" int, int
+#func UpdateLayeredWindow "UpdateLayeredWindow" int, int, var, var, int, var, int, var, int
+#cfunc CreatePopupMenu "CreatePopupMenu"
+#func AppendMenu "AppendMenuW" int, int, int, wstr
+#cfunc TrackPopupMenu "TrackPopupMenu" int, int, int, int, int, int, int
+#func DestroyMenu "DestroyMenu" int
+#func GetLastInputInfo "GetLastInputInfo" var
+#cfunc GetAsyncKeyState "GetAsyncKeyState" int
+#cfunc MonitorFromPoint "MonitorFromPoint" int, int, int
+#func GetMonitorInfo "GetMonitorInfoW" int, var
+#cfunc GetSystemMetrics "GetSystemMetrics" int
+#cfunc IsZoomed "IsZoomed" int
+#func PostMessage "PostMessageW" int, int, int, int
+#cfunc GetDC "GetDC" int
+#func ReleaseDC "ReleaseDC" int, int
+#func GetWindowThreadProcessId "GetWindowThreadProcessId" int, var
+#func GetGUIThreadInfo "GetGUIThreadInfo" int, var
+#func ClientToScreen "ClientToScreen" int, var
+#cfunc LoadIcon "LoadIconW" int, int
+#func SendMessageTimeout "SendMessageTimeoutW" int, int, int, int, int, int, var
+#cfunc GetClassLong "GetClassLongW" int, int
+#func DrawIconEx "DrawIconEx" int, int, int, int, int, int, int, int, int
+#cfunc CreateIconIndirect "CreateIconIndirect" var
+#cfunc OpenClipboard "OpenClipboard" int
+#func EmptyClipboard "EmptyClipboard"
+#func SetClipboardData "SetClipboardData" int, int
+#func CloseClipboard "CloseClipboard"
+#uselib "kernel32.dll"
+#cfunc GetTickCount "GetTickCount"
+#cfunc OpenProcess "OpenProcess" int, int, int
+#func QueryFullProcessImageName "QueryFullProcessImageNameW" int, int, var, var
+#func CloseHandle "CloseHandle" int
+#func CreateDirectory "CreateDirectoryW" wstr, int
+#cfunc CreateFile "CreateFileW" wstr, int, int, int, int, int, int
+#func GetModuleFileName "GetModuleFileNameW" int, var, int
+#func GetSystemPowerStatus "GetSystemPowerStatus" var
+#cfunc WaitForSingleObject "WaitForSingleObject" int, int
+#func GetExitCodeProcess "GetExitCodeProcess" int, var
+#cfunc GlobalAlloc "GlobalAlloc" int, int
+#cfunc GlobalLock "GlobalLock" int
+#func GlobalUnlock "GlobalUnlock" int
+#define VERSION_STR "1.0"
+#func CreateProcess "CreateProcessW" int, var, int, int, int, int, int, wstr, var, var
+#func TerminateProcess "TerminateProcess" int, int
+#cfunc CreateMutex "CreateMutexW" int, int, wstr
+#cfunc GetLastError "GetLastError"
+#cfunc GetCurrentProcessId "GetCurrentProcessId"
+#uselib "shell32.dll"
+#func Shell_NotifyIcon "Shell_NotifyIconW" int, var
+#func SHQueryUserNotificationState "SHQueryUserNotificationState" var
+#uselib "gdi32.dll"
+#cfunc CreateCompatibleDC "CreateCompatibleDC" int
+#cfunc CreateDIBSection "CreateDIBSection" int, var, int, var, int, int
+#cfunc CreateBitmap "CreateBitmap" int, int, int, int, int
+#func SelectObject "SelectObject" int, int
+#cfunc GetDeviceCaps "GetDeviceCaps" int, int
+#uselib "dwmapi.dll"
+#func DwmGetWindowAttribute "DwmGetWindowAttribute" int, int, var, int
+#uselib "winmm.dll"
+#cfunc timeGetTime "timeGetTime"
+#func PlaySound "PlaySoundW" var, int, int
+#func PlaySoundStop "PlaySoundW" int, int, int
+#func mciSendString "mciSendStringW" wstr, int, int, int
+#uselib "gdiplus.dll"
+#func GdiplusStartup "GdiplusStartup" var, var, int
+#func GdipCreateBitmapFromScan0 "GdipCreateBitmapFromScan0" int, int, int, int, int, var
+#func GdipGetImageGraphicsContext "GdipGetImageGraphicsContext" int, var
+#func GdipSetSmoothingMode "GdipSetSmoothingMode" int, int
+#func GdipSetTextRenderingHint "GdipSetTextRenderingHint" int, int
+#func GdipGraphicsClear "GdipGraphicsClear" int, int
+#func GdipCreatePen1 "GdipCreatePen1" int, float, int, var
+#func GdipSetPenLineCap197819 "GdipSetPenLineCap197819" int, int, int, int
+#func GdipSetPenLineJoin "GdipSetPenLineJoin" int, int
+#func GdipSetPenColor "GdipSetPenColor" int, int
+#func GdipSetPenWidth "GdipSetPenWidth" int, float
+#func GdipCreateSolidFill "GdipCreateSolidFill" int, var
+#func GdipSetSolidFillColor "GdipSetSolidFillColor" int, int
+#func GdipDrawLine "GdipDrawLine" int, int, float, float, float, float
+#func GdipDrawEllipse "GdipDrawEllipse" int, int, float, float, float, float
+#func GdipFillEllipse "GdipFillEllipse" int, int, float, float, float, float
+#func GdipDrawRectangle "GdipDrawRectangle" int, int, float, float, float, float
+#func GdipFillRectangle "GdipFillRectangle" int, int, float, float, float, float
+#func GdipDrawArc "GdipDrawArc" int, int, float, float, float, float, float, float
+#func GdipResetWorldTransform "GdipResetWorldTransform" int
+#func GdipTranslateWorldTransform "GdipTranslateWorldTransform" int, float, float, int
+#func GdipScaleWorldTransform "GdipScaleWorldTransform" int, float, float, int
+#func GdipRotateWorldTransform "GdipRotateWorldTransform" int, float, int
+#func GdipCreateFontFamilyFromName "GdipCreateFontFamilyFromName" wstr, int, var
+#func GdipCreateFont "GdipCreateFont" int, float, int, int, var
+#func GdipCreateStringFormat "GdipCreateStringFormat" int, int, var
+#func GdipSetStringFormatAlign "GdipSetStringFormatAlign" int, int
+#func GdipSetStringFormatLineAlign "GdipSetStringFormatLineAlign" int, int
+#func GdipDrawString "GdipDrawString" int, wstr, int, int, var, int, int
+#func GdipFillPolygonI "GdipFillPolygonI" int, int, var, int, int
+#func GdipDrawPolygonI "GdipDrawPolygonI" int, int, var, int
+#func GdipSaveImageToFile "GdipSaveImageToFile" int, wstr, var, int
+#func GdipCreateFromHDC "GdipCreateFromHDC" int, var
+#func GdipDeleteGraphics "GdipDeleteGraphics" int
+#func GdipSetInterpolationMode "GdipSetInterpolationMode" int, int
+#func GdipDisposeImage "GdipDisposeImage" int
+#func GdipSetPenDashStyle "GdipSetPenDashStyle" int, int
+#func GdipFillPie "GdipFillPie" int, int, float, float, float, float, float, float
+#func GdipDrawImageRectI "GdipDrawImageRectI" int, int, int, int, int, int
+#func GdipDrawImageRectRectI "GdipDrawImageRectRectI" int, int, int, int, int, int, int, int, int, int, int, int, int, int
+
+#usecom IMMDeviceEnumerator "{A95664D2-9614-4F35-A746-DE8DB63617E6}" "{BCDE0395-E52F-467C-8E3D-C4579291692E}"
+#comfunc MMDE_GetDefaultAudioEndpoint 4 int, int, var
+#usecom IMMDevice "{D666063F-1587-4E43-81F1-B948E807363F}" "{BCDE0395-E52F-467C-8E3D-C4579291692E}"
+#comfunc MMD_Activate 3 var, int, int, var
+#usecom IAudioMeterInformation "{C02216F6-8C67-4B5B-9D00-D008E73E0064}" "{BCDE0395-E52F-467C-8E3D-C4579291692E}"
+#comfunc AMI_GetPeakValue 3 var
+
+#const GW_HWNDNEXT 2
+#const GA_ROOT 2
+#const GWL_EXSTYLE -20
+#const WS_EX_TRANSPARENT 0x20
+#const WS_EX_TOOLWINDOW 0x80
+#const WS_EX_LAYERED 0x80000
+#const WS_EX_NOACTIVATE 0x08000000
+#const DWMWA_EXTENDED_FRAME_BOUNDS 9
+#const DWMWA_CLOAKED 14
+#const MAXPLAT 512
+
+; キャラのウィンドウ。足元は FOOTY の高さ（座ったときに足を下へ垂らせるよう下に余白）
+#const LW 220
+#const LH 140
+#const LF 116
+#const GRAV 0.5
+#const RAD 0.0174532925
+#const INK 0xFF2E2E36
+
+; 状態
+#enum ST_IDLE = 0
+#enum ST_WALK
+#enum ST_FRONT
+#enum ST_SLACK
+#enum ST_SLEEP
+#enum ST_POKED
+#enum ST_ANGRY
+#enum ST_REST
+#enum ST_WAVE
+#enum ST_CHEER
+#enum ST_PAUSE
+#enum ST_ACT
+#enum ST_TYPE
+#enum ST_SIGN
+#enum ST_DIZZY
+#enum ST_HAPPY
+#enum ST_CALL
+#enum ST_LAND
+#enum ST_CLIMB
+#enum ST_BEHIND
+#enum ST_GROOVE
+#enum ST_SCOLD
+#enum ST_GOTO
+#enum ST_PEEK
+#enum ST_ALARM
+
+; 小さな動き（ST_ACT のとき）
+#enum ACT_TEA = 0
+#enum ACT_STICK
+#enum ACT_PUSHUP
+#enum ACT_READ
+#enum ACT_SWEEP
+#enum ACT_DANCE
+#enum ACT_WIPE
+#enum ACT_FLAT
+#enum ACT_KICKCAN
+#enum ACT_AQUA
+#enum ACT_EXIT
+#enum ACT_HANG
+#enum ACT_BEHIND
+#enum ACT_ICONBALL
+#enum ACT_PPAP
+#enum ACT_SEASON
+#enum ACT_STRETCH
+#enum ACT_TOSS
+; あそびの動き（play.hsp）。ACT_ROPE から NPLAY 個
+#enum ACT_ROPE
+#enum ACT_JUGGLE
+#enum ACT_BUBBLE
+#enum ACT_PLANE
+#enum ACT_ONIGIRI
+#enum ACT_YOYO
+#const NPLAY 6
+#const NACT 6
+
+; 絵日記のための出来事（釣ったものは catchk と同じ並び）
+#enum EV_TEA = 0
+#enum EV_SPILL
+#enum EV_FISH
+#enum EV_GOLD
+#enum EV_BOOT
+#enum EV_CAN
+#enum EV_BIG
+#enum EV_POKE
+#enum EV_THROW
+#enum EV_SCOLD
+#enum EV_CLIMB
+#enum EV_DIZZY
+#enum EV_PET
+#enum EV_GROOVE
+#enum EV_NAP
+#enum EV_BEHIND
+#enum EV_PPAP
+#enum EV_ROPE
+#enum EV_JUGGLE
+#enum EV_BUBBLE
+#enum EV_PLANE
+#enum EV_ONIGIRI
+#enum EV_YOYO
+#const NEV 23
+
+; 季節の行事でやる動き
+#enum SK_NONE = 0
+#enum SK_KITE
+#enum SK_BEAN
+#enum SK_HEART
+#enum SK_UMBRELLA
+#enum SK_FAN
+#enum SK_TANZAKU
+#enum SK_DANGO
+
+; 拾った棒の使いみち
+#enum USE_SWORD = 0
+#enum USE_TAP
+#enum USE_CANE
+#enum USE_FISH
+
+; 持ち物
+#enum PR_NONE = 0
+#enum PR_CUP
+#enum PR_STICK
+#enum PR_GROUNDSTICK
+#enum PR_BOOK
+#enum PR_BROOM
+#enum PR_ROD
+#enum PR_LAPTOP
+#enum PR_TOMATO
+#enum PR_CLOTH
+#enum PR_KITE
+#enum PR_BEANS
+#enum PR_HEART
+#enum PR_UMBRELLA
+#enum PR_FAN
+#enum PR_TANZAKU
+#enum PR_DANGO
+#enum PR_PAPERBALL
+
+	goto *main_start
+
+#module
+; 正の実数を float のビット列にする（GDI+ の RectF 用）
+#defcfunc fbits double v, local a, local e
+	if v <= 0.0 : return 0
+	a = v : e = 127
+	repeat
+		if a < 2.0 : break
+		a /= 2.0 : e++
+	loop
+	repeat
+		if a >= 1.0 : break
+		a *= 2.0 : e--
+	loop
+	return (e << 23) | int((a - 1.0) * 8388608.0)
+; float のビット列を実数に（正の値だけ）
+#defcfunc f2d int p_b, local d
+	; 単精度のビット列を倍精度の並びに組みかえる（HSP付属 mod_mmaudio.as の todouble と同じ方法）
+	d = 0.0
+	lpoke d, 4, (p_b & 0x80000000) | (((p_b & 0x7fffffff) >> 3) + ((p_b & 0x7fffffff) ! 0) * 0x38000000)
+	lpoke d, 0, p_b << 29
+	return d
+#defcfunc maxf double a, double b
+	if a > b : return a
+	return b
+#global
+
+; 関節つきの手足。角度は真下が0、前（右）が正。a2 は下側の絶対角度。先端を lx2, ly2 に残す
+#deffunc limb double p_x0, double p_y0, double p_a1, double p_l1, double p_a2, double p_l2
+	lx1 = p_x0 + sin(p_a1 * RAD) * p_l1 : ly1 = p_y0 + cos(p_a1 * RAD) * p_l1
+	lx2 = lx1 + sin(p_a2 * RAD) * p_l2 : ly2 = ly1 + cos(p_a2 * RAD) * p_l2
+	GdipDrawLine gfx, curpen, p_x0, p_y0, lx1, ly1
+	GdipDrawLine gfx, curpen, lx1, ly1, lx2, ly2
+	return
+
+; 角丸の札に文字を書く
+#deffunc pill str p_s, double p_x, double p_y, double p_w, double p_h, int p_bg, int p_fg
+	GdipSetSolidFillColor brush, p_bg
+	GdipFillEllipse gfx, brush, p_x, p_y, p_h, p_h
+	GdipFillEllipse gfx, brush, p_x + p_w - p_h, p_y, p_h, p_h
+	GdipFillRectangle gfx, brush, p_x + p_h / 2, p_y, p_w - p_h, p_h
+	rf(0) = fbits(p_x) : rf(1) = fbits(p_y) : rf(2) = fbits(p_w) : rf(3) = fbits(p_h)
+	GdipSetSolidFillColor brush, p_fg
+	GdipDrawString gfx, p_s, -1, gfont, rf, gfmt, brush
+	return
+
+; 文字の札をキャッシュつきで描く。文字・大きさ・色が前と同じなら、作っておいた画像を貼るだけ
+#deffunc cpill int p_k, str p_s, double p_x, double p_y, double p_w, double p_h, int p_bg, int p_fg
+	ckey = p_s + "|" + int(p_w) + "|" + int(p_h) + "|" + p_bg + "|" + p_fg
+	if ckey != cachekey(p_k) {
+		cachekey(p_k) = ckey
+		; 退避には専用の変数を使う（呼び出し元も savg で描画先を退避していることがある）
+		cp_savg = gfx : gfx = cacheg(p_k)
+		GdipGraphicsClear gfx, 0
+		pill p_s, 1.0, 1.0, p_w, p_h, p_bg, p_fg
+		gfx = cp_savg
+	}
+	GdipResetWorldTransform gfx
+	GdipDrawImageRectI gfx, cachebmp(p_k), int((p_x - 1.0) * uis), int((p_y - 1.0) * uis), cbw, cbh
+	GdipScaleWorldTransform gfx, uis, uis, 0
+	return
+#deffunc dtext str p_s, double p_x, double p_y, double p_w, double p_h, int p_font, int p_col
+	rf(0) = fbits(p_x) : rf(1) = fbits(p_y) : rf(2) = fbits(p_w) : rf(3) = fbits(p_h)
+	GdipSetSolidFillColor brush, p_col
+	GdipDrawString gfx, p_s, -1, p_font, rf, 0, brush
+	return
+
+; 棒状の持ち物を手から角度 ang・長さ len で描く。先端を tipx, tipy に残す
+#deffunc stickline double p_ang, double p_len, int p_col, double p_wd
+	tipx = handx + sin(p_ang * RAD) * p_len : tipy = handy + cos(p_ang * RAD) * p_len
+	bx0 = handx - sin(p_ang * RAD) * 4.0 : by0 = handy - cos(p_ang * RAD) * 4.0
+	if halo {
+		GdipSetPenWidth curpen, p_wd + 4.0
+	} else {
+		GdipSetPenColor curpen, p_col : GdipSetPenWidth curpen, p_wd
+	}
+	GdipDrawLine gfx, curpen, bx0, by0, tipx, tipy
+	return
+
+*main_start
+	SetProcessDPIAware
+	; 画面の拡大率。描画は論理座標（LW×LH）で書き、ウィンドウの大きさと物理計算は実ピクセルで扱う
+	hdc0 = GetDC(0) : dpi = GetDeviceCaps(hdc0, 88) : ReleaseDC 0, hdc0
+	if dpi < 96 : dpi = 96
+	uis = double(dpi) / 96.0
+	cmd0 = dir_cmdline
+	if instr(cmd0, 0, "uis15") >= 0 : uis = 1.5
+	if instr(cmd0, 0, "uis125") >= 0 : uis = 1.25
+	if instr(cmd0, 0, "uis175") >= 0 : uis = 1.75
+	CW = int(double(LW) * uis) : CHH = int(double(LH) * uis) : FOOTY = int(double(LF) * uis)
+	; 二重起動を防ぐ。確認用モード（起動の引数があるとき）は、使っている本体と並べて動かせるよう調べない
+	hmutex = CreateMutex(0, 0, "HSP_DesktopPomodoroWalker")
+	if (GetLastError() = 183) & (cmd0 = "") {
+		dialog "すでに起動しています。タスクトレイを見てください。", 0
+		end
+	}
+	randomize
+
+	; 作業領域（タスクバーを除いた画面）
+	dim wa, 4
+	SystemParametersInfo 0x30, 0, wa, 0
+	ground = wa(3)
+	; 全モニターを合わせた範囲（仮想スクリーン）
+	vleft = GetSystemMetrics(76) : vtop = GetSystemMetrics(77)
+	vright = vleft + GetSystemMetrics(78)
+	dim mi, 10
+
+	; 引数 test：作業8秒・休憩6秒で20秒後に終了
+	; 引数 show：動きを順番に全部見せて75秒後に終了（見た目の確認用）
+	cmd = dir_cmdline
+	; データはexeの横に置く（ランタイムから.axを動かしているときは作業フォルダ）
+	datadir = dir_exe
+	exist dir_exe + "\\hsp3utf.exe"
+	if strsize >= 0 : datadir = dir_cur
+	; 同梱の声・効果音は exe の横から読む
+	resdir = datadir
+	; exe の横に書きこめないとき（Program Files に置いたときなど）は、記録と設定を AppData\BouTimer に置く
+	; 書きこめるかは、閉じると消える一時ファイルを作ってみて確かめる（GENERIC_WRITE・CREATE_ALWAYS・FILE_FLAG_DELETE_ON_CLOSE）
+	hprobe = CreateFile(datadir + "\\_bt_probe.tmp", 0x40000000, 0, 0, 2, 0x04000000, 0)
+	if hprobe = -1 {
+		datadir = dirinfo(0x1001A) + "\\BouTimer"
+		CreateDirectory datadir, 0
+	} else {
+		CloseHandle hprobe
+	}
+	testmode = (instr(cmd, 0, "test") >= 0) | (instr(cmd, 0, "show") >= 0)
+	showmode = instr(cmd, 0, "show") >= 0
+	climbtest = instr(cmd, 0, "climb") >= 0
+	throwtest = instr(cmd, 0, "throw") >= 0
+	fakein = instr(cmd, 0, "interact") >= 0 : fml = 0 : fmx = 0 : fmy = 0
+	if fakein : testmode = 1
+	shaketest = instr(cmd, 0, "shake") >= 0
+	closetest = instr(cmd, 0, "closetest") >= 0
+	if closetest : testmode = 1
+	realtest = instr(cmd, 0, "realtest") >= 0
+	if realtest : testmode = 1
+	if shaketest : testmode = 1
+	if throwtest : testmode = 1
+	show2 = instr(cmd, 0, "show2") >= 0
+	if climbtest : testmode = 1
+	sdim dbg, 32768
+	allow_save = 0
+	exist datadir + "\\settings.txt"
+	firstrun = strsize < 0
+	gosub *load_settings
+	; 確認用：tamane を付けると珠音の髪型で動かし、show と合わせると30コマごとに絵を書き出す
+	tm_shot = 0
+	if instr(cmd, 0, "tamane") >= 0 : costume = 1 : tm_shot = showmode
+	tea_every = 60 * 60 * 4
+	idle_warn = 5 * 60 * 1000 : idle_pause = 10 * 60 * 1000
+	gosub *apply_minutes
+	if testmode : work_ms = 8000 : break_ms = 6000 : tea_every = 60 * 10 : idle_warn = 4000 : idle_pause = 7000
+	if showmode : work_ms = 600000 : tea_every = 999999 : idle_warn = 99999999 : idle_pause = 99999999
+	if instr(cmd, 0, "noidle") >= 0 : idle_warn = 99999999 : idle_pause = 99999999
+	if closetest : close_mode = 1 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999 : endframe = 60 * 45
+	if closetest & (instr(cmd, 0, "closeclose") >= 0) : close_mode = 2
+	if instr(cmd, 0, "voicetest") >= 0 : testmode = 1 : voice_mode = 2 : endframe = 60 * 70 : idle_warn = 99999999 : idle_pause = 99999999
+	if fakein | shaketest | realtest : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000
+	endframe = 60 * 20
+	if showmode : endframe = 60 * 200
+
+	; ---- ウィンドウ（画素ごとの半透明で表示する） ----
+	gsel 0, -1
+	bgscr 1, CW, CHH, 2, wa(0) + 200, wa(1) + 40
+	myhwnd = hwnd
+	ex = GetWindowLong(myhwnd, GWL_EXSTYLE)
+	SetWindowLong myhwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+	ShowWindow myhwnd, 4
+	SetWindowPos myhwnd, -1, 0, 0, 0, 0, 0x13
+
+	; ---- 描画先：32bit DIB を GDI+ のビットマップとして使う ----
+	dim gsi, 4 : gsi(0) = 1
+	GdiplusStartup gtoken, gsi, 0
+	dim bmi, 10
+	bmi(0) = 40 : bmi(1) = CW : bmi(2) = -CHH : bmi(3) = 1 | (32 << 16)
+	ppv = 0
+	hbmp = CreateDIBSection(0, bmi, 0, ppv, 0, 0)
+	memdc = CreateCompatibleDC(0)
+	SelectObject memdc, hbmp
+	dupptr bits, ppv, CW * CHH * 4, 2
+	GdipCreateBitmapFromScan0 CW, CHH, CW * 4, 0xE200B, ppv, gbmp
+	GdipGetImageGraphicsContext gbmp, gfx
+	GdipSetSmoothingMode gfx, 4
+	GdipSetTextRenderingHint gfx, 4
+	GdipCreatePen1 INK, 3.0, 2, pen
+	GdipSetPenLineCap197819 pen, 2, 2, 0
+	GdipSetPenLineJoin pen, 2
+	GdipCreatePen1 0xE0FFFFFF, 7.0, 2, halopen
+	; やることの札のチェック欄
+	GdipCreatePen1 0xFF505060, 1.3, 2, chkpen
+	GdipSetPenLineCap197819 halopen, 2, 2, 0
+	GdipSetPenLineJoin halopen, 2
+	GdipCreateSolidFill 0xFFFFFFFF, brush
+	GdipCreateFontFamilyFromName "Meiryo UI", 0, gfam
+	GdipCreateFont gfam, 11.0, 1, 2, gfont
+	GdipCreateStringFormat 0, 0, gfmt
+	GdipSetStringFormatAlign gfmt, 1
+	GdipSetStringFormatLineAlign gfmt, 1
+	dim rf, 4
+	; 文字の札のキャッシュ（180x24 を8枚）
+	sdim cachekey, 256, 8 : dim cacheg, 8 : dim cachebmp, 8
+	; 吹き出しは2行になることがあるので、高さは2行分とっておく
+	cbw = int(220.0 * uis) : cbh = int(40.0 * uis)
+	repeat 8
+		GdipCreateBitmapFromScan0 cbw, cbh, 0, 0xE200B, 0, tmpb
+		cachebmp(cnt) = tmpb
+		GdipGetImageGraphicsContext tmpb, tmpg
+		GdipSetSmoothingMode tmpg, 4
+		GdipSetTextRenderingHint tmpg, 4
+		GdipScaleWorldTransform tmpg, uis, uis, 0
+		cacheg(cnt) = tmpg
+	loop
+	; ゴースト用のウィンドウ。クリックは素通りし、足場にもならない
+	bgscr 4, CW, CHH, 2, 0, 0
+	ghwnd = hwnd
+	exs = GetWindowLong(ghwnd, GWL_EXSTYLE)
+	SetWindowLong ghwnd, GWL_EXSTYLE, exs | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT
+	ppv2 = 0
+	hbmp2 = CreateDIBSection(0, bmi, 0, ppv2, 0, 0)
+	memdc2 = CreateCompatibleDC(0)
+	SelectObject memdc2, hbmp2
+	GdipCreateBitmapFromScan0 CW, CHH, CW * 4, 0xE200B, ppv2, gbmp2
+	GdipGetImageGraphicsContext gbmp2, gfx2
+	GdipSetSmoothingMode gfx2, 4
+	GdipSetTextRenderingHint gfx2, 4
+	dim ptd2, 2
+	gh_on = 0 : gh_stage = 0 : gh_sent = 0 : gh_err = 0 : gh_got = 0
+	sdim gbubble, 128 : gbubt = 0
+	gsel 1
+	; 足場ノード（窓の上辺のうち、見えているいちばん長い区間）と、経路
+	dim nd_h, 64 : dim nd_l, 64 : dim nd_r, 64 : dim nd_t, 64 : nn = 0 : gnd_i = 0
+	dim path_h, 64 : pathn = 0 : pk = 0 : ndraw = 0 : vis_n = 0 : all_n = 0
+	dclk_t = 0 : dclk_x = 0 : dclk_y = 0 : goal_h = 0 : goal_t = 0
+	; 認識の図示（画面全体を覆う窓は、最初にオンにしたときに作る）
+	ovl_on = 0 : ovl_made = 0 : fps_now = 60 : fps_t = timeGetTime() : fps_f = 0
+	; アイコン置き場（32x32 の DIB を2つ。GDI+ からも同じメモリを読む）
+	dim icdc, 2 : dim icbmp, 2 : dim icppv, 2 : dim ichwnd, 2 : dim icok, 2
+	dim bmi2, 10
+	bmi2(0) = 40 : bmi2(1) = 32 : bmi2(2) = -32 : bmi2(3) = 1 | (32 << 16)
+	repeat 2
+		pv = 0
+		hb = CreateDIBSection(0, bmi2, 0, pv, 0, 0)
+		icdc(cnt) = CreateCompatibleDC(0)
+		SelectObject icdc(cnt), hb
+		icppv(cnt) = pv
+		GdipCreateBitmapFromScan0 32, 32, 128, 0xE200B, pv, tmpb
+		icbmp(cnt) = tmpb
+	loop
+	dupptr icb0, icppv(0), 4096, 2
+	dupptr icb1, icppv(1), 4096, 2
+	inkc = INK : inkt = INK
+	if inkmode = 1 : inkc = 0xFF2E2E36
+	if inkmode = 2 : inkc = 0xFF2A3A6A
+	if inkmode = 3 : inkc = 0xFF5A3A2A
+	if inkmode = 4 : inkc = 0xFF2A5A3A
+	inkt = inkc
+	dim ptd, 2 : dim psz, 2 : dim pts, 2
+	psz(0) = CW : psz(1) = CHH
+	blend = 0x01FF0000
+	sdim wbuf, 1024
+
+	cx = double(wa(0) + 200) : cy = double(wa(1) + 40)
+	vx = 0.0 : vy = 0.0 : dvx = 0.0 : dvy = 0.0
+	onh = 0 : onl = 0 : ont = 0 : onr = 0
+	dir = 1 : frame = 0 : wp = 0.0
+	wdir = 1 : think = 0 : jumpcd = 0 : hop = 0 : tgt = 0
+	state = ST_IDLE : stimer = 0 : sdur = 0 : fastwalk = 0
+	act = 0 : actn = 0 : stickuse = 0 : next_tea = tea_every
+	if show2 : actn = NACT * 4 + 16
+	seedh = -1 : wseed = 12345
+	phase = 0 : phase_start = timeGetTime() : paused = 0 : pause_at = 0
+	ml_old = 1 : mr_old = 1 : pressing = 0 : dragging = 0
+	pokes = 0 : lastpoke = -1000 : squash = 0 : wasground = 0 : grounded = 0
+	bubble = "" : bubt = 0 : mx = 0 : my = 0
+	dim rc, 4
+	dim plat_h, MAXPLAT : dim plat_l, MAXPLAT : dim plat_t, MAXPLAT : dim plat_r, MAXPLAT : dim plat_b, MAXPLAT
+	ddim la1, 2 : ddim la2, 2 : ddim aa1, 2 : ddim aa2, 2
+	; 入力の見守り（キーは押された回数だけ数え、どのキーかは残さない）
+	dim kprev, 256 : dim lii, 2 : lii(0) = 8
+	krate = 0.0 : lastkey = -1000 : keys_session = 0 : idlems = 0 : lastinput = 0
+	autopaused = 0 : called = 0 : signcool = 0
+	; 揺さぶり・なでる
+	rev = 0.0 : lastsg = 0 : pet = 0.0 : petsg = 0 : headsx = 0 : headsy = 0
+	celebrate = 0 : hovering = 0 : knock = 0 : sleepdrag = 0
+	catchk = 0 : bfx = 0.0 : bfy = 0.0
+	hangoff = 0 : behindh = 0 : ignoreh = 0 : typecool = 0 : lhx = 0.0 : lhy = 0.0
+	; 音楽の見守り（音量の数字だけを読む。音の中身は取らない）
+	diary_ask = 0 : diary_ask2 = 0 : groove_next = 0 : meter_ok = 0 : peak = 0.0 : penv = 0.0 : beatt = 0 : lastbeat = -100 : musicfr = 0 : bounce = 0.0 : beatn = 0
+	gosub *open_meter
+	; 集中の見守り（アプリ名と時間と回数だけを数える）
+	lastfg = 0 : fgexe = "" : dim swlog, 64 : swi = 0 : switchcool = 0
+	sdim dlist, 64, 32 : dim dmin, 32 : ndl = 0 : dsec = 0 : scoldcool = 0 : scoldh = 0 : scoldt = 0 : scold_sec = 300 : slack_now = 0 : pose_kind = 0 : pose_t = 0 : td_undo = -1 : td_undo_t = 0 : td_vis = 0
+	signtext = "休憩しようぜ" : repinit = 0
+	gosub *load_distract
+	sdim kotoba, 128, 50 : nkoto = 0 : teach_made = 0 : about_made = 0
+	gosub *load_kotoba
+	; やることリスト（todo.txt）と時刻のお知らせ（alarm.txt）
+	sdim todo_s, 256, 40 : dim todo_d, 40 : sdim todo_day, 16, 40 : sdim todo_at, 20, 40 : dim todo_min, 40 : ntodo = 0 : todo_made = 0
+	todo_ask = 0 : todo_ask_at = 0 : todo_ask2 = 0 : sdim cu_s, 256 : carry_paper = 0 : tossb = 1.0 : wk_fake = 0 : toss_pending = 0 : todo_top = -1
+	sdim al_s, 256, 20 : dim al_m, 20 : dim al_rep, 20 : dim al_arg, 20 : al_wd0 = 0 : al_dd0 = 1 : nal = 0 : al_made = 0 : al_due = -1 : alh = 0 : alt = 0 : al_lastmin = -1 : al_air = 0
+	sdim al_text, 256 : al_time = ""
+	gosub *load_todo
+	gosub *load_alarm
+	; フレンド（friends.txt）
+	sdim fr_code, 16, 5 : sdim fr_nick, 128, 5 : dim fr_kind, 5 : dim fr_c, 5 : dim fr_p, 5 : dim fr_m, 5 : dim fr_f, 5 : dim fr_age, 5
+	nfr = 0 : fr_stage = 0 : fr_visit = 0 : fr_made = 0 : fr_w = 0 : fr_proc = 0 : sdim gvis_name, 128
+	gosub *fr_load
+	; 休憩をとらずに続けている時間（休憩を3分以上とるか、5分離れたら0にもどる）
+	cont_ms = 0 : stretch_next = 0 : stretch_due = 0
+	sdim hist_d, 16, 60 : dim hist_w, 60 : dim hist_p, 60 : dim hist_k, 60 : dim hist_t, 60 : nhist = 0
+	dinit = 0 : dwinit = 0 : curday = today
+	dim pngclsid, 4
+	pngclsid(0) = 0x557CF406 : pngclsid(1) = 0x11D31A04 : pngclsid(2) = 0x0000739A : pngclsid(3) = 0x2EF31EF8
+	sdim dline, 160, 10
+dforce = -1
+	if diary_pending {
+		if testmode = 0 : hdate = diary_date : gosub *hist_put
+		dday = diary_date : gosub *make_diary
+		gosub *reset_today
+		bubble = "昨日の絵日記、描いといたぞ" : bubt = 180
+		gosub *save_settings
+	}
+	gosub *vv_init
+	gosub *se_init
+	sea_force = 0
+	pe = instr(cmd, 0, "season=")
+	if pe >= 0 : sea_force = int(strmid(cmd, pe + 7, 4))
+	sdim sea_line, 128
+sea_show = 0
+; 口パク・文字カーソル・全画面と電池
+lip_on = 0 : lip_v = 0 : lip_n = 0 : lip_t0 = 0
+ddim lip_end, 256 : dim lip_vw, 256
+caret_ok = 0 : peek_land = 0 : peek_land_t = 0 : caret_x = -1 : caret_y = -1 : caret_fg = 0 : caret_moves = 0.0 : peek_cd = 60 * 90 : gt_mode = 0
+dim gti, 12 : dim cpt, 2 : cpid = 0
+fs_hide = 0 : lowpow = 0 : dim sps, 3 : qns = 0
+shotn = 0 : shoton = 0
+if instr(cmd, 0, "shot") >= 0 : shoton = 1 : CreateDirectory dir_cur + "\\shot", 0
+shotall = instr(cmd, 0, "shotall") >= 0
+	gosub *season_update
+	onexit gosub *on_close
+	gosub *tray_add
+	traycmd = 0
+	; 初回は使い方を順に話す
+	guide = 0
+	; はじめての起動では、あいさつしていくつか質問する（スキップもできる）
+	wz_on = 0 : wz_made = 0 : wz_pick = -1 : wz_paused = 0 : wz_closef = -99999 : wz_due = firstrun
+	if instr(cmd, 0, "wizardtest") >= 0 : wz_due = 1
+	if instr(cmd, 0, "scold") >= 0 : testmode = 1 : work_ms = 600000 : endframe = 60 * 30 : scold_sec = 8
+	if instr(cmd, 0, "report") >= 0 : testmode = 1 : endframe = 60 * 8
+	if instr(cmd, 0, "diary") >= 0 {
+		testmode = 1 : endframe = 60 * 6
+		pomos_today = 4 : workms_today = 2 * 3600000 + 25 * 60000 : keys_today = 5321
+		evc(EV_TEA) = 3 : evc(EV_SPILL) = 1 : evc(EV_GOLD) = 1 : evc(EV_SCOLD) = 2 : evc(EV_POKE) = 7 : evc(EV_THROW) = 1 : evc(EV_GROOVE) = 1
+		if napp = 0 : napp = 1 : appname(0) = "code.exe" : appsec(0) = 5400
+		dday = curday : gosub *make_diary : gosub *show_diary
+	}
+	thrown = 0 : fallstart = 0.0 : landpose = 0 : climbh = 0 : side = 0 : lastnow = timeGetTime()
+	dim poly, 6
+	; 起動のあいさつ
+	; 眠そうになるかは今日の作業時間で決める（時刻では決めない。夜型の人もいるので）
+	lastmile = workms_today / 3600000
+	night = workms_today >= 4 * 3600000
+	hour = gettime(4)
+	bubble = "よっ、始めるか"
+	if (hour >= 5) & (hour < 11) : bubble = "よう、おはよう"
+	if (hour >= 18) | (hour < 5) : bubble = "よう、こんばんは"
+	if night : bubble = "今日もがんばってるな"
+	bubt = 120
+	pmx = 0 : pmy = 0 : skipped = 0
+	; はじめての起動は、最初の1コマ目から質問の窓の中に立たせる（画面の上から降ってくると、飛び出す動きの先が見えてしまう）
+	if wz_due : wz_due = 0 : gosub *wz_open : gosub *wz_hold
+
+*mainloop
+	now = timeGetTime()
+	frame++
+	; 実際の描画回数（認識の図示で表示する）
+	fps_f++
+	if now - fps_t >= 1000 : fps_now = fps_f * 1000 / (now - fps_t) : fps_t = now : fps_f = 0
+	; 確認用モード（起動の引数があるときだけ）
+	if cmd != "" : gosub *test_hooks
+	; 起動して少ししたら季節のひとこと
+	if (frame = 240) & (sea_line != "") & (wz_on = 0) : bubble = sea_line : bubt = 150
+	; 雪や桜は、あいさつのときと季節の動きのときだけ降らせる（ずっとだと気が散る）
+	if (frame = 240) & (wz_on = 0) : sea_show = 60 * 10
+	if sea_show > 0 : sea_show--
+	; 教えたセリフを、起動のあいさつのかわりに言うことがある
+	if (frame = 90) & (nkoto > 0) & (guide = 0) & (wz_on = 0) & (rnd(2) = 0) : bubble = kotoba(rnd(nkoto)) : bubt = 150
+	if traycmd = 1 : traycmd = 0 : mx = ginfo_mx : my = ginfo_my : gosub *popup
+	if traycmd = 2 : traycmd = 0 : gosub *show_report
+	if wz_on : gosub *wz_tick
+	if guide : gosub *guide_step
+	gosub *tick_timer
+	gosub *watch_input
+	gosub *listen
+	gosub *vv_watch
+	gosub *lip_tick
+	if (frame \ 20) = 0 : gosub *watch_caret
+	if (frame \ 60) = 5 : gosub *todo_first
+	gosub *fr_tick
+	; 時刻のお知らせ。全画面のあいだは待って、終わってから知らせる
+	if (frame \ 60) = 15 : gosub *alarm_check
+	if (al_due >= 0) & (dragging = 0) & (fs_hide = 0) & (state != ST_CLIMB) & (state != ST_ALARM) : gosub *alarm_fire
+	; 知らせに行く途中で長く宙にいたら、横の勢いを止めて真下に降りる
+	if (state = ST_ALARM) & (grounded = 0) & (dragging = 0) {
+		al_air++
+		if al_air = 240 : vx = 0.0
+	} else {
+		al_air = 0
+	}
+	; 休憩に入ったら、持っている「やること」が終わったか聞く
+	if (todo_ask_at > 0) & (frame >= todo_ask_at) {
+		todo_ask_at = 0
+		gosub *todo_first
+		if todo_top >= 0 {
+			cu_s = todo_s(todo_top) : cu_n = 6 : gosub *cut_utf8
+			bubble = "「" + cu_s + "」終わった？" : bubt = 170 : todo_ask = 60 * 30 : todo_ask2 = frame + 180
+		}
+	}
+	if todo_ask > 0 : todo_ask--
+	gosub *diary_ask_tick
+	if (todo_ask > 0) & (frame = todo_ask2) : bubble = "終わってたら、つついてくれ" : bubt = 150
+	if (frame \ 60) = 30 : gosub *watch_env
+	gosub *gh_tick
+	gosub *ghost_tick
+	gosub *track_apps
+	if testmode & (frame = 90) & (instr(cmd, 0, "report") >= 0) : gosub *show_report
+	gosub *poll_mouse
+	; はじめての質問のあいだは、質問の窓の中に立っている
+	if wz_on : gosub *wz_hold : goto *phys_done
+
+	if (dragging = 0) & (state = ST_CLIMB) {
+		gosub *climb
+		goto *phys_done
+	}
+	if dragging = 0 {
+		; 乗っているウィンドウに追従
+		if onh {
+			gosub *getrect_on
+			if okrect = 0 {
+				; 足場が消えた（閉じた・最小化）
+				onh = 0 : bubble = "おっと" : bubt = 45
+			} else {
+				; 左右に揺さぶられたら目を回して落ちる
+				ddx = rc(0) - onl
+				; 茶を飲んでいるときに足場を動かされたら、こぼす
+				if (state = ST_ACT) & (act = ACT_TEA) & (stimer > 30) & (abs(ddx) + abs(rc(1) - ont) > 8) : act = ACT_WIPE : gosub *start_act
+				rev *= 0.97
+				if abs(ddx) > 3 {
+					sg = (ddx > 0) * 2 - 1
+					if sg != lastsg : rev += 1.0
+					lastsg = sg
+				}
+				if (rev > 4.0) & (state != ST_DIZZY) {
+					rev = 0.0 : state = ST_DIZZY : stimer = 0 : bubble = "うおお、揺れる～" : bubt = 60 : evc(EV_DIZZY)++
+					vy = -6.0 : vx = limitf(double(ddx) * 0.6, -5.0, 5.0) : knock = 1
+				}
+				cx += double(rc(0) - onl)
+				onl = rc(0) : ont = rc(1) : onr = rc(2)
+				cy = double(ont - FOOTY) + double(hangoff) * uis
+				fx = int(cx) + CW / 2
+				if (fx < onl) | (fx >= onr) : onh = 0
+				if knock : onh = 0 : knock = 0
+			}
+		}
+		gosub *monitor_at
+		grounded = (onh != 0) | ((cy + FOOTY >= ground) & (vy >= 0.0))
+		if (grounded = 0) & wasground : fallstart = cy
+		if grounded & (wasground = 0) : squash = 7
+		wasground = grounded
+		if jumpcd > 0 : jumpcd--
+		if grounded {
+			gosub *window_seed
+			bq = bubble : bqt = bubt : bq_st = state : bq_act = act
+			gosub *brain
+			; 動きの多さが「ときどき」「なし」なら、ひとりで遊んでいるときのセリフを減らす（時刻の札・やることを片づけたとき・伸びは残す）
+			if (act_level < 2) & (bubble != bq) & (showmode = 0) {
+				bq_q = 1
+				if (bq_st = ST_ALARM) | (state = ST_ALARM) : bq_q = 0
+				if (act = ACT_TOSS) | (act = ACT_STRETCH) | (bq_act = ACT_TOSS) | (bq_act = ACT_STRETCH) : bq_q = 0
+				if (act_level = 1) & (rnd(5) < 2) : bq_q = 0
+				if bq_q : bubble = bq : bubt = bqt
+			}
+		}
+		cx += vx
+		if cx < vleft - CW / 2 + 10 {
+			cx = double(vleft - CW / 2 + 10) : wdir = 1
+			if thrown & (vx < -1.0) : vx = -vx * 0.55 : gosub *bump
+		}
+		if cx > vright - CW / 2 - 10 {
+			cx = double(vright - CW / 2 - 10) : wdir = -1
+			if thrown & (vx > 1.0) : vx = -vx * 0.55 : gosub *bump
+		}
+		if vx < -0.05 : dir = -1
+		if vx > 0.05 : dir = 1
+		if onh = 0 : gosub *fall
+	}
+
+*phys_done
+	if gh_on & (fs_hide = 0) : gosub *ghost_render
+	if ovl_on & ((frame \ 5) = 0) & (fs_hide = 0) : gosub *ovl_render
+	; 動きの少ない状態は30fpsで描く
+	calm = grounded & (vx = 0.0) & (dragging = 0) & ((state = ST_IDLE) | (state = ST_SLEEP) | (state = ST_REST) | (state = ST_PAUSE) | (state = ST_SLACK))
+	rdo = (calm = 0) | (frame \ 2)
+	; 電池で動いているときは、描く回数を半分（止まっているときは4分の1）にする
+	if lowpow : rdo = ((frame \ 2) = 1) & ((calm = 0) | ((frame \ 4) = 1))
+	if fs_hide : rdo = 0
+	if rdo : gosub *render
+	await 16
+	goto *mainloop
+
+; ---- タイマー ----
+*tick_timer
+	; サボり先が前面にあるあいだは、作業の時間を進めない（メニューで選ぶ。最初は「しない」）
+	if slack_now & (phase = 0) & (paused = 0) : phase_start += now - lastnow
+	if paused {
+		elapsed = pause_at - phase_start
+	} else {
+		elapsed = now - phase_start
+	}
+	if phase = 0 {
+		dur = work_ms
+	} else {
+		dur = break_ms
+	}
+	if elapsed >= dur : skipped = 0 : gosub *next_phase
+	remain = dur - elapsed
+	if remain < 0 : remain = 0
+	; 今日の作業時間を積み上げ、1時間ごとの節目でひとこと
+	if (phase = 0) & (paused = 0) & (slack_now = 0) : workms_today += now - lastnow : cont_ms += now - lastnow
+	; 休憩を3分以上とるか、離席で止まる長さ（5分）離れたら、続けている時間を0にもどす
+	if ((phase = 1) & (paused = 0) & (elapsed >= 180000)) | (idlems > idle_pause) : cont_ms = 0 : stretch_next = 0
+	; 休憩をとらずに作業2回分つづけていたら、伸びをして合図する（そのあとは30分ごと）
+	if (phase = 0) & (cont_ms >= work_ms * 2) & (cont_ms >= stretch_next) {
+		stretch_due = 1 : stretch_next = cont_ms + 30 * 60000
+		if testmode : stretch_next = cont_ms + 30000
+	}
+	lastnow = now
+	if (frame \ 3600) = 0 {
+		gosub *save_settings
+		gosub *load_distract
+		gosub *season_update
+		today2 = strf("%04d-%02d-%02d", gettime(0), gettime(1), gettime(3))
+		if today2 != curday {
+			dday = curday : gosub *make_diary
+			gosub *reset_today : curday = today2
+			if boot_t : boot_t = 0 : boot_day = ""
+			bubble = "昨日の絵日記、描いといたぞ" : bubt = 180
+			gosub *save_settings
+		}
+		mh = workms_today / 3600000
+		if mh > lastmile {
+			lastmile = mh
+			if mh = 1 : bubble = "1時間！いい調子"
+			if mh = 2 : bubble = "2時間！やるじゃん"
+			if mh = 3 : bubble = "3時間！水飲もうぜ"
+			if mh >= 4 : bubble = "そろそろ寝ようぜ"
+			bubt = 150
+		}
+		night = workms_today >= 4 * 3600000
+	}
+	return
+
+*next_phase
+	phase = 1 - phase : phase_start = now : elapsed = 0
+	keys_session = 0
+	if phase = 0 {
+		dur = work_ms : bubble = "さ、やるか"
+	} else {
+		dur = break_ms : bubble = "休憩だ、休憩！"
+		if skipped = 0 {
+			; 1ポモドーロ達成：トマトを掲げて紙ふぶき
+			pomos_today++ : pomos_total++
+			if friend_on {
+				gh_post = 1
+				; フレンドがいれば、自分の数字を送って、休憩にはフレンドを呼ぶ（来られなければ、いつものだれか）
+				if (nfr > 0) & (vv_curl != "") {
+					fr_w = 1 : fr_visit = 1 : gosub *fr_sync
+				} else {
+					gh_fetch = 1
+				}
+			}
+			bubble = str(pomos_today) + "個目！やったな"
+			celebrate = 150
+			gosub *save_settings
+		}
+	}
+	bubt = 120
+	if sound_on : MessageBeep 0x40
+	hop = 3 : think = 0 : tgt = 0
+	state = ST_CHEER : stimer = 0
+	return
+
+; 閉じるボタン：内訳の窓なら隠すだけ
+*on_close
+	if wparam = 2 : gsel 2, -1 : return
+	if wparam = 7 : gsel 7, -1 : gsel 1 : return
+	if wparam = 8 : gsel 8, -1 : gsel 1 : return
+	if wparam = 3 : gsel 3, -1 : return
+	if wparam = 9 : gsel 9, -1 : gsel 1 : return
+	if wparam = 10 : gsel 10, -1 : gsel 1 : return
+	if wparam = 12 : gsel 12, -1 : gsel 1 : return
+	; 質問の窓を閉じたら、残りはスキップしたことにする
+	if wparam = 11 : gosub *wz_close : guide = 1 + (wz_start * 2) : return
+	gosub *quit
+
+; 小さな窓（内訳・絵日記・設定など）を出す。確認用モードでは前に出さない（使っている人の入力を奪わないように）
+*show_win
+	gsel win_id
+	if testmode {
+		ShowWindow hwnd, 4
+	} else {
+		gsel win_id, 1
+		; メニューを閉じると前の窓にフォーカスが戻るので、そのままだと後ろに隠れる。
+		; いったん最前面にしてから外すと、ほかの窓より手前に出る。そのうえでフォーカスを渡す
+		SetWindowPos hwnd, -1, 0, 0, 0, 0, 0x3
+		SetWindowPos hwnd, -2, 0, 0, 0, 0, 0x3
+		SetForegroundWindow hwnd
+		; 棒人間は、その窓よりさらに手前に
+		SetWindowPos myhwnd, -1, 0, 0, 0, 0, 0x13
+	}
+	gsel 1
+	return
+
+; ---- タスクトレイ ----
+*tray_add
+	gsel 1
+	oncmd gosub *on_tray, 0x8001
+	dim nid, 38
+	nid(0) = 152 : nid(1) = myhwnd : nid(2) = 1 : nid(3) = 1 | 2 | 4 : nid(4) = 0x8001
+	gosub *make_tray_icon
+	nid(5) = trayicon
+	sdim tipw, 160
+	cnvstow tipw, "作業のおとも、棒人間：作業集中用のポモドーロタイマー（右クリックでメニュー）"
+	memcpy nid, tipw, 126, 24, 0
+	Shell_NotifyIcon 0, nid
+	trayok = stat
+	return
+
+; トレイのアイコン：棒人間の顔を GDI+ で描いて、アイコンにする（小さいアイコンの大きさに合わせる）
+*make_tray_icon
+	tis = GetSystemMetrics(49)
+	if tis < 16 : tis = 16
+	dim tbmi, 10
+	tbmi(0) = 40 : tbmi(1) = tis : tbmi(2) = -tis : tbmi(3) = 1 | (32 << 16)
+	tpv = 0
+	tcol = CreateDIBSection(0, tbmi, 0, tpv, 0, 0)
+	; アイコンは「乗算済みでない」アルファなので、ARGB（0x26200A）で描く
+	GdipCreateBitmapFromScan0 tis, tis, tis * 4, 0x26200A, tpv, tgb
+	GdipGetImageGraphicsContext tgb, tgg
+	GdipSetSmoothingMode tgg, 4
+	GdipGraphicsClear tgg, 0
+	tsc = double(tis) / 32.0
+	GdipScaleWorldTransform tgg, tsc, tsc, 0
+	; exe のアイコンと同じ絵（tools/make_icon.py）：ストップウォッチ型の白い窓のふちに、紺の棒人間が腰かける
+	; 角丸の四角は、四すみの円と縦横の四角で塗る
+	GdipSetSolidFillColor brush, 0xFF40C4A4
+	GdipFillEllipse tgg, brush, 1.0, 1.0, 13.0, 13.0
+	GdipFillEllipse tgg, brush, 18.0, 1.0, 13.0, 13.0
+	GdipFillEllipse tgg, brush, 1.0, 18.0, 13.0, 13.0
+	GdipFillEllipse tgg, brush, 18.0, 18.0, 13.0, 13.0
+	GdipFillRectangle tgg, brush, 7.5, 1.0, 17.0, 30.0
+	GdipFillRectangle tgg, brush, 1.0, 7.5, 30.0, 17.0
+	GdipSetSolidFillColor brush, 0xFFFFFFFF
+	GdipFillEllipse tgg, brush, 6.0, 18.0, 5.0, 5.0
+	GdipFillEllipse tgg, brush, 21.0, 18.0, 5.0, 5.0
+	GdipFillEllipse tgg, brush, 6.0, 24.0, 5.0, 5.0
+	GdipFillEllipse tgg, brush, 21.0, 24.0, 5.0, 5.0
+	GdipFillRectangle tgg, brush, 8.5, 18.0, 15.0, 11.0
+	GdipFillRectangle tgg, brush, 6.0, 20.5, 20.0, 6.0
+	; 時計の針と棒人間（紺。線の端は丸く）
+	GdipCreatePen1 0xFF1E2640, 1.4, 0, tpen
+	GdipSetPenLineCap197819 tpen, 2, 2, 0
+	GdipDrawLine tgg, tpen, 21.0, 24.0, 21.0, 21.0
+	GdipDrawLine tgg, tpen, 21.0, 24.0, 23.6, 24.0
+	; 16ピクセルでも消えないよう、exe の絵より少し太く
+	GdipCreatePen1 0xFF1E2640, 3.4, 0, tpen2
+	GdipSetPenLineCap197819 tpen2, 2, 2, 0
+	GdipSetPenLineJoin tpen2, 2
+	GdipSetSolidFillColor brush, 0xFF1E2640
+	GdipFillEllipse tgg, brush, 8.0, 2.9, 6.0, 6.0
+	GdipDrawLine tgg, tpen2, 11.0, 17.4, 11.0, 9.9
+	GdipDrawLine tgg, tpen2, 11.0, 11.4, 8.5, 14.4
+	GdipDrawLine tgg, tpen2, 8.5, 14.4, 7.5, 17.6
+	GdipDrawLine tgg, tpen2, 11.0, 17.4, 16.5, 17.4
+	GdipDrawLine tgg, tpen2, 16.5, 17.4, 17.0, 22.4
+	GdipDeleteGraphics tgg
+	if shoton : GdipSaveImageToFile tgb, dir_cur + "/shot/trayicon.png", pngclsid, 0
+	GdipDisposeImage tgb
+	; マスクは使わない（32bit のアルファで抜く）けれど、作っておく必要がある
+	tmask = CreateBitmap(tis, tis, 1, 1, 0)
+	dim tii, 5
+	tii(0) = 1 : tii(3) = tmask : tii(4) = tcol
+	trayicon = CreateIconIndirect(tii)
+	if trayicon = 0 : trayicon = LoadIcon(0, 32512)
+	return
+
+*tray_del
+	if nid(1) : Shell_NotifyIcon 2, nid : nid(1) = 0
+	return
+
+; トレイアイコンのクリック（中ではメニューを出さず、メインループで処理する）
+*on_tray
+	if lparam = 0x205 : traycmd = 1
+	if lparam = 0x202 : traycmd = 2
+	return
+
+; ---- 初回の案内 ----
+*guide_step
+	if bubt > 0 : return
+	if guide = 1 : bubble = "よっ、俺は作業のおともだ" : bubt = 150
+	if guide = 2 : bubble = "25分やったら5分休憩な" : bubt = 150
+	if guide = 3 : bubble = "右クリックでメニューだ" : bubt = 150
+	if guide = 4 : bubble = "作業の中身は見てないぞ" : bubt = 160
+	if guide = 5 : bubble = "つまんで投げてもいいぞ" : bubt = 150
+	guide++
+	if guide > 5 : guide = 0 : gosub *save_settings
+	return
+
+; ---- 終わるとき ----
+*quit
+	gosub *tray_del
+	gosub *save_settings
+	end
+
+*reset_today
+	pomos_today = 0 : keys_today = 0 : workms_today = 0 : napp = 0 : switches_today = 0 : todos_today = 0
+	dim evc, NEV
+	return
+
+; ---- 機能ごとのファイル ----
+#include "data.hsp"
+#include "input.hsp"
+#include "menu.hsp"
+#include "behavior.hsp"
+#include "ink.hsp"
+#include "music.hsp"
+#include "focus.hsp"
+#include "physics.hsp"
+#include "ui_settings.hsp"
+#include "report.hsp"
+#include "diary.hsp"
+#include "voice.hsp"
+#include "se.hsp"
+#include "watch_env.hsp"
+#include "ghost.hsp"
+#include "route.hsp"
+#include "overlay.hsp"
+#include "season.hsp"
+#include "todo.hsp"
+#include "alarm.hsp"
+#include "summary.hsp"
+#include "kotoba.hsp"
+#include "pose.hsp"
+#include "draw.hsp"
+#include "wizard.hsp"
+#include "play.hsp"
+#include "friend.hsp"
+#include "tests.hsp"
+
+; ---- 関数（本体は上から流れて実行されないよう、ファイルの最後に置く） ----
+; qjson（JSON）から数を1つ読む（キーのあとの数。null は 0）。読み終えた位置を jpos に残す
+#defcfunc jnum int p_at, str p_key
+	jk = instr(qjson, p_at, "\"" + p_key + "\":")
+	if jk < 0 : jpos = p_at : return 0.0
+	jq = p_at + jk + strlen(p_key) + 3
+	repeat 8
+		if peek(qjson, jq) != ' ' : break
+		jq++
+	loop
+	jpos = jq
+	if peek(qjson, jq) = 'n' : return 0.0
+	return double(strmid(qjson, jq, 24))

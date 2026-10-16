@@ -1,0 +1,70 @@
+; PV 撮影用の舞台：無地の背景と、足場になるアプリ風のウィンドウを並べる
+;   hsp3utf pvstage.ax <秒数> <左> <上>    … 録画範囲は 1280x720
+#include "hsp3utf.as"
+#uselib "user32.dll"
+#func SetProcessDPIAware "SetProcessDPIAware"
+#cfunc GetWindowLong "GetWindowLongW" int, int
+#func SetWindowLong "SetWindowLongW" int, int, int
+
+	SetProcessDPIAware
+	cmd = dir_cmdline
+	split cmd, " ", a
+	secs = int(a(0)) : ox = int(a(1)) : oy = int(a(2))
+	fgid = 0
+	if stat >= 4 : fgid = int(a(3))
+	if secs <= 0 : secs = 60
+
+	; 背景
+	bgscr 0, 1280, 720, 0, ox, oy
+	; 背景は足場にしない（クリック素通しの窓は足場から外れる）
+	SetWindowLong hwnd, -20, GetWindowLong(hwnd, -20) | 0x20
+	gsel 0, 2
+	redraw 0
+	repeat 720
+		c = cnt * 40 / 720
+		color 236 - c, 240 - c, 246 - c / 2 : boxf 0, cnt, 1279, cnt
+	loop
+	redraw 1
+
+	; 足場になるウィンドウ（高さをずらして並べる）
+	sdim ttl, 64, 3
+	ttl(0) = "メモ - 今日のやること" : ttl(1) = "YouTube - ねこの動画" : ttl(2) = "エディタ - main.hsp"
+	dim wx, 3 : dim wy, 3 : dim ww, 3 : dim wh, 3
+	wx(0) = 90 : wy(0) = 330 : ww(0) = 360 : wh(0) = 300
+	wx(1) = 520 : wy(1) = 170 : ww(1) = 380 : wh(1) = 280
+	wx(2) = 860 : wy(2) = 400 : ww(2) = 360 : wh(2) = 260
+	repeat 3
+		id = cnt + 1
+		screen id, ww(cnt), wh(cnt), 0, ox + wx(cnt), oy + wy(cnt)
+		title ttl(cnt)
+		redraw 0
+		color 255, 255, 255 : boxf
+		if cnt = 0 {
+			color 60, 60, 70 : font "Meiryo UI", 16
+			pos 20, 20 : mes "・資料を読む"
+			pos 20, 52 : mes "・企画書の続き"
+			pos 20, 84 : mes "・メールの返信"
+		}
+		if cnt = 1 {
+			color 30, 30, 30 : boxf 16, 16, ww(1) - 16, 190
+			color 230, 60, 60 : boxf ww(1) / 2 - 26, 80, ww(1) / 2 + 26, 120
+			color 255, 255, 255 : font "Meiryo UI", 22 : pos ww(1) / 2 - 7, 84 : mes "▶"
+			color 80, 80, 90 : font "Meiryo UI", 14 : pos 16, 204 : mes "ねこがひたすら箱に入る動画"
+		}
+		if cnt = 2 {
+			font "ＭＳ ゴシック", 14
+			repeat 12
+				color 120 + (cnt \ 3) * 30, 90, 160 - (cnt \ 4) * 20
+				pos 16, 16 + cnt * 18 : mes "repeat : await 16 : loop"
+			loop
+		}
+		redraw 1
+		gsel id, 2
+	loop
+
+	; 指定があれば、そのウィンドウを前面にする（1=メモ 2=YouTube 3=エディタ）
+	if fgid : gsel fgid, 2
+	repeat secs * 10
+		await 100
+	loop
+	end

@@ -1,0 +1,43 @@
+; mod_deskwin.as の使用例：デスクトップに開いているウィンドウを手前から順に並べ、
+; それぞれの上の辺のまんなかが、手前の別のウィンドウに隠れていないかを表示する。
+; ウィンドウを動かしたり重ねたりすると、1秒ごとに表が変わる。
+; タイトルは読まず、ウィンドウハンドルと位置だけを出す。
+#include "hsp3utf.as"
+#include "mod_deskwin.as"
+
+#uselib "user32.dll"
+#func SetProcessDPIAware "SetProcessDPIAware"
+
+	SetProcessDPIAware
+	cmd = dir_cmdline
+	testmode = instr(cmd, 0, "test") >= 0
+	screen 0, 560, 420
+	title "mod_deskwin のサンプル"
+	font "Meiryo UI", 14
+	dim rc, 4
+	n = 0
+	repeat
+		if testmode & (cnt > 3) : end
+		deskwin_scan hwnd
+		redraw 0
+		color 250, 250, 246 : boxf
+		color 40, 40, 48 : pos 12, 8
+		mes "手前から " + deskwin_count() + " 枚（上の辺のまんなかが見えているか）"
+		repeat limit(deskwin_count(), 0, 16)
+			x1 = deskwin_get(cnt, 1) : t = deskwin_get(cnt, 2) : x2 = deskwin_get(cnt, 3) : b = deskwin_get(cnt, 4)
+			v = deskwin_visible(cnt, (x1 + x2) / 2, t + 3)
+			if v {
+				color 40, 140, 80 : s = "見えている"
+			} else {
+				color 200, 80, 70 : s = "隠れている"
+			}
+			pos 12, 40 + cnt * 22
+			mes strf("%2d  hwnd=%08x  左%5d 上%5d 右%5d 下%5d  ", cnt, deskwin_get(cnt, 0), x1, t, x2, b) + s
+		loop
+		; 自分自身の実寸（DWM の値。見えない影の分を含まない）
+		deskwin_rect hwnd, rc
+		color 110, 110, 120 : pos 12, 392
+		mes strf("このウィンドウの実寸：%d, %d - %d, %d", rc(0), rc(1), rc(2), rc(3))
+		redraw 1
+		await 1000
+	loop

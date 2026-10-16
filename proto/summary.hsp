@@ -1,0 +1,113 @@
+; 作業のおとも、棒人間：今日のまとめ（日報用）と日付の計算
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 今日のまとめ（日報に貼る文）を作って、クリップボードへ ----
+*make_summary
+	dy = int(strmid(curday, 0, 4)) : dm = int(strmid(curday, 5, 2)) : dd = int(strmid(curday, 8, 2))
+	gosub *weekday_of
+	wds = "土日月火水木金"
+	cs = strf("%d月%d日（", dm, dd) + strmid(wds, wd * 3, 3) + "）の作業\n"
+	cs += strf("作業%d時間%02d分・ポモドーロ%dサイクル\n", workms_today / 3600000, (workms_today / 60000) \ 60, pomos_today)
+	if typecount_on : cs += "タイピング" + keys_today + "打\n"
+	cs += "ウィンドウの切り替え" + switches_today + "回\n"
+	nd = 0
+	repeat ntodo
+		if todo_d(cnt) & (todo_day(cnt) = curday) {
+			if nd = 0 : cs += "\n終わったこと\n"
+			tm = todo_min(cnt) : gosub *todo_took
+			cs += "・" + todo_s(cnt) + took_s + "\n" : nd++
+		}
+	loop
+	nd = 0
+	repeat ntodo
+		if todo_d(cnt) = 0 {
+			if nd = 0 : cs += "\n残っていること\n"
+			cs += "・" + todo_s(cnt) + "\n" : nd++
+		}
+	loop
+	if napp > 0 {
+		; 1分以上使ったアプリがあるときだけ見出しを付ける
+		nd = 0
+		repeat napp
+			if appsec(cnt) >= 60 : nd = 1
+		loop
+		if nd : cs += "\n使ったアプリ\n"
+		dim used, 40
+		repeat 5
+			bi = -1 : bs = 59
+			repeat napp
+				if (used(cnt) = 0) & (appsec(cnt) > bs) : bs = appsec(cnt) : bi = cnt
+			loop
+			if bi < 0 : break
+			used(bi) = 1
+			an = appname(bi)
+			p3 = instr(an, 0, ".exe")
+			if p3 > 0 : an = strmid(an, 0, p3)
+			if appsec(bi) >= 3600 {
+				cs += "・" + an + strf(" %d時間%02d分\n", appsec(bi) / 3600, (appsec(bi) / 60) \ 60)
+			} else {
+				cs += "・" + an + strf(" %d分\n", appsec(bi) / 60)
+			}
+		loop
+	}
+	return
+
+*clip_set
+	; Windows のクリップボードへは UTF-16 で渡す（HSP の文字列の改行は、もとから CRLF）
+	cs2 = cs
+	csz = strlen(cs2) * 2 + 4
+	sdim csw, csz
+	cnvstow csw, cs2
+	clip_ok = 0
+	if OpenClipboard(myhwnd) {
+		EmptyClipboard
+		hg = GlobalAlloc(0x42, csz)
+		pg = GlobalLock(hg)
+		if pg {
+			dupptr gm, pg, csz, 2
+			memcpy gm, csw, csz
+			GlobalUnlock hg
+			SetClipboardData 13, hg
+			clip_ok = 1
+		}
+		CloseClipboard
+	}
+	return
+
+*copy_summary
+	gosub *make_summary
+	gosub *clip_set
+	if clip_ok {
+		bubble = "まとめ、コピーしといたぞ" : bubt = 90
+	} else {
+		bubble = "コピーできなかった…" : bubt = 90
+	}
+	return
+
+; 曜日（dy, dm, dd → wd。0が土曜）
+*weekday_of
+	zy = dy : zm = dm
+	if zm < 3 : zm += 12 : zy--
+	wd = (dd + (13 * (zm + 1)) / 5 + zy + zy / 4 - zy / 100 + zy / 400) \ 7
+	return
+
+; 1日前（dy, dm, dd を書きかえる）
+*date_prev
+	dd--
+	if dd > 0 : return
+	dm--
+	if dm < 1 : dm = 12 : dy--
+	dd = 31
+	if (dm = 4) | (dm = 6) | (dm = 9) | (dm = 11) : dd = 30
+	if dm = 2 {
+		dd = 28
+		if ((dy \ 4) = 0) & (((dy \ 100) != 0) | ((dy \ 400) = 0)) : dd = 29
+	}
+	return
+
+; 日付（dy, dm, dd）を通しの日数（dnum）にする。2つの日付の差を出すのに使う
+*day_num
+	zy = dy : zm = dm
+	if zm < 3 : zm += 12 : zy--
+	dnum = 365 * zy + zy / 4 - zy / 100 + zy / 400 + (153 * (zm - 3) + 2) / 5 + dd
+	return

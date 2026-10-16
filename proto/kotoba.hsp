@@ -1,0 +1,113 @@
+; 作業のおとも、棒人間：バージョン情報とセリフを教える
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- バージョン情報 ----
+*show_about
+	if about_made = 0 {
+		screen 13, 360, 280, 2, (wa(0) + wa(2)) / 2 - 180, (wa(1) + wa(3)) / 2 - 140
+		title "作業のおとも、棒人間について"
+		color 250, 250, 246 : boxf
+		font "Meiryo UI", 18, 1 : color 40, 40, 48 : pos 20, 16 : mes "作業のおとも、棒人間"
+		font "Meiryo UI", 13 : color 110, 110, 120 : pos 20, 44 : mes "作業集中用のポモドーロタイマー"
+		font "Meiryo UI", 14 : color 40, 40, 48 : pos 20, 70
+		mes "バージョン " + VERSION_STR
+		mes "作者：subara3（subara3.com）"
+		mes "HSP 3.7で作成"
+		mes "声：VOICEVOX:玄野武宏"
+		mes "効果音：効果音ラボ"
+		mes "着せ替え：珠音（HSP3オフィシャル素材）"
+		objsize 150, 34
+		pos 20, 224 : button gosub "サイトを見る", *about_site
+		pos 190, 224 : button gosub "閉じる", *about_close
+		about_made = 1
+	}
+	win_id = 13 : gosub *show_win
+	return
+
+*about_site
+	exec "https://subara3.com/", 16
+	return
+
+*about_close
+	gsel 13, -1
+	gsel 1
+	return
+
+; ---- セリフを教える（kotoba.txt に1行1つ） ----
+*load_kotoba
+	nkoto = 0
+	exist datadir + "\\kotoba.txt"
+	if strsize < 0 : return
+	sdim ktxt, 8192
+	notesel ktxt
+	noteload datadir + "\\kotoba.txt"
+	repeat notemax
+		noteget kl, cnt
+		kl = strtrim(kl)
+		if kl = "" : continue
+		if peek(kl, 0) = '#' : continue
+		if nkoto < 50 : kotoba(nkoto) = kl : nkoto++
+	loop
+	noteunsel
+	return
+
+*save_kotoba
+	sdim ktxt, 8192
+	ktxt = "# 教えたセリフ（1行に1つ。#で始まる行は無視）\n"
+	repeat nkoto
+		ktxt += kotoba(cnt) + "\n"
+	loop
+	notesel ktxt
+	notesave datadir + "\\kotoba.txt"
+	noteunsel
+	return
+
+*teach_open
+	if teach_made = 0 {
+		screen 7, 380, 140, 2, (wa(0) + wa(2)) / 2 - 190, (wa(1) + wa(3)) / 2 - 70
+		title "セリフを教える"
+		color 250, 250, 246 : boxf
+		font "Meiryo UI", 14 : color 40, 40, 48
+		pos 16, 12 : mes "しゃべってほしいことばを入れてください（20文字まで）"
+		sdim teach_in, 256
+		pos 16, 44 : objsize 348, 28 : input teach_in, 348, 28, 120
+		teach_obj = stat
+		pos 16, 88 : objsize 170, 34 : button gosub "覚えさせる", *teach_ok
+		pos 194, 88 : objsize 170, 34 : button gosub "やめる", *teach_cancel
+		teach_made = 1
+	}
+	gsel 7
+	objprm teach_obj, ""
+	win_id = 7 : gosub *show_win
+	return
+
+*teach_ok
+	gsel 7, -1
+	gsel 1
+	gosub *teach_add
+	return
+
+*teach_cancel
+	gsel 7, -1
+	gsel 1
+	return
+
+*teach_add
+	teach_in = strtrim(teach_in)
+	if teach_in = "" : return
+	; 20文字まで（UTF-8 で 60 バイトを目安に切る）
+	if strlen(teach_in) > 60 {
+		; 文字の途中で切らないように、続きのバイト（0x80～0xBF）の前まで戻す
+		tcut = 60
+		repeat 3
+			if (peek(teach_in, tcut) & 0xC0) != 0x80 : break
+			tcut--
+		loop
+		teach_in = strmid(teach_in, 0, tcut)
+	}
+	if nkoto >= 50 : nkoto = 49
+	kotoba(nkoto) = teach_in : nkoto++
+	gosub *save_kotoba
+	bubble = "覚えたぞ！" : bubt = 90
+	state = ST_HAPPY : stimer = 0
+	return

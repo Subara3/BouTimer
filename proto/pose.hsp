@@ -1,0 +1,655 @@
+; 作業のおとも、棒人間：ポーズ（関節の角度を決める）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ==== ポーズ ====
+*make_pose
+	; 既定：横向きに立つ
+	view = 0 : rot = 0.0 : sx = 1.0 : sy = 1.0 : lie = 0
+	eyes = 0 : mouth = 1 : anger = 0 : zzz = 0 : shadow = 1 : lookdown = 0
+	prop = PR_NONE : propang = 0.0 : steam = 0 : fish = 0 : dust = 0 : pagef = 0 : signboard = 0 : puddle = 0.0
+	noface = 0 : nohalo = 0 : exitsign = 0 : lmirror = 0
+	if (state = ST_CHEER) & (celebrate > 0) : prop = PR_TOMATO
+	hipx = 0.0 : hipy = -24.0 : lean = 0.0
+	breath = sin(double(frame) * 0.05) * 0.7
+	la1(0) = -4.0 : la2(0) = -4.0 : la1(1) = 4.0 : la2(1) = 4.0
+	aa1(0) = -8.0 : aa2(0) = -2.0 : aa1(1) = 10.0 : aa2(1) = 18.0
+	legl = 12.0
+
+	if dragging & sleepdrag {
+		; 寝たまま運ばれる
+		view = 1 : shadow = 0 : eyes = 1 : mouth = 0 : zzz = 1
+		sw = limitf(-dvx * 3.0, -30.0, 30.0) + sin(double(frame) * 0.1) * 5.0
+		la1(0) = -4.0 + sw : la2(0) = -2.0 + sw : la1(1) = 4.0 + sw : la2(1) = 2.0 + sw
+		aa1(0) = 8.0 + sw : aa2(0) = 4.0 + sw : aa1(1) = 8.0 + sw : aa2(1) = 4.0 + sw
+		return
+	}
+	if dragging {
+		; つままれても平気な顔で空中散歩（手を広げて風を受ける）
+		view = 1 : shadow = 0 : mouth = 1
+		sw = limitf(-dvx * 2.0, -25.0, 25.0) + sin(double(frame) * 0.12) * 4.0
+		la1(0) = -6.0 + sw : la2(0) = -2.0 + sw : la1(1) = 6.0 + sw : la2(1) = 2.0 + sw
+		aa1(0) = 95.0 + sin(double(frame) * 0.1) * 6.0 : aa2(0) = 100.0
+		aa1(1) = 95.0 + sin(double(frame) * 0.1 + 1.0) * 6.0 : aa2(1) = 100.0
+		if absf(dvx) + absf(dvy) > 18.0 : eyes = 6 : mouth = 3
+		return
+	}
+	if state = ST_CLIMB {
+		; 縁をよじ登る
+		shadow = 0 : lean = 6.0 : eyes = 4 : mouth = 4
+		c = sin(double(stimer) * 0.15)
+		aa1(0) = 160.0 + c * 12.0 : aa2(0) = 172.0 + c * 8.0 : aa1(1) = 160.0 - c * 12.0 : aa2(1) = 172.0 - c * 8.0
+		la1(0) = 45.0 + c * 25.0 : la2(0) = -5.0 + c * 10.0 : la1(1) = 45.0 - c * 25.0 : la2(1) = -5.0 - c * 10.0
+		return
+	}
+	if (grounded = 0) & (state = ST_SLEEP) {
+		shadow = 0 : eyes = 1 : mouth = 0 : zzz = 1
+		return
+	}
+	if grounded = 0 {
+		shadow = 0
+		if vy < 0.0 {
+			aa1(0) = 150.0 : aa2(0) = 165.0 : aa1(1) = 160.0 : aa2(1) = 175.0
+		} else {
+			aa1(0) = 100.0 : aa2(0) = 120.0 : aa1(1) = 110.0 : aa2(1) = 130.0
+		}
+		la1(0) = 30.0 : la2(0) = -5.0 : la1(1) = -12.0 : la2(1) = -30.0
+		if state = ST_POKED : eyes = 2 : mouth = 2
+		if state = ST_CHEER : mouth = 3
+		if state = ST_DIZZY : eyes = 5 : mouth = 2
+		return
+	}
+	if state = ST_BEHIND : gosub *walk_pose : eyes = 3 : return
+	if state = ST_GROOVE {
+		; 拍に合わせてひざでリズムを取り、手を交互に上げる
+		bz = maxf(bounce, 0.0)
+		hipy = -24.0 + bz * 4.0 : lean = bz * 5.0
+		la1(0) = 10.0 + bz * 18.0 : la2(0) = -6.0 - bz * 10.0 : la1(1) = -6.0 + bz * 12.0 : la2(1) = -16.0 - bz * 8.0
+		if beatn \ 2 {
+			aa1(0) = 150.0 : aa2(0) = 165.0 : aa1(1) = -20.0 : aa2(1) = 10.0
+		} else {
+			aa1(0) = -20.0 : aa2(0) = 10.0 : aa1(1) = 150.0 : aa2(1) = 165.0
+		}
+		if (beatn \ 8) >= 6 : view = 1
+		mouth = 3 : eyes = 6 * (bz > 0.6)
+		return
+	}
+	if state = ST_ACT : gosub *act_pose : return
+	if state = ST_LAND : gosub *land_pose : return
+	if state = ST_TYPE {
+		; 小さなノートパソコンで一緒にカタカタ
+		gosub *sit_floor_pose
+		lean = 6.0 : lookdown = 1 : mouth = 4 : prop = PR_LAPTOP
+		tt = double(frame) * 0.9
+		aa1(0) = 62.0 + sin(tt) * 6.0 : aa2(0) = 100.0 + sin(tt) * 10.0
+		aa1(1) = 58.0 + sin(tt + 2.0) * 6.0 : aa2(1) = 96.0 + sin(tt + 2.0) * 10.0
+		if krate > 7.0 : mouth = 3
+		return
+	}
+	if (state = ST_SCOLD) & (scoldt > 0) {
+		; サボり先の上で札を掲げる（怒らない。にこにこ誘う）
+		view = 1 : mouth = 3 : signboard = 1
+		aa1(0) = 128.0 : aa2(0) = 162.0 : aa1(1) = 128.0 : aa2(1) = 162.0
+		return
+	}
+	if (state = ST_ALARM) & (alt > 0) {
+		k = (stimer - alt) \ 240
+		view = 1 : mouth = 3
+		hipy -= absf(sin(double(frame) * 0.2)) * 2.0
+		if k < 120 {
+			; 時刻の札を両手で上げる
+			signboard = 1 : signtext = al_time
+			aa1(0) = 128.0 : aa2(0) = 162.0 : aa1(1) = 128.0 : aa2(1) = 162.0
+		} else {
+			; 両手を振って呼ぶ
+			aa1(0) = 125.0 : aa2(0) = 150.0 + sin(double(frame) * 0.4) * 20.0
+			aa1(1) = 125.0 : aa2(1) = 150.0 + sin(double(frame) * 0.4 + 3.14) * 20.0
+		}
+		return
+	}
+	if state = ST_SIGN {
+		; 休憩中なのに打っている人へ札を掲げる（怒らない）
+		view = 1 : mouth = 3 : signboard = 1
+		aa1(0) = 128.0 : aa2(0) = 162.0 : aa1(1) = 128.0 : aa2(1) = 162.0
+		return
+	}
+	if state = ST_DIZZY {
+		eyes = 5 : mouth = 2
+		lean = sin(double(frame) * 0.15) * 14.0
+		aa1(0) = 40.0 + sin(double(frame) * 0.2) * 20.0 : aa2(0) = 60.0 : aa1(1) = -30.0 : aa2(1) = -10.0
+		la1(0) = 10.0 + sin(double(frame) * 0.15) * 8.0 : la2(0) = la1(0)
+		return
+	}
+	if state = ST_PEEK {
+		; 窓のふちから、文字カーソルのほうをのぞきこむ
+		lean = 22.0 : lookdown = 1 : mouth = 2
+		hipy += 2.0
+		; 片手はおでこにかざし、もう片手は腰のうしろ
+		aa1(0) = -40.0 : aa2(0) = -70.0
+		aa1(1) = 75.0 : aa2(1) = 150.0
+		la1(0) = -8.0 : la2(0) = -8.0 : la1(1) = 10.0 : la2(1) = 10.0
+		return
+	}
+	if state = ST_HAPPY {
+		view = 1 : eyes = 6 : mouth = 3
+		hipy -= absf(sin(double(frame) * 0.2)) * 3.0
+		aa1(0) = 40.0 : aa2(0) = 80.0 : aa1(1) = 40.0 : aa2(1) = 80.0
+		return
+	}
+	if state = ST_CALL {
+		view = 1 : mouth = 3
+		aa1(0) = 125.0 : aa2(0) = 150.0 + sin(double(frame) * 0.4) * 20.0
+		aa1(1) = 125.0 : aa2(1) = 150.0 + sin(double(frame) * 0.4 + 3.14) * 20.0
+		hipy -= absf(sin(double(frame) * 0.2)) * 2.0
+		return
+	}
+	if (state = ST_WALK) | ((state = ST_IDLE) & (vx != 0.0)) | ((state = ST_GOTO) & (vx != 0.0)) {
+		gosub *walk_pose
+		if fastwalk > 0 : lean = 10.0 : anger = 1 : eyes = 4 : mouth = 4
+		return
+	}
+	if state = ST_FRONT {
+		; こっちへ歩いてきて手を振り、また戻っていく
+		view = 1
+		if stimer < 150 {
+			sx = 1.0 + double(stimer) * 0.0024
+			gosub *front_steps
+		}
+		if (stimer >= 150) & (stimer < 240) {
+			sx = 1.36
+			aa1(1) = 140.0 : aa2(1) = 160.0 + sin(double(frame) * 0.35) * 25.0
+			mouth = 3
+		}
+		if stimer >= 240 {
+			view = 2
+			sx = 1.36 - double(stimer - 240) * 0.004
+			gosub *front_steps
+		}
+		sy = sx
+		return
+	}
+	if (state = ST_SLACK) | (state = ST_PAUSE) {
+		gosub *sit_floor_pose
+		eyes = 3 : mouth = 4
+		return
+	}
+	if state = ST_SLEEP {
+		; 横になって寝る（顔は起こしたまま）
+		eyes = 1 : mouth = 0 : zzz = 1
+		bz = sin(double(frame) * 0.04)
+		lean = 86.0 : hipx = -14.0 : hipy = -3.5 - bz * 0.6
+		la1(0) = -86.0 : la2(0) = -88.0 : la1(1) = -80.0 : la2(1) = -100.0
+		aa1(0) = -60.0 : aa2(0) = -80.0 : aa1(1) = -70.0 : aa2(1) = -85.0
+		return
+	}
+	if state = ST_POKED {
+		lean = -16.0 : eyes = 2 : mouth = 2
+		aa1(0) = 120.0 : aa2(0) = 150.0 : aa1(1) = 130.0 : aa2(1) = 160.0
+		return
+	}
+	if state = ST_ANGRY {
+		view = 1 : anger = 1 : eyes = 4 : mouth = 4
+		aa1(0) = -40.0 : aa2(0) = 30.0 : aa1(1) = 40.0 : aa2(1) = -30.0
+		return
+	}
+	if (state = ST_REST) | (state = ST_WAVE) {
+		gosub *sit_edge_pose
+		mouth = 1
+		if (frame \ 600) > 420 : eyes = 3
+		if state = ST_WAVE {
+			view = 1 : mouth = 3
+			aa1(1) = 140.0 : aa2(1) = 160.0 + sin(double(frame) * 0.35) * 25.0
+		}
+		return
+	}
+	if state = ST_CHEER {
+		aa1(0) = 160.0 : aa2(0) = 170.0 : aa1(1) = 165.0 : aa2(1) = 175.0 : mouth = 3
+		return
+	}
+	; 立ち止まっているときの小さなしぐさ（pose_kind。1手を振る 2考える 3頭をかく 4指さす）
+	if (state = ST_IDLE) & (pose_kind > 0) {
+		if pose_kind = 1 {
+			view = 1 : mouth = 3
+			aa1(1) = 140.0 : aa2(1) = 160.0 + sin(double(frame) * 0.35) * 25.0
+		}
+		if pose_kind = 2 {
+			; 片手をあごに、もう片手は腰に。首を少しかしげる
+			view = 1 : eyes = 3 : mouth = 2
+			lean = -3.0 + sin(double(frame) * 0.03) * 2.0
+			aa1(1) = 18.0 : aa2(1) = -160.0
+			aa1(0) = 50.0 : aa2(0) = -35.0
+		}
+		if pose_kind = 3 {
+			; 頭のうしろをかく
+			view = 1 : eyes = 6 : mouth = 3
+			aa1(1) = 125.0 : aa2(1) = -165.0 + sin(double(frame) * 0.5) * 10.0
+		}
+		if pose_kind = 4 {
+			; 向いているほうを指さす
+			mouth = 3
+			aa1(0) = 80.0 : aa2(0) = 88.0
+		}
+		return
+	}
+	; 立っている：ときどき伸び
+	if (frame \ 900) > 860 {
+		aa1(0) = 165.0 : aa2(0) = 175.0 : aa1(1) = 170.0 : aa2(1) = 178.0 : eyes = 1 : mouth = 2
+	}
+	return
+
+*walk_pose
+	wp += 0.16 * maxf(absf(vx), 0.6) / 1.3
+	s = sin(wp)
+	la1(0) = 26.0 * s : la2(0) = la1(0) - 38.0 * maxf(0.0, cos(wp))
+	la1(1) = -26.0 * s : la2(1) = la1(1) - 38.0 * maxf(0.0, -cos(wp))
+	aa1(0) = 22.0 * s : aa2(0) = aa1(0) + 25.0
+	aa1(1) = -22.0 * s : aa2(1) = aa1(1) + 25.0
+	hipy -= absf(cos(wp)) * 1.6
+	lean = 4.0
+	return
+
+*front_steps
+	st = sin(double(stimer) * 0.22)
+	la1(0) = -5.0 : la2(0) = -3.0 : la1(1) = 5.0 : la2(1) = 3.0
+	aa1(0) = -14.0 + st * 6.0 : aa2(0) = -8.0 : aa1(1) = 14.0 + st * 6.0 : aa2(1) = 8.0
+	hipy -= absf(st) * 1.5
+	return
+
+; 床に座る（足を前に投げ出す）
+*sit_floor_pose
+	hipy = -3.0 : lean = -10.0
+	la1(0) = 88.0 : la2(0) = 92.0 : la1(1) = 84.0 : la2(1) = 88.0 + sin(double(frame) * 0.06) * 6.0
+	aa1(0) = -40.0 : aa2(0) = -30.0 : aa1(1) = -30.0 : aa2(1) = -20.0
+	return
+
+; ふちに腰かけて足をぶらぶら
+*sit_edge_pose
+	hipy = -1.0 : lean = -4.0
+	la1(0) = 86.0 : la2(0) = 6.0 + sin(double(frame) * 0.07) * 18.0
+	la1(1) = 80.0 : la2(1) = 2.0 + sin(double(frame) * 0.07 + 1.8) * 18.0
+	aa1(0) = 30.0 : aa2(0) = 60.0 : aa1(1) = 40.0 : aa2(1) = 70.0
+	return
+
+*idle_arms
+	aa1(0) = -8.0 : aa2(0) = -2.0 : aa1(1) = 10.0 : aa2(1) = 18.0
+	la1(0) = -4.0 : la2(0) = -4.0 : la1(1) = 4.0 : la2(1) = 4.0
+	return
+
+*land_pose
+	if landpose = 0 {
+		; ヒーロー着地
+		hipy = -11.0 : lean = 24.0 : eyes = 4 : mouth = 4
+		la1(0) = 80.0 : la2(0) = 0.0 : la1(1) = -25.0 : la2(1) = -95.0
+		aa1(0) = 25.0 : aa2(0) = 15.0 : aa1(1) = -115.0 : aa2(1) = -100.0
+	}
+	if landpose = 1 {
+		; 体操選手のY字
+		view = 1 : eyes = 6 : mouth = 3
+		aa1(0) = 150.0 : aa2(0) = 155.0 : aa1(1) = 150.0 : aa2(1) = 155.0
+		la1(0) = -2.0 : la2(0) = -2.0 : la1(1) = 2.0 : la2(1) = 2.0
+	}
+	if landpose = 2 {
+		; 忍者
+		hipy = -13.0 : lean = 22.0 : eyes = 4 : mouth = 0
+		la1(0) = 75.0 : la2(0) = -15.0 : la1(1) = 35.0 : la2(1) = -55.0
+		aa1(0) = 85.0 : aa2(0) = 100.0 : aa1(1) = -60.0 : aa2(1) = -30.0
+	}
+	if landpose = 3 {
+		; 腰に手をあてて仁王立ち
+		eyes = 3 : mouth = 1
+		la1(0) = 10.0 : la2(0) = 8.0 : la1(1) = -10.0 : la2(1) = -8.0
+		aa1(0) = -40.0 : aa2(0) = 35.0 : aa1(1) = 40.0 : aa2(1) = -35.0
+	}
+	if landpose = 4 {
+		; 片足立ちのかまえ
+		eyes = 4 : mouth = 4
+		la1(0) = 85.0 : la2(0) = 15.0 : la1(1) = 0.0 : la2(1) = 0.0
+		aa1(0) = 120.0 : aa2(0) = 140.0 : aa1(1) = -120.0 : aa2(1) = -140.0
+	}
+	return
+
+*crouch_pose
+	hipy = -15.0 : lean = 30.0
+	la1(0) = 70.0 : la2(0) = -10.0 : la1(1) = 10.0 : la2(1) = -60.0
+	aa1(0) = 15.0 : aa2(0) = 5.0 : aa1(1) = 5.0 : aa2(1) = 0.0
+	return
+
+; ---- 小さな動きのポーズ ----
+*act_pose
+	if act >= ACT_ROPE : gosub *play_pose : return
+	if act = ACT_TEA {
+		if phase = 1 {
+			gosub *sit_edge_pose
+		} else {
+			gosub *sit_floor_pose
+		}
+		mouth = 1
+		if stimer < 30 {
+			; ごそごそ取り出す
+			aa1(0) = -70.0 + double(stimer) * 3.0 : aa2(0) = -40.0 + double(stimer) * 3.0
+			return
+		}
+		prop = PR_CUP
+		k = (stimer - 30) \ 130
+		if (k > 70) & (k < 112) {
+			; すする
+			aa1(0) = 70.0 : aa2(0) = 158.0 : eyes = 1 : mouth = 0
+		} else {
+			aa1(0) = 35.0 : aa2(0) = 120.0 : steam = 1
+		}
+		return
+	}
+	if act = ACT_STICK {
+		if stimer < 40 {
+			; 足元に何か落ちている
+			prop = PR_GROUNDSTICK : lookdown = 1
+			return
+		}
+		if stimer < 75 {
+			gosub *crouch_pose
+			lookdown = 1
+			if stimer < 60 {
+				prop = PR_GROUNDSTICK
+			} else {
+				prop = PR_STICK : propang = 80.0
+			}
+			return
+		}
+		prop = PR_STICK
+		k = stimer - 75
+		if stickuse = USE_SWORD {
+			; 振り回す
+			sw = (k \ 70)
+			if sw < 20 {
+				aa1(0) = 150.0 + sw * 1.0 : aa2(0) = 165.0 : propang = 190.0 : lean = -6.0
+			} else {
+				q = limitf(double(sw - 20) / 10.0, 0.0, 1.0)
+				aa1(0) = 170.0 - q * 110.0 : aa2(0) = 165.0 - q * 85.0 : propang = 180.0 - q * 85.0 : lean = q * 10.0
+			}
+			aa1(1) = 30.0 : aa2(1) = 60.0 : mouth = 3
+			la1(0) = 18.0 : la2(0) = 10.0 : la1(1) = -14.0 : la2(1) = -10.0
+		}
+		if stickuse = USE_TAP {
+			; 足元をコンコン
+			lean = 18.0 : hipy = -22.0 : lookdown = 1
+			tp = absf(sin(double(k) * 0.16)) * 14.0
+			aa1(0) = 55.0 : aa2(0) = 70.0 - tp : propang = 38.0 - tp
+		}
+		if stickuse = USE_CANE {
+			; 杖をついてゆっくり歩く
+			gosub *walk_pose
+			lean = 12.0 : eyes = 3
+			aa1(0) = 30.0 : aa2(0) = 25.0 + sin(wp) * 8.0 : propang = 6.0
+		}
+		if stickuse = USE_FISH {
+			; ふちに座って釣り
+			gosub *sit_edge_pose
+			prop = PR_ROD
+			aa1(0) = 55.0 : aa2(0) = 95.0
+			if (k > 225) & (k < 300) {
+				propang = 175.0 : fish = 1 : mouth = 3
+			} else {
+				propang = 135.0 + sin(double(k) * 0.05) * 3.0 : eyes = 3
+			}
+		}
+		if k > 300 {
+			; 投げ捨てる直前
+			aa1(0) = 160.0 : aa2(0) = 170.0 : propang = 200.0
+		}
+		return
+	}
+	if act = ACT_WIPE {
+		if stimer < 40 {
+			; こぼした！
+			if phase = 1 {
+				gosub *sit_edge_pose
+			} else {
+				gosub *sit_floor_pose
+			}
+			eyes = 2 : mouth = 2 : prop = PR_CUP
+			aa1(0) = 140.0 : aa2(0) = 165.0 : aa1(1) = 120.0 : aa2(1) = 150.0
+			puddle = double(stimer) / 40.0
+			return
+		}
+		if stimer < sdur - 30 {
+			; しゃがんで、ふきんでごしごし
+			gosub *crouch_pose
+			wsw = sin(double(stimer) * 0.3)
+			aa1(0) = 25.0 + wsw * 22.0 : aa2(0) = 10.0 + wsw * 30.0
+			prop = PR_CLOTH : lookdown = 1 : mouth = 4
+			puddle = 1.0 - double(stimer - 40) / double(sdur - 70)
+			return
+		}
+		eyes = 6 : mouth = 3
+		return
+	}
+	if act = ACT_SEASON {
+		sq = sin(double(stimer) * 0.2)
+		if sea_kind = SK_KITE {
+			prop = PR_KITE : mouth = 1
+			aa1(0) = 150.0 + sq * 6.0 : aa2(0) = 160.0 : aa1(1) = 20.0 : aa2(1) = 30.0
+		}
+		if sea_kind = SK_BEAN {
+			prop = PR_BEANS : mouth = 3
+			if (stimer \ 40) < 15 {
+				aa1(0) = -60.0 : aa2(0) = -30.0
+			} else {
+				aa1(0) = 110.0 : aa2(0) = 100.0
+			}
+		}
+		if sea_kind = SK_HEART {
+			view = 1 : lmirror = 1 : prop = PR_HEART : eyes = 3 : mouth = 4
+			aa1(0) = 30.0 : aa2(0) = 95.0 : aa1(1) = 30.0 : aa2(1) = 95.0
+		}
+		if sea_kind = SK_UMBRELLA {
+			prop = PR_UMBRELLA : mouth = 1
+			aa1(0) = 165.0 : aa2(0) = 175.0
+		}
+		if sea_kind = SK_FAN {
+			prop = PR_FAN : eyes = 3 : mouth = 4
+			aa1(0) = 110.0 + sq * 25.0 : aa2(0) = 165.0 + sq * 25.0
+		}
+		if sea_kind = SK_TANZAKU {
+			prop = PR_TANZAKU : mouth = 1
+			aa1(0) = 125.0 : aa2(0) = 150.0
+		}
+		if sea_kind = SK_DANGO {
+			gosub *sit_floor_pose
+			prop = PR_DANGO : mouth = 1
+			if (stimer \ 120) > 80 {
+				aa1(0) = 70.0 : aa2(0) = 158.0 : eyes = 1
+			} else {
+				aa1(0) = 40.0 : aa2(0) = 115.0
+			}
+		}
+		return
+	}
+	if act = ACT_EXIT {
+		; 非常口のピクトグラム
+		lean = 14.0 : hipy = -25.0 : eyes = 4 : mouth = 4
+		la1(0) = 70.0 : la2(0) = -10.0 : la1(1) = -50.0 : la2(1) = -95.0
+		aa1(0) = -55.0 : aa2(0) = -95.0 : aa1(1) = 65.0 : aa2(1) = 130.0
+
+		return
+	}
+	if act = ACT_HANG {
+		if stimer < 20 : gosub *crouch_pose : lookdown = 1 : return
+		; 縁に手をかけてぶら下がる
+		view = 1 : shadow = 0 : mouth = 1
+		aa1(0) = 178.0 : aa2(0) = 178.0 : aa1(1) = 178.0 : aa2(1) = 178.0
+		sw = sin(double(stimer) * 0.07) * 14.0
+		la1(0) = -4.0 + sw : la2(0) = -2.0 + sw : la1(1) = 4.0 + sw : la2(1) = 2.0 + sw
+		if stimer >= 290 : eyes = 4 : mouth = 4
+		return
+	}
+	if act = ACT_BEHIND {
+		lookdown = 1 : mouth = 1
+		return
+	}
+	if act = ACT_ICONBALL {
+		; アイコンでリフティング
+		k2 = sin(double(stimer) * 0.18)
+		if k2 > 0.0 : la1(0) = 55.0 * k2 : la2(0) = 30.0 * k2
+		aa1(0) = -30.0 : aa2(0) = -20.0 : aa1(1) = 30.0 : aa2(1) = 20.0 : mouth = 3
+		return
+	}
+	if act = ACT_PPAP {
+		view = 1 : mouth = 1 : lmirror = 1
+		aa1(0) = 10.0 : aa2(0) = 5.0 : aa1(1) = 10.0 : aa2(1) = 5.0
+		if stimer < 140 {
+			aa1(1) = 120.0 : aa2(1) = 150.0
+			if stimer >= 70 : aa1(0) = 120.0 : aa2(0) = 150.0
+		}
+		if (stimer >= 140) & (stimer < 195) {
+			q = double(stimer - 140) / 55.0
+			aa1(0) = 120.0 - q * 20.0 : aa2(0) = 150.0 + q * 65.0
+			aa1(1) = aa1(0) : aa2(1) = aa2(0)
+			eyes = 4 : mouth = 4
+		}
+		if stimer >= 195 {
+			aa1(0) = 160.0 : aa2(0) = 200.0 : aa1(1) = 160.0 : aa2(1) = 200.0
+			eyes = 6 : mouth = 3
+		}
+		return
+	}
+	if act = ACT_KICKCAN {
+		prop = PR_NONE : lookdown = 1
+		if stimer < 60 {
+			; 缶を見下ろす
+			mouth = 4
+		}
+		if (stimer >= 60) & (stimer < 80) {
+			; ふりかぶって
+			la1(0) = -45.0 : la2(0) = -70.0 : aa1(0) = 40.0 : aa1(1) = -40.0 : lean = -6.0
+		}
+		if (stimer >= 80) & (stimer < 100) {
+			; 蹴る
+			la1(0) = 75.0 : la2(0) = 80.0 : aa1(0) = -50.0 : aa1(1) = 60.0 : lean = -10.0 : mouth = 3 : lookdown = 0
+		}
+		if stimer >= 100 : eyes = 6 : mouth = 3 : lookdown = 0
+		return
+	}
+	if act = ACT_AQUA {
+		; 水槽を眺める（ときどきエサ）
+		gosub *sit_floor_pose
+		lean = 4.0 : mouth = 1
+		la1(0) = 70.0 : la2(0) = 20.0 : la1(1) = 60.0 : la2(1) = 15.0
+		aa1(0) = 60.0 : aa2(0) = 20.0 : aa1(1) = 55.0 : aa2(1) = 15.0
+		if (stimer > 150) & (stimer < 220) {
+			aa1(0) = 100.0 : aa2(0) = 130.0
+		}
+		if (stimer \ 200) > 150 : eyes = 6
+		return
+	}
+	if act = ACT_FLAT {
+		; ぺしゃんこ
+		lean = 90.0 : hipx = -14.0 : hipy = -3.0
+		la1(0) = -86.0 : la2(0) = -88.0 : la1(1) = -84.0 : la2(1) = -86.0
+		aa1(0) = 70.0 : aa2(0) = 85.0 : aa1(1) = 65.0 : aa2(1) = 80.0
+		eyes = 2 : mouth = 2
+		return
+	}
+	if act = ACT_PUSHUP {
+		; 腕立て伏せ：つま先を支点に体を一直線の板にして、肩を上げ下げする
+		pm = (1.0 - cos(double(stimer) * 0.12)) * 0.5
+		th = 24.0 - pm * 16.0
+		hipx = -36.0 + 24.0 * cos(th * RAD) : hipy = -24.0 * sin(th * RAD) - 1.0
+		lean = 90.0 - th
+		la1(0) = th - 90.0 : la2(0) = th - 90.0 : la1(1) = th - 92.0 : la2(1) = th - 92.0
+		aa1(0) = 5.0 - pm * 70.0 : aa2(0) = 5.0 + pm * 45.0
+		aa1(1) = 2.0 - pm * 70.0 : aa2(1) = 2.0 + pm * 45.0
+		mouth = 4 : eyes = 4 * (pm > 0.6)
+		return
+	}
+	if act = ACT_READ {
+		gosub *sit_floor_pose
+		lean = -2.0
+		aa1(0) = 45.0 : aa2(0) = 105.0 : aa1(1) = 40.0 : aa2(1) = 100.0
+		prop = PR_BOOK : lookdown = 1 : mouth = 1
+		pagef = ((stimer \ 140) > 120)
+		return
+	}
+	if act = ACT_SWEEP {
+		; ほうきでタイトルバーを掃く
+		sp = sin(double(stimer) * 0.14)
+		lean = 10.0
+		aa1(0) = 30.0 + sp * 18.0 : aa2(0) = 45.0 + sp * 18.0
+		aa1(1) = 20.0 + sp * 18.0 : aa2(1) = 35.0 + sp * 18.0
+		prop = PR_BROOM : propang = 28.0 + sp * 18.0 : dust = 1 : lookdown = 1
+		la1(0) = 12.0 : la2(0) = 6.0 : la1(1) = -10.0 : la2(1) = -6.0
+		return
+	}
+	if act = ACT_DANCE {
+		k = stimer \ 40
+		b = absf(sin(double(stimer) * 3.14159 / 20.0))
+		hipy = -24.0 - b * 4.0
+		if k < 20 {
+			aa1(0) = 160.0 : aa2(0) = 175.0 : aa1(1) = -30.0 : aa2(1) = -10.0
+			la1(0) = 40.0 : la2(0) = -20.0 : la1(1) = -6.0 : la2(1) = -4.0
+		} else {
+			aa1(0) = -30.0 : aa2(0) = -10.0 : aa1(1) = 160.0 : aa2(1) = 175.0
+			la1(0) = 6.0 : la2(0) = 4.0 : la1(1) = -40.0 : la2(1) = -60.0
+		}
+		mouth = 3 : eyes = 3 * (k > 30)
+		return
+	}
+	if act = ACT_STRETCH {
+		if stimer < 150 {
+			; 両手を上にのばして、つま先立ち
+			view = 1 : eyes = 1 : mouth = 2
+			up = limitf(double(stimer) / 30.0, 0.0, 1.0)
+			if stimer > 120 : up = double(150 - stimer) / 30.0
+			hipy = -24.0 - up * 3.0
+			; 真上だと腕が頭に隠れるので、V字に開く
+			aa1(0) = 10.0 + up * 118.0 : aa2(0) = 10.0 + up * 142.0
+			aa1(1) = 10.0 + up * 118.0 : aa2(1) = 10.0 + up * 142.0
+			la1(0) = -3.0 : la2(0) = -3.0 - up * 18.0 : la1(1) = 3.0 : la2(1) = 3.0 + up * 18.0
+			return
+		}
+		if stimer < 270 {
+			; 体を左右にたおす
+			view = 1 : eyes = 1 : mouth = 1
+			sb = sin(double(stimer - 150) * 0.06) * 18.0
+			lean = sb
+			lmirror = 1
+			aa1(0) = 128.0 - sb : aa2(0) = 150.0 - sb : aa1(1) = 128.0 + sb : aa2(1) = 150.0 + sb
+			la1(0) = -6.0 : la2(0) = -6.0 : la1(1) = 6.0 : la2(1) = 6.0
+			return
+		}
+		; 遠くを指さして、そっちを見る
+		mouth = 1 : lean = -4.0
+		aa1(0) = 115.0 : aa2(0) = 105.0
+		aa1(1) = 20.0 : aa2(1) = 40.0
+		return
+	}
+	if act = ACT_TOSS {
+		if stimer < 60 {
+			; 手もとで紙をくしゃくしゃに丸める
+			lookdown = 1 : mouth = 2
+			sh = sin(double(stimer) * 0.9) * 6.0
+			aa1(0) = 50.0 + sh : aa2(0) = 105.0 : aa1(1) = 45.0 - sh : aa2(1) = 100.0
+			prop = PR_PAPERBALL : tossb = 1.0 - double(stimer) / 80.0
+			return
+		}
+		if stimer < 92 {
+			; ふりかぶる
+			lean = -8.0 : mouth = 4 : eyes = 4
+			aa1(0) = -30.0 - double(stimer - 60) * 2.5 : aa2(0) = aa1(0) + 40.0
+			aa1(1) = 40.0 : aa2(1) = 70.0
+			la1(0) = 10.0 : la2(0) = 10.0 : la1(1) = -14.0 : la2(1) = -14.0
+			prop = PR_PAPERBALL : tossb = 0.25
+			return
+		}
+		if stimer < 150 {
+			; 投げた
+			lean = 8.0 : mouth = 3
+			aa1(0) = 110.0 : aa2(0) = 100.0 : aa1(1) = -20.0 : aa2(1) = -10.0
+			la1(0) = -14.0 : la2(0) = -14.0 : la1(1) = 12.0 : la2(1) = 12.0
+			return
+		}
+		; 入って、よろこぶ
+		view = 1 : eyes = 6 : mouth = 3
+		hipy -= absf(sin(double(stimer) * 0.2)) * 3.0
+		aa1(0) = 120.0 : aa2(0) = 150.0 : aa1(1) = 120.0 : aa2(1) = 150.0
+		return
+	}
+	return

@@ -1,0 +1,35 @@
+; 作業のおとも、棒人間：効果音
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+;
+; 効果音は効果音ラボ（https://soundeffect-lab.info/）のものを tools/make_se.py で wav にして、se フォルダに同梱している
+; 声（PlaySound）と重なっても止めあわないように、効果音は MCI で鳴らす
+
+*se_init
+	se_dir = resdir + "\\se"
+	se_ok = 0 : se_jump_next = 0
+	sdim se_names, 32, 4
+	se_names(0) = "se_jump" : se_names(1) = "se_write" : se_names(2) = "se_paper" : se_names(3) = "se_goal"
+	repeat 4
+		exist se_dir + "\\" + se_names(cnt) + ".wav"
+		if strsize > 44 {
+			mciSendString "open \"" + se_dir + "\\" + se_names(cnt) + ".wav\" type waveaudio alias " + se_names(cnt), 0, 0, 0
+			if stat = 0 : se_ok++
+		}
+	loop
+	return
+
+; se_name の効果音を鳴らす。音を鳴らさない設定・全画面のあいだは鳴らさない
+*se_play
+	if (sound_on = 0) | fs_hide : return
+	; 確認用モードでは、setest のときだけ鳴らす
+	if testmode & (instr(cmd, 0, "setest") < 0) : dbg += "SE " + se_name + "\n" : return
+	mciSendString "play " + se_name + " from 0", 0, 0, 0
+	if testmode : dbg += "SE " + se_name + " play=" + stat + "\n"
+	return
+
+; 窓へ跳ぶときの「ぴょこん」。続けて跳ぶときにうるさくならないよう、10秒に1回まで
+*se_jump
+	if frame < se_jump_next : return
+	se_jump_next = frame + 60 * 10
+	se_name = "se_jump" : gosub *se_play
+	return

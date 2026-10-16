@@ -1,0 +1,192 @@
+; 作業のおとも、棒人間：声と口パク
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+;
+; 声は、決まった文のセリフを VOICEVOX（玄野武宏）で前もって作り、voice フォルダに同梱している（tools/make_voices.py）。
+; その場で声を作ることはしない（VOICEVOX を入れてもらう必要はない）。数字の入るセリフは、決まった部分だけを声にする。
+; ファイル名は、声にする文の UTF-8 から作る djb2 ハッシュ（v_XXXXXXXX.wav と、口パク用の v_XXXXXXXX.json）
+
+*vv_init
+	vv_dir = resdir + "\\voice"
+	sdim lastspoken, 256 : sdim wavbuf, 64 : sdim vs_out, 256 : vv_spoke = 0
+	; フレンドの通信には curl.exe を使う（Windows 10 1803 以降に入っている）
+	vv_curl = dirinfo(0x10025) + "\\curl.exe"
+	exist vv_curl
+	if strsize < 0 : vv_curl = ""
+	vv_tmp = dirinfo(0x1001C) + "\\Temp"
+	return
+
+; 吹き出しが変わったら、設定に応じてしゃべる
+*vv_watch
+	if voice_mode = 0 : return
+	; 全画面（プレゼンなど）の最中はしゃべらない
+	if fs_hide : return
+	if (bubt <= 0) | (bubble = lastspoken) : return
+	lastspoken = bubble
+	if voice_mode = 1 {
+		; 決まったセリフだけ：切り替え・達成・注意・呼びかけ・絵日記などの、下の語を含むもの
+		imp = 0
+		if instr(bubble, 0, "やるか") >= 0 : imp = 1
+		if instr(bubble, 0, "休憩") >= 0 : imp = 1
+		if instr(bubble, 0, "個目") >= 0 : imp = 1
+		if instr(bubble, 0, "作業しようぜ") >= 0 : imp = 1
+		if instr(bubble, 0, "おーい") >= 0 : imp = 1
+		if instr(bubble, 0, "おかえり") >= 0 : imp = 1
+		if instr(bubble, 0, "閉じ") >= 0 : imp = 1
+		if instr(bubble, 0, "しまっ") >= 0 : imp = 1
+		if instr(bubble, 0, "絵日記") >= 0 : imp = 1
+		if instr(bubble, 0, "寝ようぜ") >= 0 : imp = 1
+		if instr(bubble, 0, "だぞ！") >= 0 : imp = 1
+		if instr(bubble, 0, "終わった？") >= 0 : imp = 1
+		if instr(bubble, 0, "片づいた") >= 0 : imp = 1
+		if instr(bubble, 0, "伸びようぜ") >= 0 : imp = 1
+		if imp = 0 : return
+	}
+	gosub *vv_spoken
+	if vs_out = "" : return
+	gosub *vv_play
+	return
+
+; 声にする文（vs_out）を決める。数字や、「」の中の変わる文は読まない
+*vv_spoken
+	vs_out = bubble
+	; 「資料の3章」終わった？ のようなものは、」のあとの決まった部分だけ
+	if strmid(vs_out, 0, 3) = "「" {
+		vsp = instr(vs_out, 0, "」")
+		if vsp > 0 : vs_out = strmid(vs_out, vsp + 3, 256)
+	}
+	gosub *vv_hasdigit
+	if vs_dig {
+		; 3個目！やったな → やったな（最後の「！」のうしろ）。15:00だぞ！ → 時間だぞ！
+		if instr(vs_out, 0, "だぞ！") >= 0 {
+			vs_out = "時間だぞ！"
+		} else {
+			vsp = -1 : vsq = 0
+			repeat
+				vsr = instr(vs_out, vsq, "！")
+				if vsr < 0 : break
+				vsp = vsq + vsr : vsq = vsp + 3
+			loop
+			if vsp >= 0 {
+				vs_out = strmid(vs_out, vsp + 3, 256)
+			} else {
+				vs_out = ""
+			}
+		}
+		gosub *vv_hasdigit
+		if vs_dig : vs_out = ""
+	}
+	return
+
+; vs_out に数字（半角・全角）が入っているか（vs_dig）
+*vv_hasdigit
+	vs_dig = 0
+	repeat strlen(vs_out)
+		vb = peek(vs_out, cnt)
+		if (vb >= '0') & (vb <= '9') : vs_dig = 1 : break
+		; 全角の０～９は EF BC 90～99
+		if (vb = 0xEF) & (peek(vs_out, cnt + 1) = 0xBC) {
+			vb2 = peek(vs_out, cnt + 2)
+			if (vb2 >= 0x90) & (vb2 <= 0x99) : vs_dig = 1 : break
+		}
+	loop
+	return
+
+; 文（vs_out）から声のファイル名（vv_name）を作る。tools/make_voices.py と同じ djb2
+*vv_hash
+	vh = 5381
+	repeat strlen(vs_out)
+		vh = vh * 33 + peek(vs_out, cnt)
+	loop
+	vv_name = "v_" + strf("%08x", vh)
+	return
+
+; 同梱の声を鳴らして、口パクを始める。ないときは何もしない
+*vv_play
+	gosub *vv_hash
+	exist vv_dir + "\\" + vv_name + ".wav"
+	if strsize <= 44 {
+		if testmode : dbg += "NOVOICE " + vv_name + " " + vv_dir + " " + vs_out + "\n"
+		return
+	}
+	wsz = strsize
+	exist vv_dir + "\\" + vv_name + ".json"
+	if strsize > 0 {
+		qsz = strsize
+		sdim qjson, qsz + 16
+		bload vv_dir + "\\" + vv_name + ".json", qjson, qsz
+		gosub *lip_parse
+	} else {
+		lip_n = 0
+	}
+	PlaySoundStop 0, 0, 0
+	sdim wavbuf, wsz + 16
+	bload vv_dir + "\\" + vv_name + ".wav", wavbuf, wsz
+	; SND_ASYNC | SND_NODEFAULT | SND_MEMORY
+	PlaySound wavbuf, 0, 0x7
+	vv_ps = stat
+	lip_t0 = timeGetTime() + 30 : lip_on = 1 : vv_spoke++
+	if testmode : dbg += "SAY ps=" + vv_ps + " " + vs_out + " (" + bubble + ")\n"
+	return
+
+; ---- 口パク：audio_query の答えから、音（モーラ）ごとの時刻と母音の並びを作る ----
+*lip_parse
+	lip_n = 0
+	if instr(cmd, 0, "qjdump") >= 0 : notesel qjson : notesave "qjson_dump.txt" : noteunsel
+	jss = jnum(0, "speedScale")
+	if jss <= 0.0 : jss = 1.0
+	lt = jnum(0, "prePhonemeLength") * 1000.0 / jss
+	jp = 0
+	repeat 250
+		; モーラは "text" から始まる。間（pause_mora）も同じ形で入っている
+		jk2 = instr(qjson, jp, "\"text\":")
+		if jk2 < 0 : break
+		jp += jk2 + 7
+		cl = jnum(jp, "consonant_length")
+		jv = instr(qjson, jp, "\"vowel\":")
+		if jv < 0 : break
+		jv += jp + 8
+		jv2 = instr(qjson, jv, "\"")
+		vc = peek(qjson, jv + jv2 + 1)
+		vl = jnum(jp, "vowel_length")
+		jp = jpos
+		if cl > 0.0 {
+			lt += cl * 1000.0 / jss
+			lip_end(lip_n) = lt : lip_vw(lip_n) = 6 : lip_n++
+		}
+		lt += vl * 1000.0 / jss
+		; 母音ごとの口の形。大文字は声にならない母音、N・cl・pau は閉じる
+		lc = 0
+		if vc = 'a' : lc = 1
+		if vc = 'i' : lc = 2
+		if vc = 'u' : lc = 3
+		if vc = 'e' : lc = 4
+		if vc = 'o' : lc = 5
+		if (vc = 'A') | (vc = 'I') | (vc = 'U') | (vc = 'E') | (vc = 'O') : lc = 6
+		lip_end(lip_n) = lt : lip_vw(lip_n) = lc : lip_n++
+		if lip_n >= 250 : break
+	loop
+	if testmode : kk = instr(qjson, 0, "\"kana\":") : dbg += strf("LIP n=%d total=%dms ", lip_n, int(lt)) + strmid(qjson, kk, 60) + "\n"
+	return
+
+*lip_tick
+	lip_v = 0
+	if lip_on = 0 : return
+	if lip_n = 0 : lip_on = 0 : return
+	lel = double(timeGetTime() - lip_t0)
+	if lel < 0.0 : return
+	if lel > lip_end(lip_n - 1) : lip_on = 0 : return
+	repeat lip_n
+		if lel < lip_end(cnt) : lip_v = lip_vw(cnt) : break
+	loop
+	if testmode & ((frame \ 6) = 0) : dbg += "M" + lip_v
+	return
+
+*lip_mouth
+	GdipSetSolidFillColor brush, inkc
+	if lip_v = 1 : GdipFillEllipse gfx, brush, fcx - 2.5, fcy + 1.0, 5.0, 5.4
+	if lip_v = 2 : GdipFillEllipse gfx, brush, fcx - 3.0, fcy + 2.6, 6.0, 1.9
+	if lip_v = 3 : GdipFillEllipse gfx, brush, fcx - 1.4, fcy + 2.2, 2.8, 2.8
+	if lip_v = 4 : GdipFillEllipse gfx, brush, fcx - 2.7, fcy + 1.8, 5.4, 3.4
+	if lip_v = 5 : GdipFillEllipse gfx, brush, fcx - 2.0, fcy + 1.2, 4.0, 4.8
+	if (lip_v = 0) | (lip_v = 6) : GdipDrawLine gfx, pen, fcx - 1.8, fcy + 3.4, fcx + 1.8, fcy + 3.4
+	return

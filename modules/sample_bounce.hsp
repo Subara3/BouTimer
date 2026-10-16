@@ -1,0 +1,64 @@
+; モジュール3つの使用例：半透明のボールが、デスクトップのウィンドウの上で跳ねる。
+; 音楽が鳴っていると、拍に合わせて跳び上がる。ボールをクリックすると終わる。
+#include "hsp3utf.as"
+#include "mod_alphawin.as"
+#include "mod_deskwin.as"
+#include "mod_peakmeter.as"
+
+#uselib "user32.dll"
+#func SetProcessDPIAware "SetProcessDPIAware"
+#uselib "gdiplus.dll"
+#func GdipCreateSolidFill "GdipCreateSolidFill" int, var
+#func GdipSetSolidFillColor "GdipSetSolidFillColor" int, int
+#func GdipFillEllipse "GdipFillEllipse" int, int, float, float, float, float
+
+#const SZ 64
+#const BOTTOM 56
+
+	SetProcessDPIAware
+	gsel 0, -1
+	sw = ginfo_dispx : sh = ginfo_dispy
+	cmd = dir_cmdline
+	testmode = instr(cmd, 0, "test") >= 0
+
+	alphawin_init 1, SZ, SZ, sw / 2, 0
+	g = alphawin_graphics()
+	GdipCreateSolidFill 0xFF4A90E2, br
+	peak_open
+	x = double(sw / 2) : y = 0.0 : vx = 3.0 : vy = 0.0 : frame = 0
+
+	repeat
+		frame++
+		if testmode & (frame > 300) : end
+		peak_update
+		vy += 0.5
+		if peak_beat() : vy -= 6.0
+		nx = x + vx : ny = y + vy
+		; 見えているウィンドウの上の辺に着地して跳ね返る
+		if vy > 0.0 {
+			deskwin_scan alphawin_hwnd()
+			px = int(nx) + SZ / 2
+			repeat deskwin_count()
+				t = deskwin_get(cnt, 2)
+				if (px >= deskwin_get(cnt, 1)) & (px < deskwin_get(cnt, 3)) & (int(y) + BOTTOM <= t) & (int(ny) + BOTTOM >= t) {
+					if deskwin_visible(cnt, px, t + 3) : ny = double(t - BOTTOM) : vy = -vy * 0.7 : break
+				}
+			loop
+		}
+		if ny + BOTTOM > sh - 48 : ny = double(sh - 48 - BOTTOM) : vy = -vy * 0.7
+		if (nx < 0.0) | (nx > double(sw - SZ)) : vx = -vx
+		x = nx : y = ny
+
+		alphawin_clear
+		GdipSetSolidFillColor br, 0x30000000
+		GdipFillEllipse g, br, 10.0, 12.0, 48.0, 48.0
+		GdipSetSolidFillColor br, 0xE04A90E2
+		GdipFillEllipse g, br, 8.0, 8.0, 48.0, 48.0
+		GdipSetSolidFillColor br, 0x90FFFFFF
+		GdipFillEllipse g, br, 18.0, 14.0, 14.0, 10.0
+		alphawin_show int(x), int(y)
+
+		getkey k, 1
+		if k & (alphawin_alpha(ginfo_mx - int(x), ginfo_my - int(y)) > 0) : end
+		await 16
+	loop

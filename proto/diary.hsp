@@ -1,0 +1,522 @@
+; 作業のおとも、棒人間：絵日記
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 絵日記：その日の記録から 640x500 の1枚を描いて diary\日付.png に保存 ----
+*make_diary
+	if dinit = 0 {
+		GdipCreateBitmapFromScan0 640, 500, 0, 0x26200A, 0, dbmp
+		GdipGetImageGraphicsContext dbmp, dg
+		GdipSetSmoothingMode dg, 4
+		GdipSetTextRenderingHint dg, 4
+		; 小学校の教科書の書体。なければ Meiryo UI
+		GdipCreateFontFamilyFromName "UD Digi Kyokasho N", 0, dfam
+		if stat != 0 : GdipCreateFontFamilyFromName "Meiryo UI", 0, dfam
+		GdipCreateFont dfam, 21.0, 0, 2, dfont
+		GdipCreateFont dfam, 30.0, 1, 2, dfontb
+		GdipCreateFont dfam, 14.0, 0, 2, dfonts
+		dinit = 1
+	}
+	savg = gfx : gfx = dg
+	GdipResetWorldTransform gfx
+	GdipGraphicsClear gfx, 0xFFFFFBF0
+	; 同じ日は何度描いても同じ絵日記になるよう、日付から乱数の種を作る
+	dseed = 0
+	repeat strlen(dday)
+		dseed = (dseed * 31 + peek(dday, cnt)) & 0x7FFFFF
+	loop
+	randomize dseed
+	; 日付と曜日
+	dy = int(strmid(dday, 0, 4)) : dm = int(strmid(dday, 5, 2)) : dd = int(strmid(dday, 8, 2))
+	zy = dy : zm = dm
+	if zm < 3 : zm += 12 : zy--
+	wd = (dd + (13 * (zm + 1)) / 5 + zy + zy / 4 - zy / 100 + zy / 400) \ 7
+	wds = "土日月火水木金"
+	dtext strf("%d月%d日（", dm, dd) + strmid(wds, wd * 3, 3) + "）", 30, 16, 400, 44, dfontb, 0xFF2E2E36
+	dtext "棒人間のえにっき", 430, 28, 190, 24, dfonts, 0xFF8A8A96
+	; 絵のわく
+	GdipSetSolidFillColor brush, 0xFFFFFFFF
+	GdipFillRectangle gfx, brush, 30, 66, 580, 226
+	gosub *diary_sky
+	gosub *diary_scene
+	GdipResetWorldTransform gfx
+	GdipSetPenColor pen, 0xFF8A8A96 : GdipSetPenWidth pen, 2.0
+	GdipDrawRectangle gfx, pen, 30, 66, 580, 226
+	; 文のマス
+	GdipSetPenColor pen, 0xFFB8CCE8 : GdipSetPenWidth pen, 1.0
+	repeat 7
+		GdipDrawLine gfx, pen, 30, 330 + cnt * 26, 610, 330 + cnt * 26
+	loop
+	gosub *pen_back
+	gosub *diary_text
+	repeat ndl2
+		dtext dline(cnt), 36, 306 + cnt * 26, 570, 26, dfont, 0xFF2E2E36
+	loop
+	gfx = savg
+	CreateDirectory datadir + "\\diary", 0
+	diary_path = datadir + "\\diary\\" + dday + ".png"
+	GdipSaveImageToFile dbmp, diary_path, pngclsid, 0
+	diary_ok = (stat = 0)
+	; 乱数の種を時刻にもどす
+	randomize
+	return
+
+; 空：晴れ・くもり・夕焼け・夜・にじ。月によって、雪・桜・葉っぱも描く
+*diary_sky
+	dsky = rnd(5)
+	if dsky = 2 {
+		GdipSetSolidFillColor brush, 0xFFFBE3C8
+		GdipFillRectangle gfx, brush, 30, 66, 580, 120
+	}
+	if dsky = 3 {
+		GdipSetSolidFillColor brush, 0xFF3A4670
+		GdipFillRectangle gfx, brush, 30, 66, 580, 226
+		GdipSetSolidFillColor brush, 0xFFF4E7A0
+		GdipFillEllipse gfx, brush, 530, 82, 40, 40
+		GdipSetSolidFillColor brush, 0xFF3A4670
+		GdipFillEllipse gfx, brush, 544, 76, 38, 38
+		repeat 14
+			GdipSetSolidFillColor brush, 0xFFF8F0C0
+			GdipFillEllipse gfx, brush, 50 + (cnt * 89) \ 460, 80 + (cnt * 37) \ 110, 3, 3
+		loop
+	}
+	if (dsky = 0) | (dsky = 1) | (dsky = 4) {
+		GdipSetSolidFillColor brush, 0xFFF6B04A
+		GdipFillEllipse gfx, brush, 540, 80, 46, 46
+	}
+	if dsky = 2 {
+		GdipSetSolidFillColor brush, 0xFFF08A4A
+		GdipFillEllipse gfx, brush, 520, 120, 56, 56
+	}
+	if dsky = 1 {
+		repeat 3
+			cxs = 90 + cnt * 150 + rnd(40) : cys = 84 + rnd(30)
+			GdipSetSolidFillColor brush, 0xFFE4E8EE
+			GdipFillEllipse gfx, brush, cxs, cys, 70, 30
+			GdipFillEllipse gfx, brush, cxs + 22, cys - 14, 44, 34
+		loop
+	}
+	if dsky = 4 {
+		GdipSetPenWidth pen, 6.0
+		repeat 5
+			if cnt = 0 : GdipSetPenColor pen, 0xA0E05050
+			if cnt = 1 : GdipSetPenColor pen, 0xA0F0A030
+			if cnt = 2 : GdipSetPenColor pen, 0xA0F0E040
+			if cnt = 3 : GdipSetPenColor pen, 0xA050B070
+			if cnt = 4 : GdipSetPenColor pen, 0xA04A80E0
+			GdipDrawArc gfx, pen, 60 + cnt * 6, 100 + cnt * 6, 300 - cnt * 12, 240 - cnt * 12, 180.0, 180.0
+		loop
+		GdipSetPenWidth pen, 3.0
+	}
+	; 季節のもの（月で決める）
+	if (dm = 12) | (dm <= 2) {
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		repeat 26
+			GdipFillEllipse gfx, brush, 40 + (cnt * 67 + dseed) \ 560, 72 + (cnt * 41) \ 170, 5, 5
+		loop
+	}
+	if (dm >= 3) & (dm <= 4) {
+		GdipSetSolidFillColor brush, 0xFFF8B8C8
+		repeat 16
+			GdipFillEllipse gfx, brush, 40 + (cnt * 71 + dseed) \ 560, 72 + (cnt * 43) \ 170, 7, 5
+		loop
+	}
+	if (dm >= 10) & (dm <= 11) {
+		repeat 12
+			if cnt \ 2 {
+				GdipSetSolidFillColor brush, 0xFFE06030
+			} else {
+				GdipSetSolidFillColor brush, 0xFFF0A030
+			}
+			GdipFillEllipse gfx, brush, 40 + (cnt * 79 + dseed) \ 560, 72 + (cnt * 47) \ 170, 8, 5
+		loop
+	}
+	gosub *pen_back
+	return
+
+; その日の出来事から場面を選んで、本体と同じ描画で絵にする
+*diary_scene
+	sv_state = state : sv_act = act : sv_st = stimer : sv_su = stickuse : sv_ck = catchk
+	sv_gr = grounded : sv_dir = dir : sv_cel = celebrate : sv_drag = dragging : sv_vx = vx : sv_sct = scoldt : sv_kr = krate
+	sv_vy = vy : sv_ph = phase
+	dragging = 0 : grounded = 1 : vx = 0.0 : vy = 0.0 : dir = 1 : celebrate = 0 : phase = 0
+	; 出来事の場面（あった日だけ）と、いつでも出る場面
+	dim dcand, 32 : ndc = 0
+	if pomos_today >= 1 : dcand(ndc) = 1 : ndc++
+	if evc(EV_SCOLD) : dcand(ndc) = 2 : ndc++
+	if evc(EV_SPILL) : dcand(ndc) = 3 : ndc++
+	if evc(EV_BOOT) : dcand(ndc) = 4 : ndc++
+	if evc(EV_GOLD) | evc(EV_BIG) : dcand(ndc) = 5 : ndc++
+	if evc(EV_TEA) : dcand(ndc) = 6 : ndc++
+	if evc(EV_FISH) : dcand(ndc) = 7 : ndc++
+	if evc(EV_CAN) : dcand(ndc) = 8 : ndc++
+	if evc(EV_NAP) : dcand(ndc) = 9 : ndc++
+	if evc(EV_GROOVE) : dcand(ndc) = 10 : ndc++
+	if evc(EV_DIZZY) : dcand(ndc) = 11 : ndc++
+	if evc(EV_PET) : dcand(ndc) = 12 : ndc++
+	if evc(EV_THROW) : dcand(ndc) = 14 : ndc++
+	if evc(EV_POKE) >= 5 : dcand(ndc) = 15 : ndc++
+	if aq_n > 0 : dcand(ndc) = 16 : ndc++
+	; 4回に1回は、いつもの暮らしの場面（打つ・腕立て・読書・ほうき・非常口）
+	if (ndc = 0) | (rnd(4) = 0) {
+		scene = 0
+		r2 = rnd(5)
+		if r2 > 0 : scene = 16 + r2
+	} else {
+		scene = dcand(rnd(ndc))
+	}
+	if dforce >= 0 : scene = dforce
+	diary_scene_no = scene
+	; 足場のウィンドウ
+	GdipSetSolidFillColor brush, 0xFFE8EEF8
+	GdipFillRectangle gfx, brush, 140, 250, 360, 42
+	GdipSetSolidFillColor brush, 0xFFC8D4E8
+	GdipFillRectangle gfx, brush, 140, 250, 360, 10
+	if (scene = 4) | (scene = 5) | (scene = 7) {
+		; 窓の下に池
+		GdipSetSolidFillColor brush, 0xFF9CC8F0
+		GdipFillRectangle gfx, brush, 32, 268, 576, 22
+	}
+	if scene = 0 : state = ST_TYPE : krate = 3.0
+	if scene = 1 : state = ST_CHEER : celebrate = 100
+	if scene = 2 : state = ST_SCOLD : scoldt = 1
+	if scene = 3 : state = ST_ACT : act = ACT_WIPE : stimer = 20
+	if scene = 4 : state = ST_ACT : act = ACT_STICK : stickuse = USE_FISH : stimer = 330 : catchk = 2
+	if scene = 5 : state = ST_ACT : act = ACT_STICK : stickuse = USE_FISH : stimer = 330 : catchk = 1 + (evc(EV_BIG) > 0) * 3
+	if scene = 6 : state = ST_ACT : act = ACT_TEA : stimer = 30 + 90
+	if scene = 7 : state = ST_ACT : act = ACT_STICK : stickuse = USE_FISH : stimer = 330 : catchk = 0
+	if scene = 8 : state = ST_ACT : act = ACT_KICKCAN : stimer = 90
+	if scene = 9 : state = ST_SLEEP
+	if scene = 10 : state = ST_ACT : act = ACT_DANCE : stimer = 10
+	if scene = 11 : state = ST_DIZZY
+	if scene = 12 : state = ST_HAPPY
+	if scene = 13 : state = ST_CLIMB : stimer = 10
+	if scene = 14 : state = ST_IDLE : grounded = 0 : vy = 3.0
+	if scene = 15 : state = ST_POKED
+	if scene = 16 : state = ST_ACT : act = ACT_AQUA : stimer = 170
+	if scene = 17 : state = ST_ACT : act = ACT_PUSHUP : stimer = 26
+	if scene = 18 : state = ST_ACT : act = ACT_READ : stimer = 40
+	if scene = 19 : state = ST_ACT : act = ACT_SWEEP : stimer = 10
+	if scene = 20 : state = ST_ACT : act = ACT_EXIT : stimer = 60
+	gosub *make_pose
+	GdipResetWorldTransform gfx
+	; ダンスは上げた腕が頭に隠れないよう、斜め上にする
+	if scene = 10 : aa1(0) = 125.0 : aa2(0) = 140.0 : aa1(1) = -45.0 : aa2(1) = -20.0
+	; 投げられた場面は宙に浮かせる
+	dty = 250.0
+	if scene = 14 : dty = 228.0
+	GdipTranslateWorldTransform gfx, 320.0, dty, 0
+	GdipScaleWorldTransform gfx, 2.6, 2.6, 0
+	neckx = hipx + sin(lean * RAD) * 18.0 : necky = hipy - cos(lean * RAD) * 18.0
+	shx = hipx + (neckx - hipx) * 0.82 : shy = hipy + (necky - hipy) * 0.82
+	headx = neckx + sin(lean * RAD) * 11.0 : heady = necky - cos(lean * RAD) * 11.0
+	if puddle > 0.0 {
+		GdipSetSolidFillColor brush, 0xA0B89A50
+		GdipFillEllipse gfx, brush, 20.0 - 16.0 * puddle, -2.2, 32.0 * puddle, 4.4
+	}
+	GdipSetPenColor pen, inkc
+	curpen = halopen : halo = 1 : gosub *figure
+	curpen = pen : halo = 0 : gosub *figure
+	GdipResetWorldTransform gfx
+	if scene = 2 {
+		GdipSetSolidFillColor brush, 0xFFFFF6D8
+		GdipFillRectangle gfx, brush, 360, 84, 150, 40
+		dtext "作業しようぜ～？", 368, 92, 150, 30, dfont, 0xFF3A3A44
+	}
+	if scene = 10 {
+		; 音符（玉と棒と旗）
+		GdipSetPenWidth pen, 2.4
+		repeat 3
+			if cnt = 0 : nxs = 236 : nys = 150 : ncol = 0xFF4A80E0
+			if cnt = 1 : nxs = 404 : nys = 120 : ncol = 0xFFE05050
+			if cnt = 2 : nxs = 430 : nys = 190 : ncol = 0xFF40B070
+			GdipSetSolidFillColor brush, ncol : GdipSetPenColor pen, ncol
+			GdipFillEllipse gfx, brush, nxs, nys, 12, 9
+			GdipDrawLine gfx, pen, nxs + 11, nys + 4, nxs + 11, nys - 22
+			GdipDrawLine gfx, pen, nxs + 11, nys - 22, nxs + 19, nys - 14
+		loop
+		gosub *pen_back
+	}
+	if scene = 14 {
+		; 飛んでいる線
+		GdipSetPenColor pen, 0xFF8A8A96 : GdipSetPenWidth pen, 2.0
+		repeat 4
+			GdipDrawLine gfx, pen, 252 - cnt * 6, 170 + cnt * 16, 212 - cnt * 6, 190 + cnt * 16
+		loop
+		gosub *pen_back
+	}
+	if scene = 16 {
+		; 水槽（魚は水槽にいる数だけ、5匹まで）
+		GdipSetSolidFillColor brush, 0xFFBFE2F6
+		GdipFillRectangle gfx, brush, 380, 196, 100, 54
+		GdipSetPenColor pen, 0xFF6A8AA8 : GdipSetPenWidth pen, 2.0
+		GdipDrawRectangle gfx, pen, 380, 190, 100, 60
+		repeat limit(aq_n, 1, 5)
+			GdipSetSolidFillColor brush, 0xFFF07830
+			fxs = 392 + cnt * 17 : fys = 206 + (cnt * 13) \ 30
+			GdipFillEllipse gfx, brush, fxs, fys, 12, 7
+			GdipFillEllipse gfx, brush, fxs - 5, fys + 1, 6, 5
+		loop
+		gosub *pen_back
+	}
+	if scene = 1 {
+		; 紙ふぶき
+		repeat 24
+			cc = cnt \ 4
+			if cc = 0 : GdipSetSolidFillColor brush, 0xFFE05050
+			if cc = 1 : GdipSetSolidFillColor brush, 0xFFF0C030
+			if cc = 2 : GdipSetSolidFillColor brush, 0xFF40B070
+			if cc = 3 : GdipSetSolidFillColor brush, 0xFF4A80E0
+			GdipFillRectangle gfx, brush, 60 + (cnt * 97) \ 520, 80 + (cnt * 53) \ 150, 7, 10
+		loop
+	}
+	state = sv_state : act = sv_act : stimer = sv_st : stickuse = sv_su : catchk = sv_ck
+	grounded = sv_gr : dir = sv_dir : celebrate = sv_cel : dragging = sv_drag : vx = sv_vx : scoldt = sv_sct : krate = sv_kr
+	vy = sv_vy : phase = sv_ph
+	return
+
+; 文を組み立てる（キャラクターの口調で、数字だけ）
+*diary_text
+	ndl2 = 0
+	dhh = workms_today / 3600000 : dmm = (workms_today / 60000) \ 60
+	if pomos_today > 0 {
+		r2 = rnd(4)
+		if r2 = 0 : dline(ndl2) = strf("ポモドーロを%d回やった。%d時間%d分だ。", pomos_today, dhh, dmm)
+		if r2 = 1 : dline(ndl2) = strf("きょうはポモドーロ%d回。ぜんぶで%d時間%d分。", pomos_today, dhh, dmm)
+		if r2 = 2 : dline(ndl2) = strf("%d時間%d分、作業した。ポモドーロは%d回。", dhh, dmm, pomos_today)
+		if r2 = 3 : dline(ndl2) = strf("ポモドーロ%d回！%d時間%d分がんばった。", pomos_today, dhh, dmm)
+	} else {
+		r2 = rnd(3)
+		if r2 = 0 : dline(ndl2) = "きょうはのんびりの日。"
+		if r2 = 1 : dline(ndl2) = "きょうはゆっくりした。"
+		if r2 = 2 : dline(ndl2) = "ポモドーロはお休み。のんびりした。"
+	}
+	ndl2++
+	if napp > 0 {
+		bi = 0
+		repeat napp
+			if appsec(cnt) > appsec(bi) : bi = cnt
+		loop
+		an = appname(bi)
+		p3 = instr(an, 0, ".exe")
+		if p3 > 0 : an = strmid(an, 0, p3)
+		if appsec(bi) >= 60 {
+			r2 = rnd(3)
+			if r2 = 0 : dline(ndl2) = an + strf("に%d分いた。", appsec(bi) / 60)
+			if r2 = 1 : dline(ndl2) = an + strf("と%d分いっしょだった。", appsec(bi) / 60)
+			if r2 = 2 : dline(ndl2) = "いちばん長くいたのは" + an + strf("。%d分。", appsec(bi) / 60)
+			ndl2++
+		}
+	}
+	; 出来事の行を集めて、順番を混ぜてから入れる
+	sdim dev, 160, 40 : ndev = 0
+	if evc(EV_TEA) {
+		if evc(EV_SPILL) {
+			r2 = rnd(2)
+			if r2 = 0 : dev(ndev) = strf("茶を%d回飲んで、%d回こぼした。", evc(EV_TEA), evc(EV_SPILL))
+			if r2 = 1 : dev(ndev) = strf("茶を%d回こぼして、ちゃんとふいた。", evc(EV_SPILL))
+		} else {
+			r2 = rnd(3)
+			if r2 = 0 : dev(ndev) = strf("茶を%d回飲んだ。", evc(EV_TEA))
+			if r2 = 1 : dev(ndev) = strf("お茶%d杯。うまかった。", evc(EV_TEA))
+			if r2 = 2 : dev(ndev) = strf("%d回、茶でひと休みした。", evc(EV_TEA))
+		}
+		ndev++
+	}
+	if evc(EV_GOLD) {
+		r2 = rnd(3)
+		if r2 = 0 : dev(ndev) = "金魚を釣った。"
+		if r2 = 1 : dev(ndev) = "金魚が釣れた！"
+		if r2 = 2 : dev(ndev) = "きれいな金魚を釣った。"
+		; 水槽のことは、たまに書く
+		if aq_n & (rnd(3) = 0) : dev(ndev) += strf("水槽は%d匹だ。", aq_n)
+		ndev++
+	}
+	if evc(EV_BIG) {
+		r2 = rnd(3)
+		if r2 = 0 : dev(ndev) = "大物を釣った。"
+		if r2 = 1 : dev(ndev) = "でっかいのが釣れた！"
+		if r2 = 2 : dev(ndev) = "大物だ！手がしびれた。"
+		ndev++
+	}
+	if evc(EV_BOOT) {
+		r2 = rnd(3)
+		if r2 = 0 : dev(ndev) = "長靴を釣った。はいてみた。"
+		if r2 = 1 : dev(ndev) = "長靴が釣れた。一日はいてた。"
+		if r2 = 2 : dev(ndev) = "長靴だった。片っぽだけはいた。"
+		ndev++
+	}
+	if evc(EV_CAN) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = "空き缶が釣れたから、蹴っといた。"
+		if r2 = 1 : dev(ndev) = "空き缶を蹴った。よく飛んだ。"
+		ndev++
+	}
+	if evc(EV_FISH) & (evc(EV_GOLD) = 0) & (evc(EV_BIG) = 0) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = strf("釣りを%d回した。", evc(EV_FISH))
+		if r2 = 1 : dev(ndev) = "ウィンドウのふちで釣りをした。"
+		ndev++
+	}
+	if evc(EV_SCOLD) {
+		r2 = rnd(3)
+		if r2 = 0 : dev(ndev) = strf("サボり先を%d回のぞいてたな。", evc(EV_SCOLD))
+		if r2 = 1 : dev(ndev) = strf("サボり先に%d回寄り道してた。", evc(EV_SCOLD))
+		if r2 = 2 : dev(ndev) = strf("「作業しようぜ～？」って%d回言った。", evc(EV_SCOLD))
+		ndev++
+	}
+	if evc(EV_POKE) >= 5 {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = strf("%d回つつかれた。くすぐったい。", evc(EV_POKE))
+		if r2 = 1 : dev(ndev) = strf("%d回もつつかれた。へへっ。", evc(EV_POKE))
+		ndev++
+	}
+	if evc(EV_PET) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = strf("%d回なでられた。", evc(EV_PET))
+		if r2 = 1 : dev(ndev) = "頭をなでられた。うれしい。"
+		ndev++
+	}
+	if evc(EV_THROW) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = strf("%d回投げられた。", evc(EV_THROW))
+		if r2 = 1 : dev(ndev) = strf("%d回飛んだ。たかーい！", evc(EV_THROW))
+		ndev++
+	}
+	if evc(EV_CLIMB) : dev(ndev) = strf("窓のふちを%d回よじのぼった。", evc(EV_CLIMB)) : ndev++
+	if evc(EV_DIZZY) : dev(ndev) = strf("%d回、目を回した。ぐるぐる。", evc(EV_DIZZY)) : ndev++
+	if evc(EV_BEHIND) : dev(ndev) = strf("窓のうしろに%d回落ちた。", evc(EV_BEHIND)) : ndev++
+	if evc(EV_PPAP) : dev(ndev) = "アイコンとアイコンを合体させた。" : ndev++
+	if evc(EV_GROOVE) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = "いい曲が流れてた。"
+		if r2 = 1 : dev(ndev) = "いい曲に合わせておどった。"
+		ndev++
+	}
+	; あそびの動き
+	if evc(EV_ROPE) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = "縄跳びをした。30回は跳んだ。"
+		if r2 = 1 : dev(ndev) = "縄跳びで、ほっ、ほっ。"
+		ndev++
+	}
+	if evc(EV_JUGGLE) : dev(ndev) = "ジャグリングで玉をひとつ落とした。" : ndev++
+	if evc(EV_BUBBLE) : dev(ndev) = "しゃぼん玉をふいた。きれいだった。" : ndev++
+	if evc(EV_PLANE) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = "紙飛行機を飛ばした。よく飛んだ。"
+		if r2 = 1 : dev(ndev) = "紙飛行機が窓の向こうへ飛んでいった。"
+		ndev++
+	}
+	if evc(EV_ONIGIRI) : dev(ndev) = strf("おにぎりを%d個食べた。", evc(EV_ONIGIRI)) : ndev++
+	if evc(EV_YOYO) : dev(ndev) = "ヨーヨーで犬の散歩をした。" : ndev++
+	if evc(EV_NAP) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = strf("%d回昼寝した。", evc(EV_NAP))
+		if r2 = 1 : dev(ndev) = strf("%d回うとうとした。", evc(EV_NAP))
+		ndev++
+	}
+	; やることリストで、その日に済ませたもの（大事なので混ぜずに先に書く）
+	nd = 0 : sdim dtd, 64, 2
+	repeat ntodo
+		if todo_d(cnt) & (todo_day(cnt) = dday) {
+			if nd < 2 : cu_s = todo_s(cnt) : cu_n = 9 : gosub *cut_utf8 : dtd(nd) = cu_s
+			nd++
+		}
+	loop
+	if nd = 1 {
+		r2 = rnd(3)
+		if r2 = 0 : dline(ndl2) = "「" + dtd(0) + "」を片づけた。"
+		if r2 = 1 : dline(ndl2) = "「" + dtd(0) + "」が終わった！"
+		if r2 = 2 : dline(ndl2) = "「" + dtd(0) + "」、やりきった。"
+		ndl2++
+	}
+	if nd = 2 {
+		dline(ndl2) = "「" + dtd(0) + "」と「" + dtd(1) + "」を片づけた。" : ndl2++
+	}
+	if nd >= 3 {
+		r2 = rnd(2)
+		if r2 = 0 : dline(ndl2) = strf("やることを%d個片づけた。", nd)
+		if r2 = 1 : dline(ndl2) = "「" + dtd(0) + strf("」ほか、%d個も片づけた！", nd)
+		ndl2++
+	}
+	if typecount_on & (keys_today >= 1000) {
+		r2 = rnd(2)
+		if r2 = 0 : dev(ndev) = strf("%d打もカタカタしてた。", keys_today)
+		if r2 = 1 : dev(ndev) = strf("キーを%d回打ってた。速い！", keys_today)
+		ndev++
+	}
+	; 混ぜる
+	repeat ndev
+		j2 = rnd(ndev)
+		tmps = dev(cnt) : dev(cnt) = dev(j2) : dev(j2) = tmps
+	loop
+	repeat ndev
+		if ndl2 >= 6 : break
+		dline(ndl2) = dev(cnt) : ndl2++
+	loop
+	; しめの一言
+	r2 = rnd(3)
+	if r2 = 0 : dline(ndl2) = "あしたもいい日になるな。"
+	if r2 = 1 : dline(ndl2) = "あしたもよろしくな。"
+	if r2 = 2 : dline(ndl2) = "またあした！"
+	if workms_today >= 3600000 {
+		r2 = rnd(2)
+		if r2 = 0 : dline(ndl2) = "いい一日だった。"
+		if r2 = 1 : dline(ndl2) = "いい調子の一日だった。"
+	}
+	if workms_today >= 4 * 3600000 {
+		r2 = rnd(2)
+		if r2 = 0 : dline(ndl2) = "がんばった！早く寝ようぜ。"
+		if r2 = 1 : dline(ndl2) = "よくやった！ゆっくり休もうぜ。"
+	}
+	ndl2++
+	return
+*show_diary
+	if dwinit = 0 {
+		; 画面をふさがないよう、4分の3の大きさで見せる（PNG は 640x500 のまま保存）
+		screen 3, 480, 375, 2, (wa(0) + wa(2)) / 2 - 240, (wa(1) + wa(3)) / 2 - 188
+		dwinit = 1
+	}
+	gsel 3
+	title "絵日記（" + dday + "）"
+	GdipCreateFromHDC hdc, tg
+	GdipSetInterpolationMode tg, 7
+	GdipDrawImageRectI tg, dbmp, 0, 0, 480, 375
+	GdipDeleteGraphics tg
+	redraw 1
+	win_id = 3 : gosub *show_win
+	return
+
+; ---- 決めた時刻（設定の「絵日記をすすめる時刻」）になったら、絵日記を書くか聞く。1日に1回だけ ----
+*diary_ask_tick
+	if diary_ask > 0 : diary_ask--
+	if (diary_ask > 0) & (frame = diary_ask2) : bubble = "書くなら、つついてくれ" : bubt = 150
+	; ほかのセリフで消えても、言い終わったらもう一度聞く
+	if (diary_ask > 0) & (diary_ask < 60 * 30 - 400) & (bubt <= 0) & ((frame \ 120) = 0) : bubble = "絵日記、書くか？" : bubt = 150
+	if (frame \ 60) != 25 : return
+	if (diary_hour = 0) | (diary_ask > 0) | fs_hide | wz_on : return
+	if gettime(4) != diary_hour : return
+	if diary_asked = curday : return
+	diary_asked = curday : gosub *save_settings
+	diary_ask = 60 * 30 : diary_ask2 = frame + 210
+	bubble = "絵日記、書くか？" : bubt = 200
+	if testmode : dbg += "DIARYASK f=" + frame + "\n"
+	return
+
+; 聞いているあいだにつつかれたら、書くかどうかを選んでもらう
+*diary_ask_menu
+	diary_ask = 0
+	hm = CreatePopupMenu()
+	AppendMenu hm, 0, 1, "書く！"
+	AppendMenu hm, 0, 2, "あとで"
+	gosub *track_menu
+	if menu_r = 1 : gosub *diary_write_now
+	if menu_r = 2 : bubble = "おう、またな" : bubt = 60
+	return
+
+*diary_write_now
+	; さささっと描く音
+	se_name = "se_write" : gosub *se_play
+	dday = curday : gosub *make_diary : gosub *show_diary
+	state = ST_HAPPY : stimer = 0 : bubble = "描けたぞ！" : bubt = 90
+	return

@@ -1,0 +1,372 @@
+; 作業のおとも、棒人間：確認用モード
+; main.hsp から #include で読み込む。起動の引数があるときだけ、毎フレーム *test_hooks を呼ぶ
+; 引数の一覧は CLAUDE.md の「確認用モード」を見る
+
+*test_hooks
+	; 確認用：voicecheck は、同梱の声で鳴るもの・決まった部分だけ鳴るもの・鳴らないものを順に出す（声が出る）
+	if instr(cmd, 0, "voicecheck") >= 0 {
+		if frame = 1 : voice_mode = 2 : endframe = 60 * 16 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : vl_max = 0 : vl_prev = now
+		if (frame > 150) & (now - vl_prev > vl_max) : vl_max = now - vl_prev
+		vl_prev = now
+		if frame = 150 : bubble = "くすぐったいって！" : bubt = 90
+		if frame = 270 : bubble = "3個目！やったな" : bubt = 90
+		if frame = 390 : bubble = "「資料の3章」終わった？" : bubt = 90
+		if frame = 510 : bubble = "15:00だぞ！" : bubt = 90
+		if frame = 630 : bubble = "12:30だな、覚えとく！" : bubt = 90
+		if frame = 750 : bubble = "教えたことばのテスト" : bubt = 90
+		if frame = 900 : dbg += strf("VC maxgap=%dms spoke=%d", vl_max, vv_spoke) + "\n"
+	}
+	; 確認用：friendtest は、手元の確認用サーバー（127.0.0.1:8799）につないで、フレンドの窓と、休憩にフレンドが来るのを見る
+	if instr(cmd, 0, "friendtest") >= 0 {
+		if frame = 1 {
+			endframe = 60 * 25 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 6000
+			gh_url = "http://127.0.0.1:8799/" : friend_on = 1 : myid = "aaaa0000aaaa0000"
+			nfr = 2 : fr_code(0) = "542N6HHA" : fr_nick(0) = "たろう" : fr_code(1) = "ZZZZZZZZ" : fr_nick(1) = ""
+		}
+		if frame = 30 : gosub *fr_open
+		if (frame = 240) | (frame = 900) {
+			dbg += "FR f=" + frame + " me=" + my_fcode
+			repeat nfr
+				dbg += strf(" [%d kind=%d p=%d m=%d age=%d]", cnt, fr_kind(cnt), fr_p(cnt), fr_m(cnt), fr_age(cnt))
+			loop
+			dbg += strf(" gh_on=%d gsample=%d", gh_on, gsample) + " " + bubble + "\n"
+		}
+		if gh_on & (frame \ 60 = 0) : dbg += strf("GH f=%d gpomos=%d gmins=%d", frame, gpomos, gmins) + " " + bubble + "\n"
+	}
+	; 確認用：bubbletest は、長い吹き出しと短い吹き出しを出して、絵を proto\shot に書き出す
+	if instr(cmd, 0, "bubbletest") >= 0 {
+		if frame = 1 : endframe = 60 * 8 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : CreateDirectory dir_cur + "\\shot", 0
+		if frame = 90 : bubble = "今日はよくがんばったな、そろそろ休憩しようぜ" : bubt = 600
+		if frame = 200 : bubble = "遠くを見ると目が休まるぞ" : bubt = 600
+		if frame = 300 : bubble = "ほっ" : bubt = 600
+		if (frame = 150) | (frame = 260) | (frame = 360) : GdipSaveImageToFile gbmp, dir_cur + "\\shot\\bub_" + frame + ".png", pngclsid, 0
+	}
+	; 確認用：clicktest は、頭の上のタイマーの表示をクリックして一時停止し、もう一度クリックして再開する
+	if instr(cmd, 0, "clicktest") >= 0 {
+		if frame = 1 : fakein = 2 : endframe = 60 * 14 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : fmx = -9999 : fmy = -9999
+		; 押す位置はタイマーの表示のまんなか（論理座標 → 画面の座標）
+		cfx = int(cx) + int(double(LW / 2) * uis) : cfy = int(cy) + int(11.0 * uis)
+		if (frame = 200) | (frame = 500) : fmx = cfx : fmy = cfy : fml = 1
+		if (frame = 203) | (frame = 503) : fml = 0
+		if (frame = 206) | (frame = 506) : fmx = -9999 : fmy = -9999
+		if (frame = 260) | (frame = 560) : dbg += strf("CLICK f=%d paused=%d pokes=%d", frame, paused, pokes) + " " + bubble + "\n"
+		; タイマー以外（足もと）をクリックしたら、つつく
+		if frame = 650 : fmx = int(cx) + CW / 2 : fmy = int(cy) + FOOTY - int(10.0 * uis) : fml = 1
+		if frame = 653 : fml = 0
+		if frame = 700 : dbg += strf("POKE f=%d paused=%d pokes=%d", frame, paused, pokes) + " " + bubble + "\n"
+	}
+	; 確認用：tdchecktest は、カーソルを乗せたときのやることの札をクリックして済みにし、もう一度クリックしてもどす
+	if instr(cmd, 0, "tdchecktest") >= 0 {
+		if frame = 1 : fakein = 2 : endframe = 60 * 12 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : fmx = -9999 : fmy = -9999
+		if frame = 30 : ntodo = 2 : todo_s(0) = "資料の3章" : todo_d(0) = 0 : todo_at(0) = "" : todo_s(1) = "メールの返事" : todo_d(1) = 0 : todo_at(1) = "" : gosub *todo_first
+		; まず頭の上に乗せて（重なるまで追いかける）札を出し、札のまんなかへ動かして押す。押す時刻は重なった時刻（tc_f）から数える
+		if frame = 1 : tc_f = 0
+		if (frame >= 150) & (tc_f = 0) {
+			fmx = int(cx) + int((double(LW / 2) + double(dir) * headx) * uis) : fmy = int(cy) + int((double(LF) + heady) * uis)
+			if hovering : tc_f = frame
+		}
+		if (tc_f > 0) & td_vis : fmx = int(cx) + int((double(td_x) + td_w / 2.0) * uis) : fmy = int(cy) + int(47.0 * uis)
+		if (tc_f > 0) & ((frame = tc_f + 30) | (frame = tc_f + 130)) : fml = 1
+		if (tc_f > 0) & ((frame = tc_f + 33) | (frame = tc_f + 133)) : fml = 0
+		if (tc_f > 0) & ((frame = tc_f + 80) | (frame = tc_f + 180)) : dbg += strf("TC n=%d vis=%d d0=%d d1=%d top=%d undo=%d todos=%d pokes=%d", frame - tc_f, td_vis, todo_d(0), todo_d(1), todo_top, td_undo, todos_today, pokes) + " " + bubble + "\n"
+	}
+	; 確認用：hovertest は、歩いているところにカーソルを重ねて、止まるかを見る
+	if instr(cmd, 0, "hovertest") >= 0 {
+		if frame = 1 : fakein = 2 : endframe = 60 * 14 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : fmx = -9999 : fmy = -9999
+		if frame = 120 : state = ST_WALK : wdir = 1 : think = 999
+		; 胴のあたりに重ねて、そのあとはカーソルを動かさない
+		if (frame >= 180) & (frame <= 182) : fmx = int(cx) + CW / 2 : fmy = int(cy) + FOOTY - int(20.0 * uis)
+		if (frame = 179) | (frame = 240) | (frame = 420) : dbg += strf("HV f=%d hover=%d st=%d cx=%d", frame, hovering, state, int(cx)) + "\n"
+		if frame = 430 : fmx = -9999 : fmy = -9999
+	}
+	; 確認用：diarytimetest は、いまの時刻を絵日記をすすめる時刻にして、聞いてから書く
+	if instr(cmd, 0, "diarytimetest") >= 0 {
+		if frame = 1 : endframe = 60 * 14 : idle_warn = 99999999 : idle_pause = 99999999 : diary_hour = gettime(4) : diary_asked = ""
+		if frame = 200 : dbg += strf("ASK ask=%d asked=", diary_ask) + diary_asked + " " + bubble + "\n"
+		if frame = 400 : gosub *diary_write_now : exist diary_path : dbg += strf("WROTE size=%d", strsize) + " " + bubble + "\n"
+	}
+	; 確認用：playtest は、あそびの動きを1つずつ順に出す（6つ × 6秒）
+	if (instr(cmd, 0, "playtest2") >= 0) & (frame = 2) : playskip = 3
+	if instr(cmd, 0, "playtest") >= 0 {
+		endframe = 180 + 360 * NPLAY + 60 : scoldcool = 999999 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 6000000 : tea_every = 999999 : next_tea = 999999
+		if (frame >= 180) & (((frame - 180) \ 360) = 0) & ((frame - 180) / 360 < NPLAY) {
+			act = ACT_ROPE + ((frame - 180) / 360 + playskip) \ NPLAY : gosub *start_act
+			dbg += strf("PLAY f=%d act=%d", frame, act) + "\n"
+		}
+		if frame = 180 + 360 * NPLAY {
+			dday = curday : gosub *make_diary
+			repeat ndl2
+				dbg += "DL " + dline(cnt) + "\n"
+			loop
+			repeat ndev
+				dbg += "DEV " + dev(cnt) + "\n"
+			loop
+		}
+		if (state = ST_ACT) & (act >= ACT_ROPE) & ((frame \ 60) = 0) : dbg += strf("PL f=%d act=%d st=%d", frame, act, stimer) + " " + bubble + "\n"
+	}
+	; 確認用：minetest は、自分の窓とほかのアプリの窓を見分けられるかを見る
+	if (instr(cmd, 0, "minetest") >= 0) & (frame = 30) {
+		gosub *show_report
+		gsel 2 : rh = hwnd : gsel 1
+		chk_h = myhwnd : gosub *check_mine : m1 = is_mine
+		chk_h = rh : gosub *check_mine : m2 = is_mine
+		chk_h = GetAncestor(GetForegroundWindow(), GA_ROOT) : gosub *check_mine : m3 = is_mine
+		dbg += strf("MINE char=%d report=%d foreground=%d", m1, m2, m3) + "\n"
+		; 記録に自分の名前が残っていても読まないか（proto\mtest に書いて読む。終わったら消す）
+		dsave = datadir : datadir = dir_cur + "\\mtest" : CreateDirectory datadir, 0
+		mt = "date=" + curday + "\napp=" + myexe + ",100\napp=chrome.exe,5\n"
+		notesel mt : notesave datadir + "\\settings.txt" : noteunsel
+		gosub *load_settings
+		dbg += "MINEAPP myexe=" + myexe + " napp=" + napp + " app0=" + appname(0) + "\n"
+		delete datadir + "\\settings.txt"
+		datadir = dsave
+	}
+	; 確認用：wizardtest ははじめての起動の質問を出す（wzgo を付けると「答える」を押して次へ進む）
+	if (instr(cmd, 0, "wzgo") >= 0) & (frame = 90) : wz_pick = 0
+	if (instr(cmd, 0, "wizardtest") >= 0) & (frame = 1) : endframe = 60 * 40
+	if (instr(cmd, 0, "wizardtest") >= 0) & (frame <= 3) : dbg += strf("WFIRST f=%d cx=%d cy=%d on=%d", frame, int(cx), int(cy), wz_on) + "\n"
+	if (instr(cmd, 0, "wizardtest") >= 0) & wz_on & ((frame \ 30) = 0) {
+		dim wrc, 4 : GetWindowRect wz_hwnd, wrc
+		dbg += strf("WP win=%d,%d cx=%d cy=%d", wrc(0), wrc(1), int(cx), int(cy)) + "\n"
+		if shoton : GdipSaveImageToFile gbmp, dir_cur + "/shot/wz_" + strf("%04d", frame) + ".png", pngclsid, 0
+	}
+	if (instr(cmd, 0, "wizardtest") >= 0) & (wz_on = 0) & (frame - wz_closef < 200) & ((frame \ 10) = 0) : dbg += strf("JUMP f=%d cx=%d cy=%d vy=%d onh=%d", frame, int(cx), int(cy), int(vy), onh) + "\n"
+	if (instr(cmd, 0, "wizardtest") >= 0) & ((frame \ 60) = 0) : dbg += strf("W f=%d on=%d page=%d paused=%d guide=%d work=%d brk=%d type=%d friend=%d", frame, wz_on, wz_page, paused, guide, work_min, break_min, typecount_on, friend_on) + " " + bubble + "\n"
+	if testmode & (friend_on | gh_on) & ((frame \ 30) = 0) : dbg += strf("G f=%d stage=%d sent=%d err=%d got=%d on=%d land=%d timer=%d ghx=%d ghy=%d", frame, gh_stage, gh_sent, gh_err, gh_got, gh_on, gland, gtimer, int(ghx), int(ghy)) + "\n"
+	if testmode & (voice_mode > 0) & ((frame \ 60) = 0) : dbg += strf("V f=%d stage=%d ready=%d boot=%d proc=%d spoke=%d", frame, vv_stage, vv_ready, vv_boot, vvproc, vv_spoke) + "\n"
+	if testmode & (((frame \ 15) = 0) | (throwtest & (frame > 118) & (frame < 200))) : dbg += strf("f=%d t=%d ph=%d st=%d act=%d cx=%d cy=%d onh=%d tray=%d meter=%d peak=%.3f env=%.3f beats=%d", frame, now, phase, state, act, int(cx), int(cy), onh, trayok, meter_ok, peak, penv, beatn) + "\n"
+	if fakein = 1 : endframe = 60 * 26
+	if closetest : endframe = 60 * 45
+	if instr(cmd, 0, "end20") >= 0 : endframe = 60 * 20
+	if instr(cmd, 0, "seatest") >= 0 : endframe = 60 * 52
+	if (frame = 60) & (instr(cmd, 0, "ovl") >= 0) & (ovl_on = 0) : gosub *ovl_toggle
+	; 確認用：peektest は文字カーソルが動き続けている扱いにする
+	if (instr(cmd, 0, "peektest") >= 0) & (frame = 200) : peek_cd = 0 : caret_moves = 10.0 : state = ST_IDLE : stimer = 0 : work_ms = 600000
+	; 確認用：lipdemo は「あいうえお」をしゃべらせる
+	if (instr(cmd, 0, "lipdemo") >= 0) & (frame = 200) : bubble = "あいうえお、かきくけこ" : bubt = 200
+	if testmode & ((frame \ 60) = 0) & (sea_part != 0) : dbg += strf("S f=%d part=%d show=%d", frame, sea_part, sea_show) + "\n"
+	if (instr(cmd, 0, "teachtest") >= 0) & (frame = 30) : teach_in = "テストで教えたことばabcをすこし長めに書いてみるとどこで切れるか" : gosub *teach_add
+	if (instr(cmd, 0, "teachwin") >= 0) & (frame = 30) : gosub *teach_open
+	if (instr(cmd, 0, "abouttest") >= 0) & (frame = 30) : gosub *show_about : gsel 13 : bmpsave "aboutshot.bmp" : gsel 1
+	if testmode & (frame = 30) : dbg += "BOOT t=" + boot_t + " day=" + boot_day + "\n"
+	if (instr(cmd, 0, "settingswin") >= 0) & (frame = 30) : gosub *settings_open
+	; 確認用：alarmtest は今の時刻のお知らせを1つ入れて鳴らす
+	if (instr(cmd, 0, "alarmtest") >= 0) & (frame = 150) {
+		endframe = 60 * 30 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		nal = 1 : al_s(0) = "会議の準備" : al_m(0) = gettime(4) * 60 + gettime(5) : al_rep(0) = 1 : al_due = 0
+	}
+	if instr(cmd, 0, "alarmtest") >= 0 : endframe = 60 * 30
+	if (instr(cmd, 0, "alarmtest") >= 0) & ((frame \ 30) = 0) : dbg += strf("A f=%d st=%d alt=%d onh=%d alh=%d cx=%d cy=%d vy=%d ok=%d rc=%d,%d,%d,%d zoom=%d", frame, state, alt, onh, alh, int(cx), int(cy), int(vy), okrect, rc(0), rc(1), rc(2), rc(3), IsZoomed(alh)) + " " + bubble + "\n"
+	; 確認用：todotest はやることを2つ持たせて、聞いて、片づける
+	if instr(cmd, 0, "todotest") >= 0 {
+		endframe = 60 * 30 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		if frame = 30 : ntodo = 2 : todo_s(0) = "資料の3章をまとめて先生に送る" : todo_d(0) = 0 : todo_s(1) = "メールの返事" : todo_d(1) = 0
+		if frame = 120 : todo_ask_at = frame + 1
+		if frame = 700 : gosub *todo_first : tdi = todo_top : gosub *todo_done
+		if (frame \ 30) = 0 : dbg += strf("T f=%d st=%d act=%d ask=%d top=%d pend=%d", frame, state, act, todo_ask, todo_top, toss_pending) + " " + bubble + "\n"
+		if frame = 1100 : dday = curday : gosub *make_diary : dbg += "DIARY " + diary_path + "\n"
+	}
+	if (instr(cmd, 0, "papertest") >= 0) & (frame <= 5) : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000
+	if (instr(cmd, 0, "papertest") >= 0) & (frame = 5) : ntodo = 1 : todo_s(0) = "資料の3章" : todo_d(0) = 0 : todo_top = 0
+	if (instr(cmd, 0, "todowin") >= 0) & (frame = 30) {
+		ntodo = 3 : todo_s(0) = "資料の3章" : todo_s(1) = "メールの返事" : todo_s(2) = "買い物" : todo_d(2) = 1 : todo_day(2) = curday
+		gosub *todo_open
+	}
+	if (instr(cmd, 0, "alarmwin") >= 0) & (frame = 30) {
+		nal = 3 : al_s(0) = "会議" : al_m(0) = 15 * 60 : al_rep(0) = 2 : al_s(1) = "" : al_m(1) = 9 * 60 + 30 : al_s(2) = "ゴミ出し" : al_m(2) = 7 * 60 + 45 : al_rep(2) = 4 : al_arg(2) = 3
+		gosub *alarm_open
+	}
+	; 確認用：acttest は動きの多さ（lv0／lv1／lv2）ごとに、90秒のあいだのセリフと動きの数を数える
+	if instr(cmd, 0, "acttest") >= 0 {
+		endframe = 60 * 90 : work_ms = 6000000 : idle_warn = 99999999 : idle_pause = 99999999
+		if frame = 2 {
+			act_level = 1 : at_b = 0 : at_a = 0 : sdim at_lb, 256 : at_ls = -1
+			if instr(cmd, 0, "lv0") >= 0 : act_level = 0
+			if instr(cmd, 0, "lv2") >= 0 : act_level = 2
+		}
+		if (bubt > 0) & (bubble != at_lb) : at_lb = bubble : at_b++ : dbg += strf("B f=%d ", frame) + bubble + "\n"
+		if (state = ST_ACT) & (at_ls != ST_ACT) : at_a++ : dbg += strf("A f=%d act=%d", frame, act) + "\n"
+		at_ls = state
+		if frame = endframe - 2 : dbg += strf("ACT level=%d bubbles=%d acts=%d", act_level, at_b, at_a) + "\n"
+	}
+	; 確認用：slacktest は、5秒から15秒のあいだサボり先が前面にあることにして、タイマーと作業時間が止まるかを見る
+	if instr(cmd, 0, "slacktest") >= 0 {
+		endframe = 60 * 20 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		slack_now = (frame >= 300) & (frame < 900)
+		if (frame \ 60) = 0 : dbg += strf("S f=%d slack=%d elapsed=%d work=%d", frame, slack_now, elapsed, workms_today) + "\n"
+	}
+	; 確認用：posetest は小さなしぐさを順に見せる（shot を付けると絵を書き出す）
+	if instr(cmd, 0, "posetest") >= 0 {
+		endframe = 60 * 12 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		state = ST_IDLE : vx = 0.0 : think = 999 : bubt = 0
+		pose_kind = 1 + (frame / 120) \ 4 : pose_t = 999
+		if (frame \ 120) = 1 : dbg += "POSE " + pose_kind + " shot=" + shotn + "\n"
+	}
+	; 確認用：setest は効果音を順に鳴らす（音が出る）
+	if instr(cmd, 0, "setest") >= 0 {
+		endframe = 60 * 12
+		if frame = 20 : dbg += "SEINIT ok=" + se_ok + "\n"
+		if frame = 30 : se_name = "se_jump" : gosub *se_play
+		if frame = 90 : se_name = "se_paper" : gosub *se_play
+		if frame = 150 : se_name = "se_goal" : gosub *se_play
+		if frame = 240 : se_name = "se_write" : gosub *se_play
+	}
+	; 確認用：savedirtest は、記録の置き場所を書いて、実際に保存してみる（書きこめないフォルダで動かして、AppData に逃げるかを見る）
+	if (instr(cmd, 0, "savedirtest") >= 0) & (frame = 30) {
+		allow_save = 1 : gosub *save_settings : allow_save = 0
+		exist datadir + "\\settings.txt"
+		dbg += "SAVEDIR " + datadir + " res=" + resdir + " size=" + strsize + " se=" + se_ok + "\n"
+	}
+	; 確認用：matchtest は、ブラウザのタイトルの見本が distract.txt の語に引っかかるかを見る
+	if (instr(cmd, 0, "matchtest") >= 0) & (frame = 30) {
+		sdim mts, 256, 4
+		mts(0) = "ホーム / X - Google Chrome" : mts(1) = "(3) 通知 / X - Google Chrome" : mts(2) = "猫の動画 - YouTube - Google Chrome" : mts(3) = "資料.docx - Word"
+		repeat 4
+			mt = mts(cnt) : ttl = getpath(mt, 16) + " chrome.exe" : hit = 0
+			repeat ndl
+				if instr(ttl, 0, dlist(cnt)) >= 0 : hit = 1 : break
+			loop
+			dbg += "MATCH " + hit + " " + mts(cnt) + "\n"
+		loop
+	}
+	; 確認用：weektest は1週間の記録の見本を出す
+	if (instr(cmd, 0, "weektest") >= 0) & (frame = 30) {
+		pomos_today = 3 : workms_today = 80 * 60000 : todos_today = 2
+		ntodo = 3 : todo_s(0) = "資料の3章" : todo_d(0) = 1 : todo_day(0) = curday : todo_min(0) = 35
+		todo_s(1) = "メールの返事" : todo_d(1) = 1 : todo_day(1) = curday : todo_min(1) = 95 : todo_s(2) = "買い物" : todo_d(2) = 0
+		gosub *hist_load
+		wk_fake = 1 : gosub *show_report
+		; repshot を付けると、内訳の窓を proto\repshot.bmp に書き出す（見たら消す）
+		if instr(cmd, 0, "repshot") >= 0 : gsel 2 : bmpsave "repshot.bmp" : gsel 1
+	}
+	if (instr(cmd, 0, "copytest") >= 0) & (frame = 30) {
+		ntodo = 2 : todo_s(0) = "資料の3章" : todo_s(1) = "メールの返事" : todo_d(1) = 1 : todo_day(1) = curday
+		pomos_today = 4 : workms_today = 2 * 3600000 + 25 * 60000 : keys_today = 5321
+		napp = 2 : appname(0) = "code.exe" : appsec(0) = 5400 : appname(1) = "chrome.exe" : appsec(1) = 1800
+		gosub *make_summary : dbg += "SUMMARY\n" + cs + "\nEND\n"
+		if instr(cmd, 0, "copyclip") >= 0 : gosub *clip_set : dbg += "CLIP ok=" + clip_ok + "\n"
+	}
+	; 確認用：histtest は日ごとの記録を2日分書いて読み直す（history.txt は消す）
+	if (instr(cmd, 0, "histtest") >= 0) & (frame = 30) {
+		delete_ok = 0
+		workms_today = 3600000 : pomos_today = 2 : keys_today = 100 : hdate = "2026-10-15" : gosub *hist_put
+		workms_today = 1800000 : pomos_today = 1 : keys_today = 50 : hdate = curday : gosub *hist_put
+		workms_today = 2400000 : hdate = curday : gosub *hist_put
+		gosub *hist_load
+		repeat nhist
+			dbg += "H " + hist_d(cnt) + " " + hist_w(cnt) + " " + hist_p(cnt) + "\n"
+		loop
+		delete datadir + "\\history.txt"
+	}
+	if (instr(cmd, 0, "stretchtest") >= 0) & (frame <= 30) : endframe = 60 * 30 : idle_warn = 99999999 : idle_pause = 99999999
+	if (instr(cmd, 0, "stretchtest") >= 0) & (frame = 30) : cont_ms = work_ms * 2
+	if (instr(cmd, 0, "stretchtest") >= 0) & ((frame \ 30) = 0) : dbg += strf("S2 f=%d st=%d act=%d stim=%d cont=%d due=%d", frame, state, act, stimer, cont_ms, stretch_due) + " " + bubble + "\n"
+	if (instr(cmd, 0, "diaryall") >= 0) & (frame = 60) {
+		repeat 21
+			dforce = cnt : dday = strf("2030-%02d-15", cnt \ 12 + 1) : gosub *make_diary
+			bcopy diary_path, datadir + "\\diary\\scene_" + strf("%02d", cnt) + ".png"
+			delete diary_path
+		loop
+		dforce = -1 : dday = curday
+	}
+	; 確認用：seatest は4秒ごとに季節を進めて、その季節の動きをする
+	if (instr(cmd, 0, "seatest") >= 0) & ((frame \ 300) = 100) {
+		dim sea_list, 12
+		sea_list = 101, 203, 214, 401, 505, 615, 707, 801, 920, 1031, 1224, 1231
+		sea_force = sea_list((frame / 300) \ 12) : gosub *season_update
+		bubble = sea_line : bubt = 150
+		if sea_kind : act = ACT_SEASON : gosub *start_act
+		sea_show = 60 * 10
+	}
+	; 確認用：gototest は、右上のほうの点をダブルクリックした扱いにする
+	if (frame = 150) & (instr(cmd, 0, "gototest") >= 0) : gt_x = int(cx) + CW / 2 + 700 : gt_y = int(cy) - 500 : gosub *goto_start
+	if (instr(cmd, 0, "gototest") >= 0) & ((frame \ 15) = 0) : dbg += strf("P f=%d st=%d cx=%d cy=%d onh=%d pk=%d pathn=%d replans=%d nn=%d", frame, state, int(cx), int(cy), onh, pk, pathn, gt_replans, nn) + "\n"
+	if instr(cmd, 0, "voicetest") >= 0 : endframe = 60 * 70
+	; 確認用：ghostdemo は通信せずに、見本と同じ形のゴーストを1人呼ぶ（PV撮影用）
+	if (frame = 150) & (instr(cmd, 0, "ghostdemo") >= 0) : gline = "2763306,4,100,4,0" : gosub *ghost_spawn
+	if (frame = 1) & (instr(cmd, 0, "ghosttest") >= 0) {
+		testmode = 1 : friend_on = 1 : endframe = 60 * 30
+		idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : pomos_today = 3 : workms_today = 75 * 60000
+		gh_post = 1 : gh_fetch = 1
+	}
+	if testmode & (frame > endframe) : notesel dbg : notesave datadir + "\\debug.txt" : gosub *tray_del : if vvproc : TerminateProcess vvproc, 0
+	if testmode & (frame > endframe) : end
+	; 跳ね返りの確認用：throw で起動すると、x=700 から右へ投げる
+	; 確認用：realtest は、決まった位置で立ち止まらせる（本物のマウスで触るテスト用）
+	if realtest & (frame = 60) : cx = double(800 - CW / 2) : cy = double(ground - FOOTY) : onh = 0 : vy = 0.0
+	if realtest & (state = ST_IDLE) : think = 999999
+	if realtest & ((frame \ 15) = 0) : dbg += strf("R f=%d st=%d hx=%d hy=%d", frame, state, headsx, headsy) + "\n"
+	if fakein = 1 : gosub *fake_script
+	if shaketest & (frame = 100) : cx = double(1100 - CW / 2) : cy = double(100 - FOOTY) : onh = 0 : vy = 0.0
+	if throwtest & (frame = 120) : cx = double(700 - CW / 2) : cy = double(560 - FOOTY) : vx = 12.0 : vy = -3.0 : thrown = 1 : onh = 0 : state = ST_IDLE
+	if climbtest & (frame = 120) {
+		gosub *scan_platforms
+		repeat nplat
+			if (plat_l(cnt) > 880) & (plat_l(cnt) < 930) & (plat_b(cnt) - plat_t(cnt) > 250) {
+				cx = double(plat_l(cnt) - CW / 2) : cy = double(plat_t(cnt) + 180 - FOOTY) : onh = 0
+				gosub *try_grab
+				break
+			}
+		loop
+	}
+	; 確認用：midnighttest は「前の日の記録のまま保存して起動しなおした」ときに、前の日の分として読まれるかを見る
+	; （書き込み先は proto\mtest。終わったら消す）
+	if (instr(cmd, 0, "midnighttest") >= 0) & (frame = 30) {
+		dsave = datadir : datadir = dir_cur + "\\mtest" : CreateDirectory datadir, 0 : allow_save = 1
+		cday_bak = curday : curday = "2000-01-01" : pomos_today = 3 : workms_today = 7200000
+		gosub *save_settings
+		gosub *load_settings
+		dbg += "MID pending=" + diary_pending + " date=" + diary_date + " pomos=" + pomos_today + "\n"
+		delete datadir + "\\settings.txt" : delete datadir + "\\history.txt"
+		datadir = dsave : curday = cday_bak : allow_save = 0
+	}
+	; 確認用：todotimetest は、やることの追加時刻と、かかった時間の保存・読み込み・表示を見る（書き込み先は proto\mtest）
+	if (instr(cmd, 0, "todotimetest") >= 0) & (frame = 30) {
+		dsave = datadir : datadir = dir_cur + "\\mtest" : CreateDirectory datadir, 0 : allow_save = 1
+		ntodo = 0 : todo_in = "資料の3章" : gosub *todo_add : todo_in = "メールの返事" : gosub *todo_add : todo_in = "古い形" : gosub *todo_add
+		; 1つめは前の日の23:50、2つめは2日前の12:00に足したことにする
+		dy = gettime(0) : dm = gettime(1) : dd = gettime(3) : gosub *date_prev
+		todo_at(0) = strf("%04d-%02d-%02d 23:50", dy, dm, dd) : gosub *date_prev
+		todo_at(1) = strf("%04d-%02d-%02d 12:00", dy, dm, dd) : todo_at(2) = ""
+		tdi = 0 : gosub *todo_done : tdi = 1 : gosub *todo_done : tdi = 2 : gosub *todo_done
+		dbg += "TT min=" + todo_min(0) + "," + todo_min(1) + "," + todo_min(2) + " todos=" + todos_today + "\n"
+		ntodo = 0 : gosub *load_todo
+		repeat ntodo
+			tm = todo_min(cnt) : gosub *todo_took
+			dbg += "TT " + cnt + " d=" + todo_d(cnt) + " day=" + todo_day(cnt) + " min=" + todo_min(cnt) + " [" + todo_s(cnt) + "]" + took_s + "\n"
+		loop
+		todo_in = "あとで" : gosub *todo_add : ntodo = 0 : gosub *load_todo
+		dbg += "TT open at=" + todo_at(3) + " s=" + todo_s(3) + "\n"
+		gosub *todo_today_stat : dbg += "TT stat n=" + td_n + " avg=" + td_avg + "\n"
+		gosub *make_summary : dbg += cs + "\n"
+		sdim ftx, 4096 : notesel ftx : noteload datadir + "\\todo.txt" : dbg += ftx : noteunsel
+		delete datadir + "\\todo.txt"
+		datadir = dsave : allow_save = 0
+	}
+	return
+
+; ---- 確認用の偽のマウス操作（interact モード） ----
+*fake_script
+	fml = 0
+	; つつく×5（4回目で怒る）
+	if (frame >= 150) & (frame < 250) {
+		fmx = headsx : fmy = headsy
+		if ((frame - 150) \ 20) < 3 : fml = 1
+	}
+	; なでる：頭の上で左右に往復
+	if (frame >= 500) & (frame < 600) {
+		fmx = headsx + ((frame / 4) \ 2) * 16 - 8 : fmy = headsy
+	}
+	; つまんで右上へ放り投げる
+	if (frame >= 700) & (frame < 720) {
+		if frame = 700 : grabx = headsx : graby = headsy
+		fml = 1 : fmx = grabx + (frame - 700) * 14 : fmy = graby - (frame - 700) * 9
+	}
+	; つまんで x=900 のウィンドウの左の縁のそばへ運び、そっと離す
+	if (frame >= 1000) & (frame < 1060) {
+		if frame = 1000 : grabx = headsx : graby = headsy
+		q = double(frame - 1000) / 59.0
+		fml = (frame < 1059)
+		fmx = grabx + int(double(900 - grabx) * q) : fmy = graby + int(double(560 - graby) * q)
+	}
+	return

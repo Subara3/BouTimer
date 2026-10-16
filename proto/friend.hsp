@@ -1,0 +1,278 @@
+; 作業のおとも、棒人間：フレンド（決まった人と、数字だけを見せ合う。メッセージは送れない）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+;
+; フレンドコードは、サーバーが匿名の id から作る8文字（I・L・O・U を使わない英数字）。
+; おたがいにコードを登録したときだけ、相手のサイクル数・分数・線の色が見える。呼び名はこのPCの中だけ（friends.txt）。
+; 通信は curl.exe を窓なしで動かして行う（メインループを止めない）。「サーバーと通信する」がオフなら通信しない
+
+; friends.txt：1行に「コード|呼び名」
+*fr_load
+	nfr = 0
+	exist datadir + "\\friends.txt"
+	if strsize < 0 : return
+	sdim frtxt, 4096
+	notesel frtxt
+	noteload datadir + "\\friends.txt"
+	repeat notemax
+		noteget frl, cnt
+		frp = instr(frl, 0, "|")
+		if (frp != 8) | (nfr >= 5) : continue
+		fr_code(nfr) = strmid(frl, 0, 8) : fr_nick(nfr) = strmid(frl, 9, 120) : fr_kind(nfr) = 0 : nfr++
+	loop
+	noteunsel
+	return
+
+*fr_save
+	if testmode : return
+	sdim frtxt, 4096
+	repeat nfr
+		frtxt += fr_code(cnt) + "|" + fr_nick(cnt) + "\n"
+	loop
+	notesel frtxt
+	notesave datadir + "\\friends.txt"
+	noteunsel
+	return
+
+; 入れたコード（fr_in）をそろえて fr_c8 に。読めなければ ""
+; 小文字は大文字に、「-」と空白は外す。見まちがえやすい O は 0、I と L は 1 として読む
+*fr_norm
+	fr_c8 = ""
+	frs = strtrim(fr_in)
+	repeat strlen(frs)
+		fb = peek(frs, cnt)
+		if (fb = '-') | (fb = ' ') : continue
+		if (fb >= 'a') & (fb <= 'z') : fb -= 32
+		if fb = 'O' : fb = '0'
+		if (fb = 'I') | (fb = 'L') : fb = '1'
+		if ((fb >= '0') & (fb <= '9')) | ((fb >= 'A') & (fb <= 'Z') & (fb != 'U')) {
+			fr_c8 += strf("%c", fb)
+		} else {
+			fr_c8 = "" : break
+		}
+	loop
+	if strlen(fr_c8) != 8 : fr_c8 = ""
+	return
+
+; 8文字のコードを「ABCD-EFGH」の形にする（fr_c8 → fr_show）
+*fr_dash
+	fr_show = fr_c8
+	if strlen(fr_c8) = 8 : fr_show = strmid(fr_c8, 0, 4) + "-" + strmid(fr_c8, 4, 4)
+	return
+
+; サーバーと数字を送り受けする（fr_w = 1 なら自分の数字も書く）
+*fr_sync
+	if (friend_on = 0) | (vv_curl = "") | fr_stage : return
+	frfav = ACT_TEA
+	if evc(EV_TEA) < 2 : frfav = ACT_READ
+	sdim frbody, 512
+	frbody = "id=" + myid + "&c=" + (inkc & 0xFFFFFF) + "&p=" + pomos_today + "&m=" + (workms_today / 60000) + "&f=" + frfav + "&w=" + fr_w + "&fr="
+	repeat nfr
+		if cnt : frbody += ","
+		frbody += fr_code(cnt)
+	loop
+	bsave vv_tmp + "\\bt_f.txt", frbody, strlen(frbody)
+	exist vv_tmp + "\\bt_fr.txt"
+	if strsize >= 0 : delete vv_tmp + "\\bt_fr.txt"
+	dim fcsi, 17 : fcsi(0) = 68
+	dim fcpi, 4
+	sdim frcmd, 2048
+	cnvstow frcmd, "\"" + vv_curl + "\" -s -m 15 -X POST --data-binary @bt_f.txt -o bt_fr.txt \"" + gh_url + "friends\""
+	CreateProcess 0, frcmd, 0, 0, 0, 0x08000000, 0, vv_tmp, fcsi, fcpi
+	if stat = 0 : return
+	fr_proc = fcpi(0) : CloseHandle fcpi(1)
+	fr_stage = 1 : fr_t0 = frame : fr_w = 0
+	return
+
+; 毎フレーム：送り受けが終わったかを見て、返事を読む
+*fr_tick
+	if fr_stage = 0 : return
+	if WaitForSingleObject(fr_proc, 0) != 0 {
+		if frame - fr_t0 > 60 * 20 : TerminateProcess fr_proc, 1 : CloseHandle fr_proc : fr_stage = 0 : gosub *fr_visit_fallback
+		return
+	}
+	frcode = 1
+	GetExitCodeProcess fr_proc, frcode
+	CloseHandle fr_proc : fr_stage = 0
+	exist vv_tmp + "\\bt_fr.txt"
+	if (frcode != 0) | (strsize <= 0) : gosub *fr_visit_fallback : return
+	sdim frres, strsize + 16
+	bload vv_tmp + "\\bt_fr.txt", frres, strsize
+	; サーバーの改行は LF だけなので、HSP の行（CRLF）にそろえる
+	sdim frlf, 4 : poke frlf, 0, 10 : sdim frcr, 4 : poke frcr, 0, 13
+	strrep frres, frcr, "" : strrep frres, frlf, "\n"
+	; 1行目は自分のコード、2行目からフレンドごとの様子
+	notesel frres
+	repeat notemax
+		noteget frl, cnt
+		split frl, " ", frw
+		frn = stat
+		if (frn >= 2) & (frw(0) = "me") {
+			if frw(1) != my_fcode : my_fcode = frw(1) : gosub *save_settings
+			continue
+		}
+		if frn < 2 : continue
+		fi = -1
+		repeat nfr
+			if fr_code(cnt) = frw(1) : fi = cnt : break
+		loop
+		if fi < 0 : continue
+		if frw(0) = "w" : fr_kind(fi) = 2
+		if frw(0) = "x" : fr_kind(fi) = 3
+		if (frw(0) = "f") & (frn >= 7) {
+			fr_kind(fi) = 1 : fr_c(fi) = int(frw(2)) : fr_p(fi) = int(frw(3)) : fr_m(fi) = int(frw(4)) : fr_f(fi) = int(frw(5)) : fr_age(fi) = int(frw(6))
+		}
+	loop
+	noteunsel
+	if testmode : dbg += "FRIEND " + frres + "\n"
+	if fr_made : gosub *fr_draw
+	; 休憩に入ったところなら、おたがいに登録したフレンドのゴーストを呼ぶ（24時間以内に動いた人）
+	if fr_visit {
+		fr_visit = 0
+		dim frpick, 5 : nfp = 0
+		repeat nfr
+			if (fr_kind(cnt) = 1) & (fr_age(cnt) >= 0) & (fr_age(cnt) < 24 * 60) : frpick(nfp) = cnt : nfp++
+		loop
+		if (nfp = 0) | gh_on {
+			gosub *fr_visit_fallback
+		} else {
+			fi = frpick(rnd(nfp))
+			gline = "" + fr_c(fi) + "," + fr_p(fi) + "," + fr_m(fi) + "," + fr_f(fi) + ",0"
+			gvis_name = fr_nick(fi)
+			if gvis_name = "" : fr_c8 = fr_code(fi) : gosub *fr_dash : gvis_name = fr_show
+			gosub *ghost_spawn
+		}
+	}
+	return
+
+; フレンドが来られないときは、いつものだれかのゴーストを呼ぶ
+*fr_visit_fallback
+	if fr_visit : fr_visit = 0 : gh_fetch = 1
+	return
+
+; ---- フレンドの窓（screen 12） ----
+*fr_open
+	if fr_made = 0 {
+		screen 12, 460, 470, 2, (wa(0) + wa(2)) / 2 - 230, (wa(1) + wa(3)) / 2 - 235
+		title "フレンド"
+		font "Meiryo UI", 14 : objmode 2
+		sdim fr_in, 64 : sdim fr_nin, 128
+		objsize 120, 30
+		pos 300, 40 : button gosub "コードをコピー", *fr_copy_btn
+		pos 20, 150 : input fr_in, 150, 30, 20 : fr_obj_c = stat
+		pos 180, 150 : input fr_nin, 150, 30, 40 : fr_obj_n = stat
+		objsize 100, 30
+		pos 340, 150 : button gosub "追加", *fr_add_btn
+		fr_sel = -1
+		objsize 420, 24
+		pos 20, 230 : listbox fr_sel, 136, "" : fr_obj_l = stat
+		objsize 140, 34
+		pos 20, 412 : button gosub "選んだのを消す", *fr_del_btn
+		pos 170, 412 : button gosub "いまの様子を見る", *fr_refresh_btn
+		pos 320, 412 : button gosub "閉じる", *fr_close
+		fr_made = 1
+	}
+	gosub *fr_draw
+	win_id = 12 : gosub *show_win
+	; 開いたら、いまの様子をもらう
+	fr_w = 0 : gosub *fr_sync
+	return
+
+*fr_draw
+	gsel 12
+	redraw 0
+	color 250, 250, 246 : boxf
+	font "Meiryo UI", 14 : color 40, 40, 48
+	pos 20, 14 : mes "あなたのフレンドコード"
+	fr_c8 = my_fcode : gosub *fr_dash
+	if fr_show = "" : fr_show = "（まだもらっていない）"
+	font "Meiryo UI", 24, 1 : color 42, 106, 138
+	pos 20, 38 : mes fr_show
+	font "Meiryo UI", 12 : color 110, 110, 120
+	if friend_on = 0 {
+		color 200, 70, 60 : pos 20, 80 : mes "設定の「サーバーと通信する」をオンにすると使えます"
+	} else {
+		if vv_curl = "" : color 200, 70, 60 : pos 20, 80 : mes "このWindowsにはcurlがないので使えません"
+		if vv_curl != "" : pos 20, 80 : mes "おたがいにコードを登録すると、サイクル数が見えて、休憩に遊びに来ます"
+	}
+	font "Meiryo UI", 14 : color 40, 40, 48
+	pos 20, 124 : mes "フレンドのコード" : pos 180, 124 : mes "呼び名（このPCだけ）"
+	pos 20, 204 : mes strf("フレンド（%d／5人）", nfr)
+	; 一覧
+	sdim frlist, 2048
+	repeat nfr
+		fr_c8 = fr_code(cnt) : gosub *fr_dash
+		frline = fr_nick(cnt)
+		if frline = "" : frline = fr_show
+		frline += "　"
+		if fr_kind(cnt) = 0 : frline += "まだ確かめていない"
+		if fr_kind(cnt) = 2 : frline += "相手の登録待ち"
+		if fr_kind(cnt) = 3 : frline += "見つからない"
+		if fr_kind(cnt) = 1 {
+			fra = fr_age(cnt)
+			frage = "しばらく前"
+			if fra < 1440 : frage = "" + (fra / 60) + "時間前"
+			if fra < 60 : frage = "" + fra + "分前"
+			if fra < 1 : frage = "いま"
+			frline += "" + fr_p(cnt) + "サイクル・" + fr_m(cnt) + "分（" + frage + "）"
+		}
+		frlist += frline + "\n"
+	loop
+	if nfr = 0 : frlist = "（まだいません）"
+	objprm fr_obj_l, frlist
+	redraw 1
+	gsel 1
+	return
+
+*fr_add_btn
+	gsel 12
+	fr_in = fr_in : gosub *fr_norm
+	if fr_c8 = "" : gsel 1 : bubble = "そのコード、読めないぞ" : bubt = 80 : return
+	if fr_c8 = my_fcode : gsel 1 : bubble = "それはおれのコードだ" : bubt = 80 : return
+	repeat nfr
+		if fr_code(cnt) = fr_c8 : fr_c8 = "dup" : break
+	loop
+	if fr_c8 = "dup" : gsel 1 : bubble = "もう入ってるぞ" : bubt = 80 : return
+	if nfr >= 5 : gsel 1 : bubble = "フレンドは5人までだ" : bubt = 80 : return
+	cu_s = strtrim(fr_nin) : cu_n = 10 : gosub *cut_utf8
+	strrep cu_s, "|", "｜"
+	fr_code(nfr) = fr_c8 : fr_nick(nfr) = cu_s : fr_kind(nfr) = 0 : nfr++
+	gosub *fr_save
+	gsel 12
+	objprm fr_obj_c, "" : objprm fr_obj_n, ""
+	gosub *fr_draw
+	bubble = "フレンド、増えたな！" : bubt = 80
+	fr_w = 0 : gosub *fr_sync
+	return
+
+*fr_del_btn
+	gsel 12
+	sendmsg objinfo(fr_obj_l, 2), 0x188, 0, 0
+	fi = stat
+	gsel 1
+	if (fi < 0) | (fi >= nfr) : return
+	repeat nfr - fi - 1, fi
+		fr_code(cnt) = fr_code(cnt + 1) : fr_nick(cnt) = fr_nick(cnt + 1) : fr_kind(cnt) = fr_kind(cnt + 1)
+		fr_c(cnt) = fr_c(cnt + 1) : fr_p(cnt) = fr_p(cnt + 1) : fr_m(cnt) = fr_m(cnt + 1) : fr_f(cnt) = fr_f(cnt + 1) : fr_age(cnt) = fr_age(cnt + 1)
+	loop
+	nfr--
+	gosub *fr_save
+	gosub *fr_draw
+	; サーバーの登録も外す
+	fr_w = 0 : gosub *fr_sync
+	return
+
+*fr_refresh_btn
+	fr_w = 0 : gosub *fr_sync
+	return
+
+*fr_copy_btn
+	if my_fcode = "" : return
+	fr_c8 = my_fcode : gosub *fr_dash
+	cs = fr_show : gosub *clip_set
+	bubble = "コード、コピーしといたぞ" : bubt = 80
+	return
+
+*fr_close
+	gsel 12, -1
+	gsel 1
+	return

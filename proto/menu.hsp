@@ -1,0 +1,164 @@
+; 作業のおとも、棒人間：右クリックのメニュー
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+*popup
+	; MF_GRAYED=1 MF_CHECKED=8 MF_POPUP=0x10 MF_SEPARATOR=0x800
+	hm = CreatePopupMenu()
+	stat_line = "今日のポモドーロ：" + pomos_today + "サイクル"
+	if typecount_on : stat_line += "・" + keys_today + "打"
+	if aq_n : stat_line += "・水槽" + aq_n + "匹"
+	AppendMenu hm, 1, 0, stat_line
+	AppendMenu hm, 0, 50, "今日の内訳と1週間の記録"
+	AppendMenu hm, 0, 56, "今日のまとめをコピー（日報用）"
+	AppendMenu hm, 0, 54, "やることリスト…"
+	AppendMenu hm, 0, 55, "時刻を知らせる…"
+	AppendMenu hm, 0, 57, "フレンド…"
+	AppendMenu hm, 0x800, 0, ""
+	AppendMenu hm, 0, 52, "今日の絵日記を描く"
+	AppendMenu hm, 0, 53, "絵日記のフォルダを開く"
+	AppendMenu hm, 0x800, 0, ""
+	if paused {
+		AppendMenu hm, 0, 1, "再開"
+	} else {
+		AppendMenu hm, 0, 1, "一時停止"
+	}
+	if phase = 0 {
+		AppendMenu hm, 0, 2, "休憩にする"
+	} else {
+		AppendMenu hm, 0, 2, "作業にもどる"
+	}
+	AppendMenu hm, 0x800, 0, ""
+	hw = CreatePopupMenu()
+	AppendMenu hw, 8 * (work_min = 15), 11, "15分"
+	AppendMenu hw, 8 * (work_min = 25), 12, "25分"
+	AppendMenu hw, 8 * (work_min = 50), 13, "50分"
+	AppendMenu hm, 0x10, hw, "作業の長さ"
+	hb = CreatePopupMenu()
+	AppendMenu hb, 8 * (break_min = 5), 21, "5分"
+	AppendMenu hb, 8 * (break_min = 10), 22, "10分"
+	AppendMenu hb, 8 * (break_min = 15), 23, "15分"
+	AppendMenu hm, 0x10, hb, "休憩の長さ"
+	hv = CreatePopupMenu()
+	AppendMenu hv, 8 * (voice_mode = 0), 70, "しゃべらない"
+	AppendMenu hv, 8 * (voice_mode = 1), 71, "決まったセリフだけ"
+	AppendMenu hv, 8 * (voice_mode = 2), 72, "よくしゃべる"
+	AppendMenu hm, 0x10, hv, "声"
+	ha = CreatePopupMenu()
+	AppendMenu ha, 8 * (act_level = 0), 91, "なし（ほとんど動かない）"
+	AppendMenu ha, 8 * (act_level = 1), 92, "ときどき"
+	AppendMenu ha, 8 * (act_level = 2), 93, "たくさん"
+	AppendMenu hm, 0x10, ha, "動きの多さ"
+	AppendMenu hm, 8 * sound_on, 32, "音を鳴らす"
+	; ふだんは変えない設定は「高度な設定」にまとめる
+	hx = CreatePopupMenu()
+	AppendMenu hx, 8 * typecount_on, 31, "タイピングを数える（回数だけ）"
+	AppendMenu hx, 8 * idle_stop, 97, "席を離れたら一時停止する（10分さわらなかったら）"
+	hc = CreatePopupMenu()
+	AppendMenu hc, 8 * (inkmode = 0), 40, "おまかせ（ウィンドウのアイコンの色）"
+	AppendMenu hc, 8 * (inkmode = 1), 41, "黒"
+	AppendMenu hc, 8 * (inkmode = 2), 42, "紺"
+	AppendMenu hc, 8 * (inkmode = 3), 43, "茶"
+	AppendMenu hc, 8 * (inkmode = 4), 44, "緑"
+	AppendMenu hx, 0x10, hc, "線の色"
+	AppendMenu hx, 8 * season_on, 95, "季節のイベント"
+	hz = CreatePopupMenu()
+	AppendMenu hz, 8 * (costume = 0), 85, "なし"
+	AppendMenu hz, 8 * (costume = 1), 86, "珠音（たまね）の髪型"
+	AppendMenu hx, 0x10, hz, "着せ替え"
+	AppendMenu hx, 8 * ovl_on, 90, "認識の図示（足場や道を画面に描く）"
+	AppendMenu hx, 0x800, 0, ""
+	AppendMenu hx, 0, 51, "サボり先の語を編集…"
+	AppendMenu hx, 8 * slack_stop, 96, "サボり先を見ているあいだはタイマーを止める"
+	hk = CreatePopupMenu()
+	AppendMenu hk, 8 * (close_mode = 0), 60, "しない"
+	AppendMenu hk, 8 * (close_mode = 1), 61, "最小化する"
+	AppendMenu hk, 8 * (close_mode = 2), 62, "閉じる（保存していない内容が失われることがあります）"
+	AppendMenu hk, 0x800, 0, ""
+	AppendMenu hk, 8 * (close_min = 5), 65, "5分たったら"
+	AppendMenu hk, 8 * (close_min = 10), 66, "10分たったら"
+	AppendMenu hk, 8 * (close_min = 15), 67, "15分たったら"
+	AppendMenu hk, 8 * (close_min = 30), 68, "30分たったら"
+	AppendMenu hx, 0x10, hk, "サボり先を長く開いていたら"
+	AppendMenu hx, 0x800, 0, ""
+	AppendMenu hx, 8 * friend_on, 80, "サーバーと通信する（ゴースト機能用）"
+	AppendMenu hx, 0, 101, "教えたセリフを編集…"
+	AppendMenu hm, 0x10, hx, "高度な設定"
+	AppendMenu hm, 0x800, 0, ""
+	AppendMenu hm, 0, 103, "設定…"
+	AppendMenu hm, 0, 100, "セリフを教える…"
+	AppendMenu hm, 0, 102, "バージョン情報"
+	AppendMenu hm, 0x800, 0, ""
+	AppendMenu hm, 0, 9, "終了"
+	gosub *track_menu
+	r = menu_r
+	gosub *menu_do
+	; 選んだ項目で出た窓やダイアログのクリックも、つつきと取りちがえない
+	getkey ml_old, 1 : getkey mr_old, 2
+	return
+
+; 作ったメニュー（hm）をカーソルの位置に出して、選ばれた番号を menu_r に返す
+; メニューを出すあいだだけ自分を前面にし、終わったら使っていた窓に戻す（キー入力を奪ったままにしない）
+*track_menu
+	prevfg = GetForegroundWindow()
+	SetForegroundWindow myhwnd
+	menu_r = TrackPopupMenu(hm, 0x180, mx, my, 0, myhwnd, 0)
+	DestroyMenu hm
+	if prevfg : SetForegroundWindow prevfg
+	; メニューを閉じたクリックを、つつきやドラッグと取りちがえない
+	getkey ml_old, 1 : getkey mr_old, 2
+	return
+
+; ---- メニューで選んだ項目を実行する（設定画面からも呼ぶ） ----
+*menu_do
+	if r = 1 {
+		if paused {
+			paused = 0 : autopaused = 0 : phase_start += timeGetTime() - pause_at : state = ST_IDLE
+		} else {
+			paused = 1 : pause_at = timeGetTime()
+		}
+	}
+	if r = 2 : now = timeGetTime() : paused = 0 : autopaused = 0 : skipped = 1 : gosub *next_phase
+	if (r >= 11) & (r <= 13) : work_min = 15 + (r = 12) * 10 + (r = 13) * 35 : gosub *apply_minutes : gosub *save_settings
+	if (r >= 21) & (r <= 23) : break_min = 5 + (r - 21) * 5 : gosub *apply_minutes : gosub *save_settings
+	if r = 31 {
+		typecount_on = 1 - typecount_on : krate = 0.0
+		memset kprev, 0, 1024
+		gosub *save_settings
+	}
+	if r = 32 : sound_on = 1 - sound_on : gosub *save_settings
+	if r = 50 : gosub *show_report
+	if r = 54 : gosub *todo_open
+	if r = 55 : gosub *alarm_open
+	if r = 57 : gosub *fr_open
+	if r = 56 : gosub *copy_summary
+	if r = 90 : gosub *ovl_toggle
+	if r = 100 : gosub *teach_open
+	if r = 101 : gosub *save_kotoba : exec "notepad.exe " + datadir + "\\kotoba.txt"
+	if r = 102 : gosub *show_about
+	if r = 103 : gosub *settings_open
+	if (r >= 85) & (r <= 86) : costume = r - 85 : gosub *save_settings
+	if r = 97 : idle_stop = 1 - idle_stop : gosub *save_settings
+	if r = 96 : slack_stop = 1 - slack_stop : gosub *save_settings
+	if r = 95 : season_on = 1 - season_on : gosub *season_update : gosub *save_settings
+	if (r >= 60) & (r <= 62) : close_mode = r - 60 : gosub *save_settings
+	if (r >= 70) & (r <= 72) : voice_mode = r - 70 : gosub *save_settings
+	if (r >= 91) & (r <= 93) : act_level = r - 91 : think = 0 : gosub *save_settings
+	if r = 80 : friend_on = 1 - friend_on : gosub *save_settings : if friend_on : gh_post = 1 : gh_fetch = 1
+	if r = 65 : close_min = 5 : gosub *save_settings
+	if r = 66 : close_min = 10 : gosub *save_settings
+	if r = 67 : close_min = 15 : gosub *save_settings
+	if r = 68 : close_min = 30 : gosub *save_settings
+	if r = 52 : gosub *diary_write_now
+	if r = 53 : CreateDirectory datadir + "\\diary", 0 : exec "explorer.exe " + datadir + "\\diary"
+	if r = 51 : exec "notepad.exe " + datadir + "\\distract.txt"
+	if (r >= 40) & (r <= 44) {
+		inkmode = r - 40
+		if inkmode = 0 : seedh = -1
+		if inkmode = 1 : inkt = 0xFF2E2E36
+		if inkmode = 2 : inkt = 0xFF2A3A6A
+		if inkmode = 3 : inkt = 0xFF5A3A2A
+		if inkmode = 4 : inkt = 0xFF2A5A3A
+		gosub *save_settings
+	}
+	if r = 9 : gosub *quit
+	return

@@ -1,0 +1,42 @@
+; mod_alphawin.as の使用例：画素ごとに半透明な円が、マウスのあとをついてくる。
+; 縁はアンチエイリアスでなめらかに溶け、透明なところはクリックが下のウィンドウに届く。
+; 円の色のついたところをクリックすると終わる（alphawin_alpha で当たり判定）。
+#include "hsp3utf.as"
+#include "mod_alphawin.as"
+
+#uselib "user32.dll"
+#func SetProcessDPIAware "SetProcessDPIAware"
+#uselib "gdiplus.dll"
+#func GdipCreateSolidFill "GdipCreateSolidFill" int, var
+#func GdipSetSolidFillColor "GdipSetSolidFillColor" int, int
+#func GdipFillEllipse "GdipFillEllipse" int, int, float, float, float, float
+
+#const SZ 120
+
+	SetProcessDPIAware
+	gsel 0, -1
+	cmd = dir_cmdline
+	testmode = instr(cmd, 0, "test") >= 0
+	alphawin_init 1, SZ, SZ, 0, 0
+	g = alphawin_graphics()
+	GdipCreateSolidFill 0xFFFFFFFF, br
+	x = double(ginfo_mx) : y = double(ginfo_my) : frame = 0
+	repeat
+		frame++
+		if testmode & (frame > 180) : end
+		; マウスに少し遅れてついていく
+		x += (double(ginfo_mx + 24) - x) * 0.15 : y += (double(ginfo_my + 24) - y) * 0.15
+		alphawin_clear
+		; 外側ほど薄くなる円を重ねる（アルファは画素ごと）
+		repeat 6
+			a = 40 + cnt * 30 : r = 56.0 - double(cnt) * 8.0
+			GdipSetSolidFillColor br, (a << 24) | 0x4A90E2
+			GdipFillEllipse g, br, 60.0 - r, 60.0 - r, r * 2.0, r * 2.0
+		loop
+		GdipSetSolidFillColor br, 0xF0FFFFFF
+		GdipFillEllipse g, br, 44.0, 44.0, 32.0, 32.0
+		alphawin_show int(x), int(y)
+		getkey k, 1
+		if k & (alphawin_alpha(ginfo_mx - int(x), ginfo_my - int(y)) > 0) : end
+		await 16
+	loop
