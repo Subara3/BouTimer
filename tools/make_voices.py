@@ -11,7 +11,7 @@ ENGINE = "http://127.0.0.1:50021"
 SPEAKER = 11  # 玄野武宏（ノーマル）
 SKIP = {"カタカタ", "コンコン", "せいっ", "zzz…", "♪", "z", "Z"}
 # 数字の入るセリフは、決まった部分だけを声にする（voice.hsp の *vv_spoken と合わせる）
-EXTRA = ["やったな", "いい調子", "やるじゃん", "水飲もうぜ", "時間だぞ！", "終わった？"]
+EXTRA = ["やったな", "いい調子", "やるじゃん", "水飲もうぜ", "時間だぞ！"]
 
 def ffmpeg():
     base = os.path.join(os.environ["LOCALAPPDATA"], "Microsoft", "WinGet", "Packages")

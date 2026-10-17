@@ -20,6 +20,9 @@ FR = "C:/Windows/Fonts/meiryo.ttc"
 INK = (46, 46, 54)
 ACCENT = (64, 196, 164)  # アイコンのミント
 
+# BGM：pv/bgm_path.txt に、使う音のファイルの場所を1行で書く（素材の場所は公開しないので、git には入れない）。なければ BGM なしで作る
+_bgmtxt = os.path.join(ROOT, "pv", "bgm_path.txt")
+BGM = open(_bgmtxt, encoding="utf-8").read().strip() if os.path.exists(_bgmtxt) else ""
 TITLE = "作業のおとも、棒人間"
 SUB = "作業集中用のポモドーロタイマー"
 
@@ -218,6 +221,7 @@ def main():
     os.makedirs(TMP, exist_ok=True)
     caps = json.load(open(os.path.join(NARR, "captions.json"), encoding="utf-8"))
     parts, durs = [], []
+    narr_at = []  # 場面ごとの (場面の中で声が始まる秒, 声の長さ)。なければ None
     venc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS)]
     aenc = ["-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "192k"]
     for i, seg in enumerate(PLAN):
@@ -277,6 +281,7 @@ def main():
             fc.append("[ac]volume=0.45[sa];[%d:a]aresample=48000,aformat=channel_layouts=stereo,adelay=%d|%d,apad[na];[sa][na]amix=inputs=2:normalize=0:duration=first[aout]" % (ni, nd, nd))
             run(ff, ins + ["-filter_complex", ";".join(fc), "-map", "[vout]", "-map", "[aout]", "-t", "%.2f" % total] + venc + aenc + [out])
             durs.append(total)
+            narr_at.append((nd / 1000.0, nl))
         else:
             if seg[0] == "card":
                 title, num, dur = seg[1], seg[2], seg[3]
@@ -306,6 +311,7 @@ def main():
                 run(ff, ["-loop", "1", "-t", "%.2f" % dur, "-i", png, "-f", "lavfi", "-t", "%.2f" % dur, "-i", "anullsrc=r=48000:cl=stereo",
                          "-filter_complex", "[0:v]%s[v]" % vf, "-map", "[v]", "-map", "1:a", "-t", "%.2f" % dur] + venc + aenc + [out])
             durs.append(dur)
+            narr_at.append((0.4, wav_len(nwav)) if nwav else None)
         parts.append(out)
         print("part", i, "%.1fs" % durs[-1])
     # 切り替え効果でつなぐ（映像は xfade、音は acrossfade）
@@ -313,6 +319,7 @@ def main():
     for p in parts: ins += ["-i", p]
     fc = []
     vprev, aprev, acc = "[0:v]", "[0:a]", durs[0]
+    starts = [0.0]
     for k in range(1, len(parts)):
         tr = XF[(k - 1) % len(XF)]
         xd = XD
@@ -322,8 +329,22 @@ def main():
         fc.append("%s[%d:v]xfade=transition=%s:duration=%.2f:offset=%.3f[vx%d]" % (vprev, k, tr, xd, off, k))
         fc.append("%s[%d:a]acrossfade=d=%.2f[ax%d]" % (aprev, k, xd, k))
         vprev, aprev = "[vx%d]" % k, "[ax%d]" % k
+        starts.append(off)
         acc = off + durs[k]
-    fc.append("%sloudnorm=I=-16:TP=-1.5:LRA=11[af]" % aprev)
+    if os.path.exists(BGM):
+        # BGM は小さく敷き、ナレーションのあいだはさらに下げる（ナレーションの時刻はわかっているので、その区間だけ音量を落とす）
+        win = []
+        for k, na in enumerate(narr_at):
+            if na:
+                win.append("between(t,%.2f,%.2f)" % (starts[k] + na[0] - 0.25, starts[k] + na[0] + na[1] + 0.35))
+        duck = "1-0.6*min(1,%s)" % ("+".join(win) if win else "0")
+        bi = len(parts)
+        ins += ["-i", BGM]
+        fc.append("[%d:a]atrim=0:%.2f,asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume=0.30,volume='%s':eval=frame,afade=t=in:st=0:d=1.5,afade=t=out:st=%.2f:d=3.5[bgd]" % (bi, acc, duck, max(0, acc - 3.5)))
+        fc.append("%s[bgd]amix=inputs=2:normalize=0:duration=first,loudnorm=I=-16:TP=-1.5:LRA=11[af]" % aprev)
+    else:
+        print("BGM が見つからないので、BGM なしで作ります:", BGM)
+        fc.append("%sloudnorm=I=-16:TP=-1.5:LRA=11[af]" % aprev)
     run(ff, ins + ["-filter_complex", ";".join(fc), "-map", vprev, "-map", "[af]"] + venc + aenc + ["-movflags", "+faststart", OUT])
     for f in glob.glob(os.path.join(TMP, "*")): os.remove(f)
     os.rmdir(TMP)
