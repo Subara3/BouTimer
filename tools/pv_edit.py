@@ -26,8 +26,8 @@ SUB = "作業集中用のポモドーロタイマー"
 # ("clip", 素材の記号, [(はじめ, 長さ), ...], ナレーション, 左上の札, 寄り)  寄り：0 なし、正なら少しずつ寄る、負なら少しずつ引く
 # ("card", 見出し, 小見出し, 秒)
 PLAN = [
-    ("clip", "J", [(0.0, 8.0)], "op", None, 0.0),
-    ("card", "できること", "1", 2.4),
+    ("clip", "A", [(0.0, 8.0)], "op", None, 0.0),
+    ("card", "どういうアプリケーション？", "1", 3.0),
     ("clip", "C", [(5.0, 9.0)], "c", "ポモドーロタイマー", 0.10),
     ("clip", "K", [(1.0, 5.2)], "k", "一時停止", 0.0),
     ("clip", "H", [(2.0, 7.0)], "h", "やることリスト", 0.08),
@@ -36,10 +36,10 @@ PLAN = [
     ("clip", "G", [(1.0, 6.0)], "g", "はじめての設定", 0.0),
     ("clip", "B", [(11.0, 4.0), ("A", 1.5, 4.5)], "b", "気分転換", 0.0),
     ("clip", "J", [(2.0, 4.0)], "j", "着せ替え（珠音）", 0.12),
-    ("card", "どうやって動いているか", "2", 2.6),
+    ("card", "技術解説", "2", 3.0),
     ("clip", "I", [(2.0, 8.4)], "i", "足場を見つける", -0.06),
     ("clip", "A", [(58.0, 6.0)], "r", "道さがし", 0.0),
-    ("clip", "J", [(30.0, 7.4)], "p", "透ける窓で表示", 0.15),
+    ("clip", "A", [(30.0, 7.4)], "p", "透ける窓で表示", 0.15),
     ("mods", 6.2),
     ("end", 5.0),
 ]
@@ -98,6 +98,9 @@ def card_png(path, title, num):
     d.ellipse([bx0 - 28, by0 - 28, bx0 + 32, by0 + 32], fill=ACCENT)
     d.text((bx0 + 2 - d.textlength(num, font=fn) / 2, by0 - 22), num, font=fn, fill=(255, 255, 255))
     stick(d, bx0 + tw + 70, by0 + 2, 1.2, "wave")
+    fp = ImageFont.truetype(FB, 26)
+    pt = "PART " + num
+    d.text(((W - d.textlength(pt, font=fp)) / 2, by0 - 52), pt, font=fp, fill=(60, 140, 120))
     im.save(path)
 
 
@@ -298,9 +301,12 @@ def main():
     vprev, aprev, acc = "[0:v]", "[0:a]", durs[0]
     for k in range(1, len(parts)):
         tr = XF[(k - 1) % len(XF)]
-        off = acc - XD
-        fc.append("%s[%d:v]xfade=transition=%s:duration=%.2f:offset=%.3f[vx%d]" % (vprev, k, tr, XD, off, k))
-        fc.append("%s[%d:a]acrossfade=d=%.2f[ax%d]" % (aprev, k, XD, k))
+        xd = XD
+        if PLAN[k][0] == "card": tr = "fadeblack"; xd = 0.9
+        elif PLAN[k - 1][0] == "card": tr = "circleopen"; xd = 0.8
+        off = acc - xd
+        fc.append("%s[%d:v]xfade=transition=%s:duration=%.2f:offset=%.3f[vx%d]" % (vprev, k, tr, xd, off, k))
+        fc.append("%s[%d:a]acrossfade=d=%.2f[ax%d]" % (aprev, k, xd, k))
         vprev, aprev = "[vx%d]" % k, "[ax%d]" % k
         acc = off + durs[k]
     fc.append("%sloudnorm=I=-16:TP=-1.5:LRA=11[af]" % aprev)
