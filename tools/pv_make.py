@@ -30,6 +30,8 @@ SCENES = {
     "H": ("H_やることにチェック", "tdchecktest tdnoundo", 3, 20, 2.0),
     "I": ("I_認識の図示", "realtest ovl", 1, 30, 1.0),
     "J": ("J_珠音の髪型", "show tamane", 1, 120, 2.2),
+    "K": ("K_タイマーで一時停止", "clicktest", 1, 14, 1.8),
+    "L": ("L_やることリストと内訳", "pvlisttest", 1, 16, 1.0),
 }
 
 u32 = ctypes.windll.user32
@@ -101,6 +103,37 @@ def put(img, src, x, y):
     img.alpha_composite(src.crop((l, t, r, b)), (x + l, y + t))
 
 
+WINTITLE = {2: "今日の内訳と1週間の記録", 10: "やることリスト", 11: "はじめまして"}
+_frames = {}
+
+
+def framed(client, wid):
+    # 中身だけを写した小さな窓に、Windows 11 ふうの枠（題名の帯と ─ □ ✕）を描き足す
+    key = (wid, client.size)
+    w, h = client.size
+    tb = 32
+    if key not in _frames:
+        from PIL import ImageFont
+        fr = Image.new("RGBA", (w + 2, h + tb + 1), (243, 243, 243, 255))
+        d = ImageDraw.Draw(fr)
+        d.rectangle([0, 0, w + 1, h + tb], outline=(200, 200, 205, 255))
+        f = ImageFont.truetype("C:/Windows/Fonts/meiryo.ttc", 12)
+        icon = Image.open(os.path.join(TOOLS, "boutimer_icon.png")).convert("RGBA").resize((16, 16), Image.LANCZOS)
+        fr.alpha_composite(icon, (10, 8))
+        d.text((34, 8), WINTITLE.get(wid, ""), font=f, fill=(40, 40, 48, 255))
+        c = (70, 70, 80, 255)
+        bx = w - 24
+        d.line([(bx - 5, 11), (bx + 5, 21)], fill=c, width=1); d.line([(bx - 5, 21), (bx + 5, 11)], fill=c, width=1)
+        bx -= 46
+        d.rectangle([bx - 5, 11, bx + 5, 21], outline=c)
+        bx -= 46
+        d.line([(bx - 5, 16), (bx + 5, 16)], fill=c, width=1)
+        _frames[key] = fr
+    out = _frames[key].copy()
+    out.paste(client, (1, tb))
+    return out
+
+
 def cursor(img, x, y):
     d = ImageDraw.Draw(img)
     pts = [(x, y), (x, y + 18), (x + 5, y + 14), (x + 9, y + 22), (x + 12, y + 21), (x + 8, y + 13), (x + 14, y + 13)]
@@ -146,13 +179,13 @@ def run_scene(key, ff):
         if not p: continue
         if p[0] == "EV": events.append((int(p[1]), p[2], p[3]))
         elif p[0] == "OV": ovs[int(p[1])] = (int(p[2]), int(p[3]))
-        elif p[0] == "WZ": wzs[int(p[1])] = (int(p[2]), int(p[3]), int(p[4]), int(p[5]))
+        elif p[0] == "WZ": wzs.setdefault(int(p[1]), []).append((int(p[2]), int(p[3]), int(p[4]), int(p[5]), int(p[6]) if len(p) > 6 else 11))
         elif p[0].isdigit(): frames.append(tuple(int(v) for v in p[:6]))
     os.makedirs(OUT, exist_ok=True)
     silent = os.path.join(OUT, "_silent.mp4")
     enc = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-r", "30", "-i", "-",
                             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", silent], stdin=subprocess.PIPE)
-    cur_ov = None; cur_wz = None; last_wz = -99
+    cur_ov = None; cur_wz = {}
     camx = camy = None
     for n, fr, cx, cy, fmx, fmy in frames:
         img = base.copy()
@@ -161,15 +194,17 @@ def run_scene(key, ff):
             cur_ov = (Image.open(os.path.join(pvf, "ov_%05d.png" % n)).convert("RGBA"), vx - ox, vy - oy)
         if cur_ov: put(img, cur_ov[0], cur_ov[1], cur_ov[2])
         if n in wzs:
-            x, y, w, h = wzs[n]
-            wz = Image.open(os.path.join(pvf, "wz_%05d.bmp" % n)).convert("RGBA").crop((mx, my, w - mx, h - mx))
-            cur_wz = (wz, x + mx - ox, y + my - oy); last_wz = n
-        if cur_wz and n - last_wz <= 3:
-            shadow(img, cur_wz[1], cur_wz[2], cur_wz[0].width, cur_wz[0].height)
-            put(img, cur_wz[0], cur_wz[1], cur_wz[2])
+            for x, y, w, h, wid in wzs[n]:
+                cl = Image.open(os.path.join(pvf, "w%d_%05d.bmp" % (wid, n))).convert("RGBA").crop((0, 0, w, h))
+                cur_wz[wid] = (framed(cl, wid), x - 1 - ox, y - 32 - oy, n)
+        for wid in list(cur_wz):
+            wz, x, y, seen = cur_wz[wid]
+            if n - seen > 3: del cur_wz[wid]; continue
+            shadow(img, x, y, wz.width, wz.height)
+            put(img, wz, x, y)
         ch = Image.open(os.path.join(pvf, "%05d.png" % n)).convert("RGBA")
         put(img, ch, cx - ox, cy - oy)
-        if "tdcheck" in mode or "interact" in mode:
+        if "tdcheck" in mode or "interact" in mode or "clicktest" in mode:
             if (fmx, fmy) != (0, 0) and fmx > -9000: cursor(img, fmx - ox, fmy - oy)
         if zoom > 1.0:
             # カメラ：棒人間の体のあたりを、ゆっくり追いかける

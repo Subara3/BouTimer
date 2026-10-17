@@ -184,13 +184,25 @@
 			GdipSaveImageToFile gbmp3, dir_cur + "\\pvf\\ov_" + strf("%05d", pvn) + ".png", pngclsid, 0
 			pvlog += "OV " + pvn + " " + vleft + " " + vtop + "\n"
 		}
-		; はじめましての窓は、ボタンごと PrintWindow で写す（4コマごと）
-		if wz_on & ((frame \ 4) = 0) {
-			dim pwr, 4 : GetWindowRect wz_hwnd, pwr
-			gsel 21 : color 0, 0, 0 : boxf : PrintWindow wz_hwnd, hdc, 0
-			bmpsave dir_cur + "\\pvf\\wz_" + strf("%05d", pvn) + ".bmp"
+		; 小さな窓（内訳・やること・はじめまして）は、出ていればボタンごと PrintWindow で写す（4コマごと）
+		if (frame \ 4) = 0 {
+			repeat 3
+				pc_id = 2 : pc_ok = repinit
+				if cnt = 1 : pc_id = 10 : pc_ok = todo_made
+				if cnt = 2 : pc_id = 11 : pc_ok = wz_made
+				if pc_ok {
+					gsel pc_id : pc_h = hwnd
+					if IsWindowVisible(pc_h) {
+						; 中身（クライアント領域）だけを写す（PW_CLIENTONLY）。枠は合成のときに今の見た目で描く
+						dim pwr, 4 : GetClientRect pc_h, pwr
+						dim pwp, 2 : ClientToScreen pc_h, pwp
+						gsel 21 : color 0, 0, 0 : boxf : PrintWindow pc_h, hdc, 1
+						bmpsave dir_cur + "\\pvf\\w" + pc_id + "_" + strf("%05d", pvn) + ".bmp"
+						pvlog += strf("WZ %d %d %d %d %d %d", pvn, pwp(0), pwp(1), pwr(2), pwr(3), pc_id) + "\n"
+					}
+				}
+			loop
 			gsel 1
-			pvlog += strf("WZ %d %d %d %d %d", pvn, pwr(0), pwr(1), pwr(2) - pwr(0), pwr(3) - pwr(1)) + "\n"
 		}
 		pvn++
 	}

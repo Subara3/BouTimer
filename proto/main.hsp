@@ -44,6 +44,7 @@
 #func GetWindowThreadProcessId "GetWindowThreadProcessId" int, var
 #func GetGUIThreadInfo "GetGUIThreadInfo" int, var
 #func ClientToScreen "ClientToScreen" int, var
+#func GetClientRect "GetClientRect" int, var
 #cfunc LoadIcon "LoadIconW" int, int
 #func SendMessageTimeout "SendMessageTimeoutW" int, int, int, int, int, int, var
 #cfunc GetClassLong "GetClassLongW" int, int
@@ -449,7 +450,7 @@
 			; 撮っているあいだに本物の離席で止まらないように
 			sound_on = 1 : idle_warn = 99999999 : idle_pause = 99999999
 			if instr(cmd, 0, "pvvoice") >= 0 : voice_mode = 2
-			if pvframes : CreateDirectory dir_cur + "\\pvf", 0 : buffer 21, 800, 500 : gsel 0
+			if pvframes : CreateDirectory dir_cur + "\\pvf", 0 : buffer 21, 960, 720 : gsel 0
 		}
 	}
 	tea_every = 60 * 60 * 4
@@ -602,7 +603,7 @@
 	sdim kotoba, 128, 50 : nkoto = 0 : teach_made = 0 : about_made = 0
 	gosub *load_kotoba
 	; やることリスト（todo.txt）と時刻のお知らせ（alarm.txt）
-	sdim todo_s, 256, 40 : dim todo_d, 40 : sdim todo_day, 16, 40 : sdim todo_at, 20, 40 : dim todo_min, 40 : ntodo = 0 : todo_made = 0
+	sdim todo_s, 256, 40 : dim todo_d, 40 : sdim todo_day, 16, 40 : sdim todo_at, 20, 40 : dim todo_min, 40 : dim todo_dly, 40 : sdim dly_s, 256, 20 : ndly = 0 : todo_daily_chk = 0 : ntodo = 0 : todo_made = 0
 	todo_ask = 0 : todo_ask_at = 0 : todo_ask2 = 0 : sdim cu_s, 256 : carry_paper = 0 : tossb = 1.0 : wk_fake = 0 : toss_pending = 0 : todo_top = -1
 	sdim al_s, 256, 20 : dim al_m, 20 : dim al_rep, 20 : dim al_arg, 20 : al_wd0 = 0 : al_dd0 = 1 : nal = 0 : al_made = 0 : al_due = -1 : alh = 0 : alt = 0 : al_lastmin = -1 : al_air = 0
 	sdim al_text, 256 : al_time = ""
@@ -616,6 +617,8 @@
 	cont_ms = 0 : stretch_next = 0 : stretch_due = 0
 	sdim hist_d, 16, 60 : dim hist_w, 60 : dim hist_p, 60 : dim hist_k, 60 : dim hist_t, 60 : nhist = 0
 	dinit = 0 : dwinit = 0 : curday = today
+	; 前の日までに済んだやることを消し、毎日のやることを入れる
+	gosub *todo_newday
 	dim pngclsid, 4
 	pngclsid(0) = 0x557CF406 : pngclsid(1) = 0x11D31A04 : pngclsid(2) = 0x0000739A : pngclsid(3) = 0x2EF31EF8
 	sdim dline, 160, 10
@@ -852,6 +855,8 @@ shotall = instr(cmd, 0, "shotall") >= 0
 		if today2 != curday {
 			dday = curday : gosub *make_diary
 			gosub *reset_today : curday = today2
+			gosub *todo_newday
+			if todo_made : gosub *todo_fill
 			if boot_t : boot_t = 0 : boot_day = ""
 			bubble = "昨日の絵日記、描いといたぞ" : bubt = 180
 			gosub *save_settings

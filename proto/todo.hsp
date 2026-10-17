@@ -43,6 +43,7 @@
 			; strtrim には式を渡せない（エラー23）ので、いったん tsv に入れてから整える
 			tsv = strmid(tl, 1, 255) : tsv = strtrim(tsv) : todo_d(ntodo) = 0 : todo_day(ntodo) = "" : todo_at(ntodo) = "" : todo_min(ntodo) = -1
 			if (peek(tsv, 0) = '@') & (strlen(tsv) > 18) : todo_at(ntodo) = strmid(tsv, 1, 16) : tsv = strmid(tsv, 17, 255) : tsv = strtrim(tsv)
+			gosub *todo_dly_mark
 			todo_s(ntodo) = tsv
 			if tsv != "" : ntodo++
 			continue
@@ -54,11 +55,74 @@
 				tq2 = instr(tsv, 0, "分]")
 				if (tq2 > 1) & (tq2 < 8) : todo_min(ntodo) = int(strmid(tsv, 1, tq2 - 1)) : tsv = strmid(tsv, tq2 + 4, 255) : tsv = strtrim(tsv)
 			}
+			gosub *todo_dly_mark
 			todo_s(ntodo) = tsv
 			if tsv != "" : ntodo++
 		}
 	loop
 	noteunsel
+	gosub *load_daily
+	return
+
+; 「[毎日] 」で始まっていれば、毎日のやることの印を立てて、印を外す
+*todo_dly_mark
+	todo_dly(ntodo) = 0
+	if strmid(tsv, 0, 8) = "[毎日]" : todo_dly(ntodo) = 1 : tsv = strmid(tsv, 8, 255) : tsv = strtrim(tsv)
+	return
+
+; ---- 毎日のやること（daily.txt に1行1つ） ----
+*load_daily
+	ndly = 0
+	exist datadir + "\\daily.txt"
+	if strsize < 0 : return
+	sdim dtxt2, 4096
+	notesel dtxt2 : noteload datadir + "\\daily.txt"
+	repeat notemax
+		noteget dl2, cnt : dl2 = strtrim(dl2)
+		if dl2 = "" : continue
+		if peek(dl2, 0) = '#' : continue
+		if ndly < 20 : dly_s(ndly) = dl2 : ndly++
+	loop
+	noteunsel
+	return
+
+*save_daily
+	if testmode & (allow_save = 0) : return
+	sdim dtxt2, 4096
+	dtxt2 = "# 毎日のやること（1行に1つ。日付が変わると、やることリストに入る）\n"
+	repeat ndly
+		dtxt2 += dly_s(cnt) + "\n"
+	loop
+	notesel dtxt2 : notesave datadir + "\\daily.txt" : noteunsel
+	return
+
+; 日付が変わったとき（起動したときも）：前の日までに済んだものを消し、毎日のやることを入れる
+*todo_newday
+	tdn_ch = 0
+	tdi = 0
+	repeat
+		if tdi >= ntodo : break
+		if todo_d(tdi) & (todo_day(tdi) != curday) {
+			gosub *todo_remove : tdn_ch = 1
+		} else {
+			tdi++
+		}
+	loop
+	repeat ndly
+		tdn_i = cnt : tdn_has = 0
+		; まだのもの、または今日済ませたものに同じやることがあれば入れない
+		repeat ntodo
+			if todo_s(cnt) = dly_s(tdn_i) {
+				if (todo_d(cnt) = 0) | (todo_day(cnt) = curday) : tdn_has = 1 : break
+			}
+		loop
+		if (tdn_has = 0) & (ntodo < 40) {
+			todo_s(ntodo) = dly_s(tdn_i) : todo_d(ntodo) = 0 : todo_day(ntodo) = "" : todo_min(ntodo) = -1 : todo_dly(ntodo) = 1
+			todo_at(ntodo) = strf("%04d-%02d-%02d %02d:%02d", gettime(0), gettime(1), gettime(3), gettime(4), gettime(5)) : ntodo++
+			tdn_ch = 1
+		}
+	loop
+	if tdn_ch : gosub *save_todo : gosub *todo_first
 	return
 
 *save_todo
@@ -67,16 +131,18 @@
 	ttxt = "# やることリスト（「- 」で始まる行がまだ、「x 日付 」で始まる行が済んだもの）\n"
 	repeat ntodo
 		if todo_d(cnt) {
+			tsv2 = todo_s(cnt) : if todo_dly(cnt) : tsv2 = "[毎日] " + tsv2
 			if todo_min(cnt) >= 0 {
-				ttxt += "x " + todo_day(cnt) + " [" + todo_min(cnt) + "分] " + todo_s(cnt) + "\n"
+				ttxt += "x " + todo_day(cnt) + " [" + todo_min(cnt) + "分] " + tsv2 + "\n"
 			} else {
-				ttxt += "x " + todo_day(cnt) + " " + todo_s(cnt) + "\n"
+				ttxt += "x " + todo_day(cnt) + " " + tsv2 + "\n"
 			}
 		} else {
+			tsv2 = todo_s(cnt) : if todo_dly(cnt) : tsv2 = "[毎日] " + tsv2
 			if todo_at(cnt) != "" {
-				ttxt += "- @" + todo_at(cnt) + " " + todo_s(cnt) + "\n"
+				ttxt += "- @" + todo_at(cnt) + " " + tsv2 + "\n"
 			} else {
-				ttxt += "- " + todo_s(cnt) + "\n"
+				ttxt += "- " + tsv2 + "\n"
 			}
 		}
 	loop
@@ -96,7 +162,7 @@
 *todo_remove
 	if (tdi < 0) | (tdi >= ntodo) : return
 	repeat ntodo - tdi - 1, tdi
-		todo_s(cnt) = todo_s(cnt + 1) : todo_d(cnt) = todo_d(cnt + 1) : todo_day(cnt) = todo_day(cnt + 1) : todo_at(cnt) = todo_at(cnt + 1) : todo_min(cnt) = todo_min(cnt + 1)
+		todo_s(cnt) = todo_s(cnt + 1) : todo_d(cnt) = todo_d(cnt + 1) : todo_day(cnt) = todo_day(cnt + 1) : todo_at(cnt) = todo_at(cnt + 1) : todo_min(cnt) = todo_min(cnt + 1) : todo_dly(cnt) = todo_dly(cnt + 1)
 	loop
 	ntodo--
 	return
@@ -114,7 +180,16 @@
 		if tdi < 0 : bubble = "もう持ちきれないぞ" : bubt = 80 : return
 		gosub *todo_remove
 	}
-	todo_s(ntodo) = todo_in : todo_d(ntodo) = 0 : todo_day(ntodo) = "" : todo_min(ntodo) = -1
+	todo_s(ntodo) = todo_in : todo_d(ntodo) = 0 : todo_day(ntodo) = "" : todo_min(ntodo) = -1 : todo_dly(ntodo) = 0
+	if todo_daily_chk & (ndly < 20) {
+		; 毎日のやることにも入れる（同じものがなければ）
+		tdn_has = 0
+		repeat ndly
+			if dly_s(cnt) = todo_in : tdn_has = 1
+		loop
+		if tdn_has = 0 : dly_s(ndly) = todo_in : ndly++ : gosub *save_daily
+		todo_dly(ntodo) = 1
+	}
 	todo_at(ntodo) = strf("%04d-%02d-%02d %02d:%02d", gettime(0), gettime(1), gettime(3), gettime(4), gettime(5)) : ntodo++
 	gosub *save_todo
 	bubble = "よし、持っとく！" : bubt = 80
@@ -146,7 +221,10 @@
 		tsel = -1
 		pos 16, 38 : objsize 408, 24 : listbox tsel, 176, "" : todo_lb = stat
 		sdim todo_in, 256
-		pos 16, 252 : input todo_in, 300, 30, 120 : todo_inp = stat
+		pos 16, 252 : input todo_in, 232, 30, 120 : todo_inp = stat
+		; 「毎日」にチェックして追加すると、毎日のやることになる（日付が変わるたびに入る）
+		todo_daily_chk = 0
+		pos 256, 254 : objsize 64, 26 : chkbox "毎日", todo_daily_chk
 		pos 324, 250 : objsize 100, 34 : button gosub "追加", *todo_add_btn
 		objsize 100, 34
 		pos 16, 300 : button gosub "終わった！", *todo_done_btn
@@ -154,7 +232,7 @@
 		pos 224, 300 : button gosub "消す", *todo_del_btn
 		pos 328, 300 : button gosub "閉じる", *todo_close
 		font "Meiryo UI", 12 : color 130, 130, 140 : pos 16, 352
-		mes "済んだものはその日のうちはリストに残ります。（　）は追加してから終わるまでの時間"
+		mes "済んだものは次の日に消えます。（　）は追加してから終わるまでの時間"
 		todo_made = 1
 	}
 	gsel 10
@@ -166,7 +244,11 @@
 *todo_fill
 	dim todo_map, 40 : nmap = 0 : sdim tlist, 16384
 	repeat ntodo
-		if todo_d(cnt) = 0 : tlist += "・" + todo_s(cnt) + "\n" : todo_map(nmap) = cnt : nmap++
+		if todo_d(cnt) = 0 {
+			tlist += "・" + todo_s(cnt)
+			if todo_dly(cnt) : tlist += "（毎日）"
+			tlist += "\n" : todo_map(nmap) = cnt : nmap++
+		}
 	loop
 	repeat ntodo
 		if todo_d(cnt) & (todo_day(cnt) = curday) {
@@ -203,22 +285,42 @@
 *todo_up_btn
 	gosub *todo_sel
 	if tdi <= 0 : gsel 1 : return
-	tk_s = todo_s(tdi) : tk_d = todo_d(tdi) : tk_day = todo_day(tdi) : tk_at = todo_at(tdi) : tk_min = todo_min(tdi)
+	tk_s = todo_s(tdi) : tk_d = todo_d(tdi) : tk_day = todo_day(tdi) : tk_at = todo_at(tdi) : tk_min = todo_min(tdi) : tk_dly = todo_dly(tdi)
 	gosub *todo_remove
 	repeat ntodo
 		ti = ntodo - cnt
-		todo_s(ti) = todo_s(ti - 1) : todo_d(ti) = todo_d(ti - 1) : todo_day(ti) = todo_day(ti - 1) : todo_at(ti) = todo_at(ti - 1) : todo_min(ti) = todo_min(ti - 1)
+		todo_s(ti) = todo_s(ti - 1) : todo_d(ti) = todo_d(ti - 1) : todo_day(ti) = todo_day(ti - 1) : todo_at(ti) = todo_at(ti - 1) : todo_min(ti) = todo_min(ti - 1) : todo_dly(ti) = todo_dly(ti - 1)
 	loop
-	todo_s(0) = tk_s : todo_d(0) = tk_d : todo_day(0) = tk_day : todo_at(0) = tk_at : todo_min(0) = tk_min : ntodo++
+	todo_s(0) = tk_s : todo_d(0) = tk_d : todo_day(0) = tk_day : todo_at(0) = tk_at : todo_min(0) = tk_min : todo_dly(0) = tk_dly : ntodo++
 	gosub *save_todo
 	gosub *todo_fill
 	return
 
 *todo_del_btn
 	gosub *todo_sel
-	gosub *todo_remove
+	gosub *todo_del
 	gosub *save_todo
 	gosub *todo_fill
+	return
+
+; tdi 番を消す
+*todo_del
+	; 毎日のやることを消したら、毎日のほうからも外す（次の日から入らない）
+	if (tdi >= 0) & (tdi < ntodo) {
+		if todo_dly(tdi) {
+			tdn_k = -1
+			repeat ndly
+				if dly_s(cnt) = todo_s(tdi) : tdn_k = cnt : break
+			loop
+			if tdn_k >= 0 {
+				repeat ndly - tdn_k - 1, tdn_k
+					dly_s(cnt) = dly_s(cnt + 1)
+				loop
+				ndly-- : gosub *save_daily
+			}
+		}
+	}
+	gosub *todo_remove
 	return
 
 *todo_close

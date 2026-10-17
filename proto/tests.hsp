@@ -272,6 +272,52 @@
 		exist datadir + "\\settings.txt"
 		dbg += "SAVEDIR " + datadir + " res=" + resdir + " size=" + strsize + " se=" + se_ok + "\n"
 	}
+	; 確認用：pvlisttest は、やることリストの窓と、今日の内訳を順に開く（PV 用）
+	if instr(cmd, 0, "pvlisttest") >= 0 {
+		if frame = 1 : endframe = 60 * 16 : work_ms = 600000 : pomos_today = 4 : workms_today = 2 * 3600000 + 5 * 60000 : todos_today = 2 : wk_fake = 1
+		if frame = 20 {
+			ntodo = 5 : todo_s(0) = "企画書の続き" : todo_d(0) = 0 : todo_at(0) = "" : todo_s(1) = "メールの返信" : todo_d(1) = 0 : todo_at(1) = ""
+			todo_s(4) = "ストレッチ" : todo_d(4) = 0 : todo_at(4) = "" : todo_dly(4) = 1
+			todo_s(2) = "資料を読む" : todo_d(2) = 1 : todo_day(2) = curday : todo_min(2) = 35
+			todo_s(3) = "請求書を送る" : todo_d(3) = 1 : todo_day(3) = curday : todo_min(3) = 80
+			gosub *todo_first
+		}
+		; 窓は舞台（画面の下の 1280x720）のなかに置きなおす
+		if frame = 90 : gosub *todo_open : gsel 10 : SetWindowPos hwnd, 0, 700, ground - 720 + 150, 0, 0, 0x15 : gsel 1
+		if frame = 420 : gosub *todo_close
+		; 内訳に出すアプリの時間は見本（本物の記録では、このテストを動かしている hsp3utf.exe が出てしまう）
+		if frame = 449 : napp = 3 : appname(0) = "code.exe" : appsec(0) = 4300 : appname(1) = "chrome.exe" : appsec(1) = 1900 : appname(2) = "winword.exe" : appsec(2) = 1100 : switches_today = 46 : keys_today = 5321
+		if frame = 450 : gosub *show_report : gsel 2 : SetWindowPos hwnd, 0, 760, ground - 720 + 20, 0, 0, 0x15 : gsel 1
+		if frame = 900 : gsel 2, -1 : gsel 1
+	}
+	; 確認用：dailytest は、前の日に済んだやることが消え、毎日のやることが入るかを見る（書き込み先は proto\mtest）
+	if (instr(cmd, 0, "dailytest") >= 0) & (frame = 30) {
+		dsave = datadir : datadir = dir_cur + "\\mtest" : CreateDirectory datadir, 0 : allow_save = 1
+		dy = gettime(0) : dm = gettime(1) : dd = gettime(3) : gosub *date_prev : dyest = strf("%04d-%02d-%02d", dy, dm, dd)
+		sdim ftx, 4096
+		ftx = "- @" + curday + " 09:00 まだのもの\nx " + dyest + " [30分] きのう済んだもの\nx " + curday + " [10分] 今日済んだもの\nx " + dyest + " [5分] [毎日] 歯みがき\n"
+		notesel ftx : notesave datadir + "\\todo.txt" : noteunsel
+		ftx = "# 毎日のやること\n歯みがき\n日報を書く\n"
+		notesel ftx : notesave datadir + "\\daily.txt" : noteunsel
+		gosub *load_todo : gosub *todo_newday
+		repeat ntodo
+			dbg += "DL " + cnt + " d=" + todo_d(cnt) + " dly=" + todo_dly(cnt) + " [" + todo_s(cnt) + "]\n"
+		loop
+		; 毎日にチェックして追加 → daily.txt に入る。毎日のものを消す → daily.txt から外れる
+		todo_daily_chk = 1 : todo_in = "ストレッチ" : gosub *todo_add : todo_daily_chk = 0
+		tdi = -1
+		repeat ntodo
+			if todo_s(cnt) = "日報を書く" : tdi = cnt
+		loop
+		gosub *todo_del : gosub *save_todo
+		ntodo = 0 : gosub *load_todo
+		repeat ndly
+			dbg += "DD " + dly_s(cnt) + "\n"
+		loop
+		notesel ftx : noteload datadir + "\\todo.txt" : dbg += ftx : noteunsel
+		delete datadir + "\\todo.txt" : delete datadir + "\\daily.txt"
+		datadir = dsave : allow_save = 0
+	}
 	; 確認用：matchtest は、ブラウザのタイトルの見本が distract.txt の語に引っかかるかを見る
 	if (instr(cmd, 0, "matchtest") >= 0) & (frame = 30) {
 		sdim mts, 256, 4
