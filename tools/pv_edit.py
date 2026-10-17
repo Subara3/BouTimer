@@ -225,10 +225,12 @@ def main():
             # 範囲は (はじめ, 長さ) か、ほかの素材からなら (記号, はじめ, 長さ)
             ranges = [r if len(r) == 3 else (key, r[0], r[1]) for r in ranges]
             total = sum(r[2] for r in ranges)
-            # ナレーションが入りきらなければ、最後の範囲をのばす
-            if nl + 1.0 > total:
-                ranges = ranges[:-1] + [(ranges[-1][0], ranges[-1][1], ranges[-1][2] + nl + 1.0 - total)]
-                total = nl + 1.0
+            # ナレーションが言いおわるまで場面を続ける（始まるまでの間＋声の長さ＋余韻＋次の場面との重なり）
+            start = 3.7 if i == 0 else 0.35
+            need = start + nl + 0.8 + XD
+            if need > total:
+                ranges = ranges[:-1] + [(ranges[-1][0], ranges[-1][1], ranges[-1][2] + need - total)]
+                total = need
             capp = os.path.join(TMP, "c%02d.png" % i)
             caption_png(capp, caps.get(nk, ""), label)
             ins, fc = [], []
@@ -270,7 +272,7 @@ def main():
                 png = os.path.join(TMP, "k%02d.png" % i); card_png(png, title, num)
                 nwav = None
             elif seg[0] == "mods":
-                dur = max(seg[1], wav_len(os.path.join(NARR, "m.wav")) + 1.2)
+                dur = max(seg[1], 0.4 + wav_len(os.path.join(NARR, "m.wav")) + 0.8 + XD)
                 png = os.path.join(TMP, "k%02d.png" % i); mods_png(png)
                 nwav = os.path.join(NARR, "m.wav")
             else:
