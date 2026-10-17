@@ -7,7 +7,7 @@
 # 4. 背景・舞台の窓・棒人間（・認識の図示・はじめましての窓・偽のマウス）を重ねて 30fps の動画にし、
 #    書き出した時刻に、同梱の声と効果音を重ねる
 # 使っている人の画面は写さない。棒人間の窓は画面の下のほうに出るが、フォーカスは取らない
-import ctypes, glob, os, shutil, subprocess, sys, time
+import array, ctypes, glob, os, shutil, subprocess, sys, time, wave
 from ctypes import wintypes
 from PIL import Image, ImageDraw
 
@@ -19,16 +19,17 @@ HSP = r"C:\hsp37\hsp3utf.exe"
 CMP = r"C:\hsp37\hspcmp.exe"
 W, H = 1280, 720
 
-# 記号: (ファイル名, 本体に渡すモード, 前面にする舞台の窓 1=メモ 2=YouTube 3=エディタ, 秒数の上限)
+# 記号: (ファイル名, 本体に渡すモード, 前面にする舞台の窓 1=メモ 2=YouTube 3=エディタ, 秒数の上限, カメラの寄り)
+# 寄りが 1 より大きいと、棒人間を追いかけて、その倍率で寄る（舞台が広く、棒人間が小さく見えるため）
 SCENES = {
-    "A": ("A_いろいろな動き", "show", 1, 120),
-    "B": ("B_つつく・投げる・登る", "interact", 1, 70),
-    "C": ("C_休憩でふちに座る", "test", 3, 30),
-    "D": ("D_サボり先に札", "scold", 2, 40),
-    "G": ("G_はじめまして", "wizardtest wzauto", 1, 50),
-    "H": ("H_やることにチェック", "tdchecktest tdnoundo", 3, 20),
-    "I": ("I_認識の図示", "realtest ovl", 1, 30),
-    "J": ("J_珠音の髪型", "show tamane", 1, 120),
+    "A": ("A_いろいろな動き", "show", 1, 120, 1.8),
+    "B": ("B_つつく・投げる・登る", "interact", 1, 70, 1.5),
+    "C": ("C_休憩でふちに座る", "test", 3, 30, 1.4),
+    "D": ("D_サボり先に札", "scold", 2, 40, 1.5),
+    "G": ("G_はじめまして", "wizardtest wzauto", 1, 50, 1.0),
+    "H": ("H_やることにチェック", "tdchecktest tdnoundo", 3, 20, 2.0),
+    "I": ("I_認識の図示", "realtest ovl", 1, 30, 1.0),
+    "J": ("J_珠音の髪型", "show tamane", 1, 120, 2.2),
 }
 
 u32 = ctypes.windll.user32
@@ -107,7 +108,7 @@ def cursor(img, x, y):
 
 
 def run_scene(key, ff):
-    name, mode, fg, limit = SCENES[key]
+    name, mode, fg, limit, zoom = SCENES[key]
     wa = workarea()
     ox, oy = 0, wa.b - H
     hwfile = os.path.join(TOOLS, "pvstage_hwnd.txt")
@@ -152,6 +153,7 @@ def run_scene(key, ff):
     enc = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-r", "30", "-i", "-",
                             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", silent], stdin=subprocess.PIPE)
     cur_ov = None; cur_wz = None; last_wz = -99
+    camx = camy = None
     for n, fr, cx, cy, fmx, fmy in frames:
         img = base.copy()
         if n in ovs:
@@ -169,25 +171,43 @@ def run_scene(key, ff):
         put(img, ch, cx - ox, cy - oy)
         if "tdcheck" in mode or "interact" in mode:
             if (fmx, fmy) != (0, 0) and fmx > -9000: cursor(img, fmx - ox, fmy - oy)
+        if zoom > 1.0:
+            # カメラ：棒人間の体のあたりを、ゆっくり追いかける
+            tx, ty = cx - ox + ch.width / 2, cy - oy + ch.height * 0.55
+            if camx is None: camx, camy = tx, ty
+            camx += (tx - camx) * 0.06; camy += (ty - camy) * 0.06
+            cw, chh = W / zoom, H / zoom
+            l = min(max(camx - cw / 2, 0), W - cw); t = min(max(camy - chh / 2, 0), H - chh)
+            img = img.crop((int(l), int(t), int(l + cw), int(t + chh))).resize((W, H), Image.LANCZOS)
         enc.stdin.write(img.convert("RGB").tobytes())
     enc.stdin.close(); enc.wait()
-    # 音：書き出した時刻（コマ ÷ 60 秒）に、同梱の声と効果音を重ねる
+    # 音：書き出した時刻（コマ ÷ 60 秒）に、同梱の声と効果音を重ねる。数が多いとコマンドが長すぎるので、Python の中で足し合わせる
     final = os.path.join(OUT, name + ".mp4")
-    ins, flt = [], []
+    rate = 48000
+    total = int(len(frames) / 30.0 * rate) * 2
+    mix = array.array("i", bytes(4 * total))
+    cache = {}
+    used = 0
     for fr, kind, nm in events:
         f = os.path.join(PROTO, "voice" if kind == "voice" else "se", nm + ".wav")
         if not os.path.exists(f): continue
-        ins += ["-i", f]
-        k = len(ins) // 2
-        ms = int(fr * 1000 / 60)
-        flt.append("[%d:a]aresample=48000,aformat=channel_layouts=stereo,adelay=%d|%d[a%d]" % (k, ms, ms, k))
-    if flt:
-        mix = "".join("[a%d]" % (i + 1) for i in range(len(flt)))
-        fc = ";".join(flt) + ";%samix=inputs=%d:normalize=0,apad[aout]" % (mix, len(flt))
-        subprocess.run([ff, "-y", "-loglevel", "error", "-i", silent] + ins + ["-filter_complex", fc, "-map", "0:v", "-map", "[aout]",
-                        "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", final], check=True)
-    else:
-        shutil.move(silent, final)
+        if f not in cache:
+            raw = subprocess.run([ff, "-loglevel", "error", "-i", f, "-ar", str(rate), "-ac", "2", "-f", "s16le", "-"], capture_output=True, check=True).stdout
+            a16 = array.array("h"); a16.frombytes(raw); cache[f] = a16
+        src = cache[f]
+        at = int(fr / 60.0 * rate) * 2
+        n = min(len(src), total - at)
+        for i in range(max(0, n)):
+            mix[at + i] += src[i]
+        used += 1
+    out16 = array.array("h", (max(-32768, min(32767, v)) for v in mix))
+    wavp = os.path.join(OUT, "_mix.wav")
+    with wave.open(wavp, "wb") as w:
+        w.setnchannels(2); w.setsampwidth(2); w.setframerate(rate); w.writeframes(out16.tobytes())
+    subprocess.run([ff, "-y", "-loglevel", "error", "-i", silent, "-i", wavp, "-map", "0:v", "-map", "1:a",
+                    "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", final], check=True)
+    os.remove(wavp)
+    flt = range(used)
     if os.path.exists(silent): os.remove(silent)
     shutil.rmtree(pvf, ignore_errors=True)
     print(key, name, "%d frames, %d sounds" % (len(frames), len(flt)))

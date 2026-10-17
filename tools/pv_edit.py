@@ -73,7 +73,9 @@ def main():
     lst = os.path.join(tmp, "list.txt")
     with open(lst, "w", encoding="utf-8") as f:
         for p in parts: f.write("file '%s'\n" % p.replace("\\", "/"))
-    subprocess.run([ff, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", OUT], check=True)
+    # つないでから、音の大きさをネットの動画の目安（-16 LUFS）にそろえる
+    subprocess.run([ff, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c:v", "copy",
+                    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", OUT], check=True)
     for p in parts: os.remove(p)
     os.remove(lst); os.remove(bgp); os.rmdir(tmp)
     print("PV:", OUT, "%.1f MB" % (os.path.getsize(OUT) / 1e6))
