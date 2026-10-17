@@ -12,7 +12,7 @@
 	dim evc, NEV : sdate = "" : diary_pending = 0
 	today = strf("%04d-%02d-%02d", gettime(0), gettime(1), gettime(3))
 	work_min = 25 : break_min = 5 : typecount_on = 1 : sound_on = 1 : inkmode = 0 : close_mode = 0 : close_min = 15
-	season_on = 1 : slack_stop = 0 : idle_stop = 1 : costume = 0 : act_level = 1 : my_fcode = "" : diary_hour = 21 : diary_asked = "" : voice_mode = 0 : voice_asked = 0 : vv_speaker = 11 : friend_on = 0 : myid = "" : gh_url = "https://boutimer-ghost.subara3.workers.dev/"
+	season_on = 1 : slack_stop = 0 : idle_stop = 1 : costume = 0 : stand_on = 1 : act_level = 1 : my_fcode = "" : diary_hour = 21 : diary_asked = "" : voice_mode = 0 : voice_asked = 0 : vv_speaker = 11 : friend_on = 0 : myid = "" : gh_url = "https://boutimer-ghost.subara3.workers.dev/"
 	pomos_today = 0 : keys_today = 0 : pomos_total = 0 : workms_today = 0
 	aq_n = 0 : aq_gold = 0 : aq_big = 0
 	exist datadir + "\\settings.txt"
@@ -50,6 +50,7 @@
 		if sk = "slack_stop" : slack_stop = int(sv)
 		if sk = "idle_stop" : idle_stop = int(sv)
 		if sk = "costume" : costume = int(sv)
+		if sk = "stand" : stand_on = int(sv)
 		if sk = "diary_hour" : diary_hour = int(sv)
 		if sk = "diary_asked" : diary_asked = sv
 		if sk = "myid" : myid = sv
@@ -116,6 +117,7 @@
 	stxt += "slack_stop=" + slack_stop + "\n"
 	stxt += "idle_stop=" + idle_stop + "\n"
 	stxt += "costume=" + costume + "\n"
+	stxt += "stand=" + stand_on + "\n"
 	stxt += "diary_hour=" + diary_hour + "\n"
 	stxt += "diary_asked=" + diary_asked + "\n"
 	stxt += "myid=" + myid + "\n"

@@ -12,7 +12,7 @@
 	sw_close = close_mode
 	sw_cmin = (close_min = 10) + (close_min = 15) * 2 + (close_min = 30) * 3
 	sw_type = typecount_on : sw_sound = sound_on : sw_season = season_on : sw_friend = friend_on
-	sw_idle = idle_stop : sw_slack = slack_stop : sw_ovl = ovl_on : sw_cos = costume
+	sw_idle = idle_stop : sw_slack = slack_stop : sw_ovl = ovl_on : sw_cos = costume : sw_stand = stand_on
 	sw_dh = 0 : if diary_hour >= 17 : sw_dh = diary_hour - 16
 	gosub *startup_path
 	exist su_lnk
@@ -24,11 +24,11 @@
 	dim sw_obj, 8
 	; 開くたびに作り直す（screen で前の部品は消える）
 	; 左によく使う設定、右に「高度な設定」
-	screen 8, 940, 470, 2, (wa(0) + wa(2)) / 2 - 470, (wa(1) + wa(3)) / 2 - 235
+	screen 8, 940, 500, 2, (wa(0) + wa(2)) / 2 - 470, (wa(1) + wa(3)) / 2 - 250
 	title "作業のおとも、棒人間の設定"
 	; チェックボックスの地の色（システムのボタン面の色）に合わせる
 	color 240, 240, 240 : boxf
-	color 220, 220, 224 : line 462, 16, 462, 390
+	color 220, 220, 224 : line 462, 16, 462, 420
 	font "Meiryo UI", 14 : objmode 2
 	color 40, 40, 48
 	pos 18, 22 : mes "作業の長さ"
@@ -64,9 +64,10 @@
 	pos 484, 300 : chkbox "認識の図示（足場や道を画面に描く）", sw_ovl
 	pos 484, 330 : chkbox "サーバーと通信する（ゴースト機能用）", sw_friend
 	pos 484, 360 : chkbox "着せ替え：珠音（たまね）の髪型", sw_cos
+	pos 18, 292 : chkbox "1時間ごとに、立って伸びる合図", sw_stand
 	objsize 150, 34
-	pos 316, 414 : button gosub "OK", *settings_ok
-	pos 476, 414 : button gosub "キャンセル", *settings_cancel
+	pos 316, 444 : button gosub "OK", *settings_ok
+	pos 476, 444 : button gosub "キャンセル", *settings_cancel
 	win_id = 8 : gosub *show_win
 	return
 
@@ -105,6 +106,7 @@
 	if sw_slack != slack_stop : r = 96 : gosub *menu_do
 	if sw_ovl != ovl_on : r = 90 : gosub *menu_do
 	if sw_cos != costume : r = 85 + sw_cos : gosub *menu_do
+	if sw_stand != stand_on : r = 98 : gosub *menu_do
 	if sw_start != sw_start0 : gosub *startup_set
 	if sw_dh >= 1 : sw_dh += 16
 	if sw_dh != diary_hour : diary_hour = sw_dh : gosub *save_settings

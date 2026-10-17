@@ -318,6 +318,13 @@
 		delete datadir + "\\todo.txt" : delete datadir + "\\daily.txt"
 		datadir = dsave : allow_save = 0
 	}
+	; 確認用：standtest は、操作している時間が15秒たまったら、立って伸びる合図が出るかを見る
+	if instr(cmd, 0, "standtest") >= 0 {
+		if frame = 1 : endframe = 60 * 24 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : stand_on = 1
+		; 本物の操作がなくても数えるように
+		idlems = 0
+		if (frame \ 60) = 0 : dbg += strf("ST f=%d stand=%d due=%d st=%d act=%d", frame, stand_ms, stand_due, state, act) + " " + bubble + "\n"
+	}
 	; 確認用：matchtest は、ブラウザのタイトルの見本が distract.txt の語に引っかかるかを見る
 	if (instr(cmd, 0, "matchtest") >= 0) & (frame = 30) {
 		sdim mts, 256, 4

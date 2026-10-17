@@ -227,6 +227,7 @@
 	}
 	; 休憩をとらずに長く続けていたら、伸びをして合図する
 	if stretch_due : stretch_due = 0 : act = ACT_STRETCH : gosub *start_act : return
+	if stand_due : stand_due = 0 : stand_msg = 1 : act = ACT_STRETCH : gosub *start_act : return
 	; 一定時間ごとにお茶（何か言っている途中なら、言い終わるまで待つ）
 	if (frame >= next_tea) & (bubt <= 0) {
 		act = ACT_TEA : gosub *start_act
@@ -272,7 +273,12 @@
 	if act = ACT_ICONBALL : sdur = 300 : bubble = "アイコン借りるぞ" : bubt = 60
 	if act = ACT_PPAP : sdur = 300 : dir = 1 : evc(EV_PPAP)++
 	if act = ACT_SEASON : sdur = 360
-	if act = ACT_STRETCH : sdur = 400 : bubble = "ちょっと伸びようぜ" : bubt = 90
+	if act = ACT_STRETCH {
+		sdur = 400 : bubble = "ちょっと伸びようぜ" : bubt = 90
+		if stand_msg : stand_msg = 0 : bubble = "そろそろ立って、伸びようぜ" : bubt = 110
+		; どちらの合図で伸びても、両方の数えをやりなおす（続けて2回伸びないように）
+		stand_ms = 0 : stretch_next = cont_ms + 30 * 60000
+	}
 	if act = ACT_TOSS {
 		sdur = 220 : bubble = "" : bubt = 0
 		; 丸めた紙が届くように、ゴミ箱を置く向きを決める（足場の端に近いときは内側へ）

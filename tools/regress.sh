@@ -31,6 +31,7 @@ run "stretchtest" "遠くを見ると" 60
 run "histtest" "H 2026-10-15" 60
 run "todotimetest" "TT stat n=3" 60
 run "dailytest" "DD ストレッチ" 40
+run "standtest noaudio" "そろそろ立って" 40
 run "slacktest" "slack=1 elapsed" 40
 run "matchtest" "MATCH 1 ホーム" 40
 run "posetest" "POSE 4" 40

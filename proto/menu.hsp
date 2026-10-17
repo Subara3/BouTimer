@@ -52,6 +52,7 @@
 	; ふだんは変えない設定は「高度な設定」にまとめる
 	hx = CreatePopupMenu()
 	AppendMenu hx, 8 * typecount_on, 31, "タイピングを数える（回数だけ）"
+	AppendMenu hx, 8 * stand_on, 98, "1時間ごとに、立って伸びる合図"
 	AppendMenu hx, 8 * idle_stop, 97, "席を離れたら一時停止する（10分さわらなかったら）"
 	hc = CreatePopupMenu()
 	AppendMenu hc, 8 * (inkmode = 0), 40, "おまかせ（ウィンドウのアイコンの色）"
@@ -137,6 +138,7 @@
 	if r = 102 : gosub *show_about
 	if r = 103 : gosub *settings_open
 	if (r >= 85) & (r <= 86) : costume = r - 85 : gosub *save_settings
+	if r = 98 : stand_on = 1 - stand_on : stand_ms = 0 : gosub *save_settings
 	if r = 97 : idle_stop = 1 - idle_stop : gosub *save_settings
 	if r = 96 : slack_stop = 1 - slack_stop : gosub *save_settings
 	if r = 95 : season_on = 1 - season_on : gosub *season_update : gosub *save_settings

@@ -615,6 +615,9 @@
 	gosub *fr_load
 	; 休憩をとらずに続けている時間（休憩を3分以上とるか、5分離れたら0にもどる）
 	cont_ms = 0 : stretch_next = 0 : stretch_due = 0
+	; 1時間ごとに立って伸びる合図（stand_on）。操作している時間を stand_ms にためる
+	stand_ms = 0 : stand_due = 0 : stand_msg = 0 : stand_every = 60 * 60000
+	if instr(cmd, 0, "standtest") >= 0 : stand_every = 15000
 	sdim hist_d, 16, 60 : dim hist_w, 60 : dim hist_p, 60 : dim hist_k, 60 : dim hist_t, 60 : nhist = 0
 	dinit = 0 : dwinit = 0 : curday = today
 	; 前の日までに済んだやることを消し、毎日のやることを入れる
@@ -845,6 +848,12 @@ shotall = instr(cmd, 0, "shotall") >= 0
 	if (phase = 0) & (cont_ms >= work_ms * 2) & (cont_ms >= stretch_next) {
 		stretch_due = 1 : stretch_next = cont_ms + 30 * 60000
 		if testmode : stretch_next = cont_ms + 30000
+	}
+	; 操作している時間が1時間たまったら、立って伸びる合図。5分以上離れたら、立ったものとして数えなおす
+	if stand_on {
+		if idlems < 60000 : stand_ms += now - lastnow
+		if idlems > 5 * 60000 : stand_ms = 0
+		if stand_ms >= stand_every : stand_ms = 0 : stand_due = 1
 	}
 	lastnow = now
 	if (frame \ 3600) = 0 {
