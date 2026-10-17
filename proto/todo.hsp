@@ -207,7 +207,7 @@
 	}
 	todos_today++
 	gosub *save_todo
-	todo_ask = 0 : toss_pending = 1
+	toss_pending = 1
 	bubble = "ひとつ片づいたな！" : bubt = 90
 	return
 
@@ -350,20 +350,6 @@
 	}
 	gosub *todo_first
 	if todo_made : gosub *todo_fill
-	return
-
-; 休憩中に聞かれたあと、つつかれたら「終わった？」の小さなメニューを出す
-*todo_ask_menu
-	todo_ask = 0
-	gosub *todo_first
-	if todo_top < 0 : return
-	hm = CreatePopupMenu()
-	AppendMenu hm, 0, 1, "終わった！"
-	AppendMenu hm, 0, 2, "まだ"
-	gosub *track_menu
-	r2 = menu_r
-	if r2 = 1 : tdi = todo_top : gosub *todo_done : if todo_made : gosub *todo_fill
-	if r2 = 2 : bubble = "おう、あとでな" : bubt = 60
 	return
 
 ; 「2026-10-17 14:05」（ta）を、通しの分（tm_abs）にする

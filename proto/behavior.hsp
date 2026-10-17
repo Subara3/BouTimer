@@ -152,7 +152,7 @@
 		return
 	}
 	; 曲にノるのは60分に1回まで
-	if (musicfr >= 180) & (frame >= groove_next) & (bubt <= 0) & (diary_ask = 0) & (todo_ask = 0) & (toss_pending = 0) & ((state = ST_IDLE) | (state = ST_WALK)) & (phase = 0) & (showmode = 0) {
+	if (musicfr >= 180) & (frame >= groove_next) & (bubt <= 0) & (diary_ask = 0) & (toss_pending = 0) & ((state = ST_IDLE) | (state = ST_WALK)) & (phase = 0) & (showmode = 0) {
 		state = ST_GROOVE : stimer = 0 : bubble = "お、いい曲" : bubt = 60 : evc(EV_GROOVE)++
 		groove_next = frame + 60 * 60 * 60
 		return
@@ -434,8 +434,8 @@
 		}
 		goto *wander_move
 	}
-	; 絵日記や「終わった？」を聞いているあいだは、新しい遊びを始めない（セリフが上書きされるので）
-	if (diary_ask > 0) | (todo_ask > 0) : state = ST_IDLE : goto *wander_move
+	; 「絵日記、書くか？」と聞いているあいだは、新しい遊びを始めない（セリフが上書きされるので）
+	if diary_ask > 0 : state = ST_IDLE : goto *wander_move
 	if showmode {
 		; 見た目確認用：小さな動きを順番に
 		think = 40

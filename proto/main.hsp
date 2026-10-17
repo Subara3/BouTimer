@@ -604,7 +604,7 @@
 	gosub *load_kotoba
 	; やることリスト（todo.txt）と時刻のお知らせ（alarm.txt）
 	sdim todo_s, 256, 40 : dim todo_d, 40 : sdim todo_day, 16, 40 : sdim todo_at, 20, 40 : dim todo_min, 40 : dim todo_dly, 40 : sdim dly_s, 256, 20 : ndly = 0 : todo_daily_chk = 0 : ntodo = 0 : todo_made = 0
-	todo_ask = 0 : todo_ask_at = 0 : todo_ask2 = 0 : sdim cu_s, 256 : carry_paper = 0 : tossb = 1.0 : wk_fake = 0 : toss_pending = 0 : todo_top = -1
+	sdim cu_s, 256 : carry_paper = 0 : tossb = 1.0 : wk_fake = 0 : toss_pending = 0 : todo_top = -1
 	sdim al_s, 256, 20 : dim al_m, 20 : dim al_rep, 20 : dim al_arg, 20 : al_wd0 = 0 : al_dd0 = 1 : nal = 0 : al_made = 0 : al_due = -1 : alh = 0 : alt = 0 : al_lastmin = -1 : al_air = 0
 	sdim al_text, 256 : al_time = ""
 	gosub *load_todo
@@ -720,18 +720,7 @@ shotall = instr(cmd, 0, "shotall") >= 0
 	} else {
 		al_air = 0
 	}
-	; 休憩に入ったら、持っている「やること」が終わったか聞く
-	if (todo_ask_at > 0) & (frame >= todo_ask_at) {
-		todo_ask_at = 0
-		gosub *todo_first
-		if todo_top >= 0 {
-			cu_s = todo_s(todo_top) : cu_n = 6 : gosub *cut_utf8
-			bubble = "「" + cu_s + "」終わった？" : bubt = 170 : todo_ask = 60 * 30 : todo_ask2 = frame + 180
-		}
-	}
-	if todo_ask > 0 : todo_ask--
 	gosub *diary_ask_tick
-	if (todo_ask > 0) & (frame = todo_ask2) : bubble = "終わってたら、つついてくれ" : bubt = 150
 	if (frame \ 60) = 30 : gosub *watch_env
 	gosub *gh_tick
 	gosub *ghost_tick

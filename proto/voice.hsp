@@ -36,7 +36,6 @@
 		if instr(bubble, 0, "絵日記") >= 0 : imp = 1
 		if instr(bubble, 0, "寝ようぜ") >= 0 : imp = 1
 		if instr(bubble, 0, "だぞ！") >= 0 : imp = 1
-		if instr(bubble, 0, "終わった？") >= 0 : imp = 1
 		if instr(bubble, 0, "片づいた") >= 0 : imp = 1
 		if instr(bubble, 0, "伸びようぜ") >= 0 : imp = 1
 		if imp = 0 : return

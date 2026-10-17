@@ -21,10 +21,12 @@
 		GdipGetImageGraphicsContext gbmp3, govl
 		GdipSetSmoothingMode govl, 4
 		GdipSetTextRenderingHint govl, 4
-		GdipCreatePen1 0xD000C8FF, 3.0, 2, ovpvis
-		GdipCreatePen1 0x90FF5050, 2.0, 2, ovphid
+		; PV 用モードでは、動画で見えるように線を太くする
+		ovw = 1.0 : if pvmode : ovw = 2.2
+		GdipCreatePen1 0xD000C8FF, 3.0 * ovw, 2, ovpvis
+		GdipCreatePen1 0x90FF5050, 2.0 * ovw, 2, ovphid
 		GdipSetPenDashStyle ovphid, 2
-		GdipCreatePen1 0xE0FFB020, 2.5, 2, ovppath
+		GdipCreatePen1 0xE0FFB020, 2.5 * ovw, 2, ovppath
 		GdipSetPenDashStyle ovppath, 1
 		dim ptd3, 2 : dim psz3, 2
 		psz3(0) = vw : psz3(1) = vh

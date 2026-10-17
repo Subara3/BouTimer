@@ -34,12 +34,12 @@ PLAN = [
     ("clip", "H", [(2.0, 7.0)], "h", "やることリスト", 0.0),
     ("clip", "L", [(0.6, 11.0)], "l", "作業の記録", 0.0),
     ("clip", "D", [(5.0, 5.4)], "d", "作業を促す", 0.0),
-    ("clip", "G", [(1.0, 6.0)], "g", "はじめての設定", 0.0),
-    ("clip", "B", [(11.0, 4.0), ("A", 1.5, 4.5)], "b", "気分転換", 0.0),
+    ("clip", "G", [(1.0, 6.0)], "g", "はじめての設定", (648, 368, 1.5)),
+    ("clip", "B", [(2.0, 5.0), ("A", 1.5, 4.5)], "b", "気分転換", 0.0),
     ("clip", "J", [(2.0, 4.0)], "j", "着せ替え（珠音）", 0.0),
-    ("card", "技術解説", "2", 3.0),
-    ("clip", "I", [(2.0, 8.4)], "i", "足場を見つける", 0.0),
-    ("clip", "A", [(58.0, 6.0)], "r", "道さがし", 0.0),
+    ("card", "技術解説", "2", 3.0, "t2"),
+    ("clip", "R", [(0.3, 8.4)], "i", "足場を見つける", 0.0),
+    ("clip", "R", [(12.5, 6.0)], "r", "道さがし", 0.0),
     ("clip", "A", [(30.0, 7.4)], "p", "透けるウィンドウで表示", 0.0),
     ("mods", 6.2),
     ("end", 5.0),
@@ -201,10 +201,11 @@ def title_png(path):
     fb = ImageFont.truetype(FB, 66)
     fm = ImageFont.truetype(FB, 30)
     tw = d.textlength(TITLE, font=fb)
-    d.rounded_rectangle([(W - tw) / 2 - 50, 220, (W + tw) / 2 + 50, 400], 26, fill=(255, 255, 255, 235))
-    d.text(((W - tw) / 2, 242), TITLE, font=fb, fill=INK)
+    y0 = 470
+    d.rounded_rectangle([(W - tw) / 2 - 50, y0, (W + tw) / 2 + 50, y0 + 180], 26, fill=(255, 255, 255, 240))
+    d.text(((W - tw) / 2, y0 + 22), TITLE, font=fb, fill=INK)
     sw = d.textlength(SUB, font=fm)
-    d.text(((W - sw) / 2, 336), SUB, font=fm, fill=(60, 140, 120))
+    d.text(((W - sw) / 2, y0 + 116), SUB, font=fm, fill=(60, 140, 120))
     im.save(path)
 
 
@@ -247,7 +248,13 @@ def main():
                 fc.append("".join("[v%d][a%d]" % (k, k) for k in range(n)) + "concat=n=%d:v=1:a=1[vc][ac]" % n)
             else:
                 fc.append("[v0]null[vc];[a0]anull[ac]")
-            if zoom:
+            if isinstance(zoom, tuple):
+                # (中心x, 中心y, 倍率)：その場所に寄ったまま止める（窓の文字を読ませたいとき）
+                zx, zy, zf = zoom
+                cw, chh = int(W / zf) // 2 * 2, int(H / zf) // 2 * 2
+                l = min(max(int(zx - cw / 2), 0), W - cw); t = min(max(int(zy - chh / 2), 0), H - chh)
+                fc.append("[vc]crop=%d:%d:%d:%d,scale=%d:%d:flags=lanczos,setsar=1[vz]" % (cw, chh, l, t, W, H))
+            elif zoom:
                 z0, z1 = (1.0, 1.0 + zoom) if zoom > 0 else (1.0 - zoom, 1.0)
                 fc.append("[vc]scale=w='trunc(%d*(%f+(%f)*t/%f)/2)*2':h=-2:eval=frame,crop=%d:%d,setsar=1[vz]" % (W, z0, z1 - z0, total, W, H))
             else:
@@ -272,9 +279,15 @@ def main():
             durs.append(total)
         else:
             if seg[0] == "card":
-                _, title, num, dur = seg
+                title, num, dur = seg[1], seg[2], seg[3]
                 png = os.path.join(TMP, "k%02d.png" % i); card_png(png, title, num)
                 nwav = None
+                # 見出しにナレーションをつけるときは、字幕も下に出す
+                if len(seg) > 4:
+                    nwav = os.path.join(NARR, seg[4] + ".wav")
+                    dur = max(dur, 0.4 + wav_len(nwav) + 0.8 + XD)
+                    cp = os.path.join(TMP, "kc%02d.png" % i); caption_png(cp, caps.get(seg[4], ""), None)
+                    im = Image.open(png).convert("RGBA"); im.alpha_composite(Image.open(cp)); im.convert("RGB").save(png)
             elif seg[0] == "mods":
                 dur = max(seg[1], 0.4 + wav_len(os.path.join(NARR, "m.wav")) + 0.8 + XD)
                 png = os.path.join(TMP, "k%02d.png" % i); mods_png(png)

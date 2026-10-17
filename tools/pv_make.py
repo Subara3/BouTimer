@@ -32,6 +32,7 @@ SCENES = {
     "J": ("J_珠音の髪型", "show tamane", 1, 120, 2.2),
     "K": ("K_タイマーで一時停止", "clicktest", 1, 14, 1.8),
     "L": ("L_やることリストと内訳", "pvlisttest", 1, 16, 1.0),
+    "R": ("R_道さがし", "pvroutetest", 1, 26, 1.0),
 }
 
 u32 = ctypes.windll.user32

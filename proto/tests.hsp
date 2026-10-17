@@ -216,9 +216,8 @@
 	if instr(cmd, 0, "todotest") >= 0 {
 		endframe = 60 * 30 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
 		if frame = 30 : ntodo = 2 : todo_s(0) = "資料の3章をまとめて先生に送る" : todo_d(0) = 0 : todo_s(1) = "メールの返事" : todo_d(1) = 0
-		if frame = 120 : todo_ask_at = frame + 1
 		if frame = 700 : gosub *todo_first : tdi = todo_top : gosub *todo_done
-		if (frame \ 30) = 0 : dbg += strf("T f=%d st=%d act=%d ask=%d top=%d pend=%d", frame, state, act, todo_ask, todo_top, toss_pending) + " " + bubble + "\n"
+		if (frame \ 30) = 0 : dbg += strf("T f=%d st=%d act=%d top=%d pend=%d", frame, state, act, todo_top, toss_pending) + " " + bubble + "\n"
 		if frame = 1100 : dday = curday : gosub *make_diary : dbg += "DIARY " + diary_path + "\n"
 	}
 	if (instr(cmd, 0, "papertest") >= 0) & (frame <= 5) : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000
@@ -324,6 +323,15 @@
 		; 本物の操作がなくても数えるように
 		idlems = 0
 		if (frame \ 60) = 0 : dbg += strf("ST f=%d stand=%d due=%d st=%d act=%d", frame, stand_ms, stand_due, state, act) + " " + bubble + "\n"
+	}
+	; 確認用：pvroutetest は、認識の図示を出して、離れた窓へ2回移動する（道が線で出る。PV 用）
+	if instr(cmd, 0, "pvroutetest") >= 0 {
+		if frame = 1 : endframe = 60 * 26 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : tea_every = 999999 : next_tea = 999999
+		if (frame = 60) & (ovl_on = 0) : gosub *ovl_toggle
+		; 舞台：メモ (90,330)、YouTube (520,170)、エディタ (860,400)。窓の上の辺のそばを行き先にする
+		if frame = 150 : gt_x = 1150 : gt_y = ground - 720 + 380 : gosub *goto_start
+		if frame = 800 : gt_x = 130 : gt_y = ground - 720 + 300 : gosub *goto_start
+		if (frame \ 60) = 0 : dbg += strf("RT f=%d st=%d cx=%d cy=%d", frame, state, int(cx), int(cy)) + "\n"
 	}
 	; 確認用：matchtest は、ブラウザのタイトルの見本が distract.txt の語に引っかかるかを見る
 	if (instr(cmd, 0, "matchtest") >= 0) & (frame = 30) {

@@ -184,9 +184,8 @@
 	if state = ST_CLIMB : bubble = "今登ってるとこ！" : bubt = 50 : return
 	; 時刻を知らせているときにつつかれたら、伝わったことにする
 	if state = ST_ALARM : state = ST_HAPPY : stimer = 0 : alt = 0 : bubble = "よし、行ってこい！" : bubt = 70 : return
-	; 「終わった？」と聞いているときは、答えを選んでもらう
+	; 「絵日記、書くか？」と聞いているときは、答えを選んでもらう
 	if diary_ask > 0 : gosub *diary_ask_menu : return
-	if todo_ask > 0 : gosub *todo_ask_menu : return
 	; 茶を飲んでいるときにつつかれたら、こぼす
 	if (state = ST_ACT) & (act = ACT_TEA) & (stimer > 30) : act = ACT_WIPE : gosub *start_act : return
 	; 腕立て中につつかれたら、つぶれる
