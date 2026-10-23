@@ -1,10 +1,10 @@
-_FILEVERSION=1.0.0.0
-_PRODUCTVERSION=1.0.0.0
+_FILEVERSION=1.1.0.0
+_PRODUCTVERSION=1.1.0.0
 FileDescription=作業のおとも、棒人間
-FileVersion=1.0
+FileVersion=1.1
 InternalName=BouTimer
 OriginalFilename=BouTimer.exe
 ProductName=作業のおとも、棒人間
-ProductVersion=1.0
+ProductVersion=1.1
 LegalCopyright=subara3
 CompanyName=subara3

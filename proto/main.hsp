@@ -85,7 +85,7 @@
 #func GlobalFree "GlobalFree" int
 #cfunc GlobalLock "GlobalLock" int
 #func GlobalUnlock "GlobalUnlock" int
-#define VERSION_STR "1.0"
+#define VERSION_STR "1.1"
 ; 新しい版のお知らせ：版の番号を1行書いたテキストと、知らせたときに開くページ
 #define UPDATE_URL "https://raw.githubusercontent.com/Subara3/BouTimer/main/version.txt"
 #define UPDATE_PAGE "https://github.com/Subara3/BouTimer/releases"

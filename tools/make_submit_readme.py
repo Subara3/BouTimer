@@ -10,6 +10,10 @@ PV_URL = "https://youtu.be/ljjBfBjCtJ0"
 
 s = open(SRC, encoding="utf-8").read().replace("\r\n", "\n")
 s = s.replace("▶", "＞")
+# 20000バイトに収めるため、更新履歴の節は外し（zip の readme には残す）、節のあいだの空行を1行にする
+import re
+s = re.sub(r"■ 更新履歴\n.*?(?=■ )", "", s, flags=re.S)
+s = s.replace("\n\n\n■", "\n\n■")
 k = "ソース：https://github.com/Subara3/BouTimer\n"
 assert k in s
 s = s.replace(k, k + "紹介動画：" + PV_URL + "\n")
