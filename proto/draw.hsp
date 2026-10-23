@@ -20,6 +20,18 @@
 		GdipFillEllipse gfx, brush, LW / 2 - 14, LF - 2, 28, 5
 	}
 
+	if (costume = 1) & (tama_img != 0) {
+		; 珠音にしたときは、棒人間の代わりにドット絵を描く（棒人間の細かい動きはしない）
+		gosub *tama_sprite
+	} else {
+		gosub *stick_body
+	}
+
+	; 文字（時間・ふきだし・zzz）
+	gosub *render_text
+	return
+
+*stick_body
 	GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
 	if lie {
 		GdipTranslateWorldTransform gfx, LW / 2 - 30 * dir, LF - 4, 0
@@ -28,6 +40,12 @@
 		GdipTranslateWorldTransform gfx, LW / 2, LF, 0
 	}
 	GdipScaleWorldTransform gfx, sx * dir, sy, 0
+	; 体を回す（宙返り）。おなかのあたりを中心に
+	if rot != 0.0 {
+		GdipTranslateWorldTransform gfx, 0.0, -30.0, 0
+		GdipRotateWorldTransform gfx, rot, 0
+		GdipTranslateWorldTransform gfx, 0.0, 30.0, 0
+	}
 
 	; 首と頭の位置
 	neckx = hipx + sin(lean * RAD) * 18.0 : necky = hipy - cos(lean * RAD) * 18.0 + breath
@@ -60,8 +78,51 @@
 	if (state = ST_ACT) & (act = ACT_TOSS) : gosub *draw_toss
 	if (state = ST_ACT) & (act >= ACT_ROPE) : gosub *draw_play
 	gosub *draw_icons
+	return
 
-	; 文字（時間・ふきだし・zzz）
+; 珠音のドット絵。行：0 正面歩き　1 左向き歩き　2 後ろ向き　4 よろこぶ（0・1）　5 寝る（3）
+*tama_sprite
+	headx = 0.0 : heady = -50.0 : hipx = 0.0 : hipy = -24.0
+	ts_row = 0 : ts_col = 0 : ts_flip = 0
+	if (view = 0) {
+		; 横向きは左向きの絵。右へ向くときは左右を返す
+		ts_row = 1 : ts_flip = (dir > 0)
+	}
+	if view = 2 : ts_row = 2
+	; 歩く・登るときだけ、コマを送る
+	if (state = ST_CLIMB) : ts_row = 2 : ts_col = (frame / 8) \ 8
+	if ((state = ST_WALK) | (state = ST_GOTO)) & (absf(vx) > 0.1) & grounded : ts_row = 1 : ts_flip = (vx > 0.0) : ts_col = (frame / 6) \ 8
+	; よろこぶ・つつかれる・手を振る・空中
+	if (state = ST_CHEER) | (state = ST_HAPPY) | (state = ST_WAVE) | (state = ST_POKED) | (pose_kind = 1) : ts_row = 4 : ts_col = (frame / 20) \ 2 : ts_flip = 0
+	if (grounded = 0) & (state != ST_CLIMB) & (dragging = 0) : ts_row = 4 : ts_col = 0 : ts_flip = 0
+	if dragging : ts_row = 4 : ts_col = 0 : ts_flip = 0
+	if zzz | (state = ST_SLEEP) : ts_row = 5 : ts_col = 3 : ts_flip = 0
+	GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
+	GdipTranslateWorldTransform gfx, LW / 2, LF, 0
+	if ts_flip : GdipScaleWorldTransform gfx, -1.0, 1.0, 0
+	; ドットがにじまないように、いちばん近い画素で拡大する
+	GdipSetInterpolationMode gfx, 5 : GdipSetPixelOffsetMode gfx, 4
+	GdipDrawImageRectRectI gfx, tama_img, -32, -63, 64, 64, ts_col * 64, ts_row * 64, 64, 64, 2, 0, 0, 0
+	GdipSetInterpolationMode gfx, 0 : GdipSetPixelOffsetMode gfx, 0
+	; やることがあれば紙を持つ（正面と横向きで、歩いている・立っているときだけ。横向きは顔の前）
+	halo = 0
+	if (todo_top >= 0) & (dragging = 0) & (ts_row <= 1) & ((state = ST_IDLE) | (state = ST_WALK) | (state = ST_GOTO)) {
+		tpx = 9.0 : if ts_row = 1 : tpx = -18.0
+		tpy = -31.0
+		GdipSetSolidFillColor brush, 0xFFFFFFFF
+		GdipFillRectangle gfx, brush, tpx, tpy, 8.0, 10.0
+		GdipSetPenColor pen, 0xFF404050 : GdipSetPenWidth pen, 1.0
+		GdipDrawRectangle gfx, pen, tpx, tpy, 8.0, 10.0
+		GdipSetPenColor pen, 0xFF9AA8C8
+		GdipDrawLine gfx, pen, tpx + 1.5, tpy + 3.0, tpx + 6.5, tpy + 3.0
+		GdipDrawLine gfx, pen, tpx + 1.5, tpy + 5.5, tpx + 6.5, tpy + 5.5
+		GdipDrawLine gfx, pen, tpx + 1.5, tpy + 8.0, tpx + 5.0, tpy + 8.0
+		gosub *pen_back
+	}
+	if tm_shot & ((frame \ 24) = 1) & shoton : dbg += strf("TS f=%d st=%d row=%d col=%d flip=%d", frame, state, ts_row, ts_col, ts_flip) + "\n"
+	return
+
+*render_text
 	GdipResetWorldTransform gfx : GdipScaleWorldTransform gfx, uis, uis, 0
 	headsx = int(cx) + int((double(LW / 2) + double(dir) * headx * sx) * uis) : headsy = int(cy) + int((double(LF) + heady * sy) * uis)
 	if signboard {
@@ -98,9 +159,15 @@
 	label += strf("%d:%02d", remain / 60000, (remain / 1000) \ 60)
 	if slack_now & (phase = 0) : label = "‖タイマー停止中" : fg = 0xFF808088
 	if paused : label = "‖一時停止中" : fg = 0xFF808088
+	tl_bg = 0xD8FFFFFF
+	; まだ始めていないときは、押せる札だとわかるように色を付けて、ゆっくり明滅させる
+	if notyet {
+		label = "▶作業をはじめる" : fg = 0xFFFFFFFF : tl_bg = 0xF0E8782A
+		if ((frame / 40) \ 2) = 1 : tl_bg = 0xF0F0A060
+	}
 	tl_w = limitf(24.0 + double(strlen(label)) * 4.0, 76.0, 130.0) : tl_x = double(LW / 2) - tl_w / 2.0
 	; はじめての質問のあいだは、タイマーの表示を出さない
-	if wz_on = 0 : cpill 0, label, tl_x, 2, tl_w, 18, 0xD8FFFFFF, fg
+	if wz_on = 0 : cpill 0, label, tl_x, 2, tl_w, 18, tl_bg, fg
 	if hovering & (dragging = 0) {
 		; カーソルを乗せると今日の記録
 		hs_line = "ポモドーロ：" + pomos_today + "サイクル"
@@ -108,13 +175,22 @@
 		hw1 = limitf(16.0 + double(strlen(hs_line)) * 4.0, 90.0, LW - 4.0)
 		cpill 1, hs_line, LW / 2 - hw1 / 2, 21, hw1, 16, 0xC8FFFFFF, 0xFF505060
 		; 持っているやることを、チェック欄つきで見せる。クリックで済みにする（済ませた直後の8秒は、もう一度クリックでもどせる）
-		td_vis = 0 : td_ck = 0
+		td_vis = 0 : td_ck = 0 : td_empty = 0
 		if (td_undo >= 0) & (frame < td_undo_t) {
-			if td_undo < ntodo : td_vis = 1 : td_ck = 1 : cu_s = todo_s(td_undo)
+			if td_undo < ntodo {
+				if todo_s(td_undo) = td_undo_s : td_vis = 1 : td_ck = 1 : cu_s = todo_s(td_undo)
+			}
 		} else {
 			if todo_top >= 0 : td_vis = 1 : cu_s = todo_s(todo_top)
+			if todo_top < 0 : td_vis = 1 : td_empty = 1
 		}
-		if td_vis {
+		if td_vis & td_empty {
+			; やることがないときは、入れる入口だけ出す（チェック欄なし）
+			hs_line = "＋やることを入れる"
+			td_w = limitf(16.0 + strlen(hs_line) * 4.0, 60.0, LW - 4.0) : td_x = LW / 2 - td_w / 2
+			pill hs_line, td_x, 39, td_w, 16, 0xE0FFFFFF, 0xFF707080
+		}
+		if td_vis & (td_empty = 0) {
 			cu_n = 10 : gosub *cut_utf8
 			hs_line = "　 " + cu_s
 			if td_ck : hs_line += "（もどす）"
@@ -663,6 +739,60 @@
 
 *draw_icons
 	if state != ST_ACT : return
+	if act = ACT_FAN {
+		; うちわ：右手の先に丸い紙と柄。額に汗
+		GdipSetSolidFillColor brush, 0xFFF4C7C3
+		GdipFillEllipse gfx, brush, handx - 2.0, handy - 15.0, 13.0, 12.0
+		GdipSetPenColor pen, 0xFFB86A5E : GdipSetPenWidth pen, 1.2
+		GdipDrawEllipse gfx, pen, handx - 2.0, handy - 15.0, 13.0, 12.0
+		GdipSetPenColor pen, 0xFF8A6A4A : GdipSetPenWidth pen, 1.6
+		GdipDrawLine gfx, pen, handx, handy, handx + 4.5, handy - 4.0
+		GdipSetSolidFillColor brush, 0xC86AB0E0
+		sw2 = double((stimer / 20) \ 3) * 1.5
+		GdipFillEllipse gfx, brush, headx + 7.0, heady - 6.0 + sw2, 2.6, 3.6
+		gosub *pen_back
+		return
+	}
+	if act = ACT_ICONJUG {
+		; 3つのアイコンが手の上で回る（ジャグリングの玉と同じ軌道）
+		ja = double(stimer) * 0.11
+		repeat limit(icn, 0, 3)
+			jp = ja + double(cnt) * 2.094
+			ix = cos(jp) * 18.0 : iy = -50.0 - absf(sin(jp)) * 30.0
+			ic_i = cnt : ia = jp * 57.3 : gosub *draw_icon_rot
+		loop
+		return
+	}
+	if act = ACT_ICONTOWER {
+		; 右どなりに積む。k 番目は 45 コマ目から 30 コマで手から飛んでいき、段に乗る
+		repeat icn
+			ic_i = cnt
+			t0 = cnt * 45
+			if stimer < t0 : continue
+			rx = 30.0 : ry = -8.0 - 16.0 * double(cnt)
+			if stimer < t0 + 30 {
+				q = double(stimer - t0) / 30.0
+				ix = handx + (rx - handx) * q : iy = handy - 6.0 + (ry - handy + 6.0) * q - sin(q * 3.1416) * 34.0
+				ia = q * 360.0
+			} else {
+				ix = rx : iy = ry : ia = 0.0
+				tw = stimer - itw_done
+				if (tw >= 20) & (tw < 60) {
+					; ぐらぐら：上の段ほど大きく揺れる
+					sw = sin(double(tw) * 0.45) * double(tw - 20) / 40.0
+					ix += sw * 2.5 * double(cnt) : ia = sw * 4.0 * double(cnt)
+				}
+				if tw >= 60 {
+					; 崩れる：上の段ほど遠くへ、回りながら落ちる
+					q = limitf(double(tw - 60) / 40.0, 0.0, 1.0)
+					ix += q * (8.0 + 10.0 * double(cnt)) : ia = q * (80.0 + 30.0 * double(cnt))
+					iy = ry + q * q * (16.0 * double(cnt))
+				}
+			}
+			gosub *draw_icon_rot
+		loop
+		return
+	}
 	if act = ACT_ICONBALL {
 		if icok(0) {
 			iy = -10.0 - absf(sin(double(stimer) * 0.09)) * 34.0
@@ -691,6 +821,14 @@
 		}
 	}
 	return
+; ic_i 番のアイコンを、(ix, iy) を中心に ia 度回して 16x16 で描く
+*draw_icon_rot
+	GdipTranslateWorldTransform gfx, ix, iy, 0
+	GdipRotateWorldTransform gfx, ia, 0
+	GdipDrawImageRectI gfx, icbmp(ic_i), -8, -8, 16, 16
+	GdipRotateWorldTransform gfx, -ia, 0
+	GdipTranslateWorldTransform gfx, -ix, -iy, 0
+	return
 
 *pen_back
 	if halo {
@@ -700,7 +838,7 @@
 	}
 	return
 
-; ---- 着せ替え：珠音（たまね）の髪型 ----
+; ---- 着せ替え：珠音（たまね）の髪型（tamadot.png が読めなかったときだけ使う） ----
 ; 珠音は HSP3 のオフィシャル素材のキャラクター（修正BSDライセンス。著作権はオガワコウサク（チームグリグリ）氏）
 ; ドット絵に差し替えると今のポーズが使えなくなるので、棒人間の頭に髪だけをベクターで重ねる
 ; 頭の中心から角度（右が0度、上が90度）と半径で点を並べて塗る。体の傾き（lean）に合わせて回す

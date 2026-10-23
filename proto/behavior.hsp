@@ -7,8 +7,8 @@
 	; 小さなしぐさは、決めた長さが過ぎるか、ほかの状態になったらやめる
 	if pose_t > 0 : pose_t--
 	if (pose_t <= 0) | (state != ST_IDLE) : pose_kind = 0
-	if behindh & (state != ST_BEHIND) : gosub *restore_front
-	if hangoff & ((state != ST_ACT) | (act != ACT_HANG)) : hangoff = 0
+	if (behindh != 0) & (state != ST_BEHIND) : gosub *restore_front
+	if (hangoff != 0) & ((state != ST_ACT) | (act != ACT_HANG)) : hangoff = 0
 	if state = ST_BEHIND : gosub *behind_brain : return
 	; カーソルが重なっているあいだは、つまんだりクリックしたりしやすいように、その場で立ち止まる
 	if hovering & (dragging = 0) & (showmode = 0) {
@@ -48,7 +48,6 @@
 		k = stimer - alt
 		if (k \ 240) = 120 : bubble = al_text : bubt = 110
 		if (k \ 240) = 0 : bubble = al_time + "だぞ！" : bubt = 60
-		if (k > 0) & ((k \ 240) = 0) & sound_on : MessageBeep 0x30
 		if k > 720 {
 			state = ST_IDLE : stimer = 0 : alt = 0 : bubble = "忘れんなよ！" : bubt = 60
 			if testmode : dbg += "ALARM END\n"
@@ -96,9 +95,30 @@
 		if state = ST_GOTO : return
 	}
 	if state = ST_TYPE {
+		; 打ち始めのひとこと（毎回ちがうものを。前と同じにはしない）
+		if stimer = 1 {
+			ty_k0 = keys_session
+			if ty_last < 0 {
+				ty_k = rnd(NTYOPEN)
+			} else {
+				ty_k = rnd(NTYOPEN - 1) : if ty_k >= ty_last : ty_k++
+			}
+			ty_last = ty_k
+			bubble = tyopen(ty_k) : bubt = 70
+		}
 		if (frame - lastkey > 120) | (stimer > 1200) : state = ST_IDLE : stimer = 0 : typecool = 3600
-		if (stimer \ 150) = 1 : bubble = "カタカタ" : bubt = 50
-		if (krate > 7.0) & ((stimer \ 200) = 100) : bubble = "速いな～！" : bubt = 50
+		; 打っているあいだは、いっしょにカタカタ（長さを変えて）
+		if ((stimer \ 150) = 1) & (stimer > 1) {
+			bubble = "カタカタ"
+			if ((stimer / 150) \ 3) = 1 : bubble = "カタカタカタカタ"
+			if ((stimer / 150) \ 3) = 2 : bubble = "カタカタ…ターン"
+			bubt = 50
+		}
+		; 速いのは、16秒ならして1秒に10キーをこえたときだけ。言うのは1時間に1回まで
+		if ty_fast > 0 : ty_fast--
+		if (stimer = 960) & (ty_fast = 0) & (frame - lastkey < 30) {
+			if (keys_session - ty_k0) * 60 / stimer >= 10 : ty_fast = 60 * 60 * 60 : bubble = "速いな～！" : bubt = 50
+		}
 		return
 	}
 	; 大ジャンプで飛び乗ったあと、ねらった窓に着いていたらのぞきこむ
@@ -237,10 +257,21 @@
 	return
 
 *start_act
+	; 珠音のドット絵のときは、道具を使う動きはしない（絵がないので）。代わりに少しよろこぶ
+	if (costume = 1) & (tama_img != 0) & (act != ACT_STRETCH) & (act != ACT_TOSS) & (act != ACT_HANG) & (act != ACT_BEHIND) {
+		if act = ACT_TEA {
+			next_tea = frame + tea_every
+			if act_level = 1 : next_tea = frame + tea_every * 3 / 2
+			if act_level = 0 : next_tea = frame + tea_every * 3
+		}
+		if testmode : dbg += "TAMA skip act=" + act + "\n"
+		state = ST_IDLE : stimer = 0 : vx = 0.0 : pose_kind = 1 : pose_t = 120
+		return
+	}
 	state = ST_ACT : stimer = 0 : vx = 0.0
 	sdur = 300
 	if act = ACT_TEA {
-		sdur = 420 : bubble = "茶でも飲むか" : bubt = 70 : evc(EV_TEA)++
+		sdur = 420 : ln_k = 3 : gosub *pick_line : bubble = ln_out : bubt = 70 : evc(EV_TEA)++
 		; 動きの多さが「ときどき」なら1.5倍、「なし」なら3倍あけて飲む
 		next_tea = frame + tea_every
 		if act_level = 1 : next_tea = frame + tea_every * 3 / 2
@@ -268,10 +299,17 @@
 	if act = ACT_KICKCAN : sdur = 200
 	if act = ACT_AQUA : sdur = 380 : bubble = "かわいいな" : bubt = 60
 	if act = ACT_EXIT : sdur = 150 : bubble = "非常口" : bubt = 80
-	if act = ACT_HANG : sdur = 330 : bubble = "ぶら下がるか" : bubt = 50
-	if act = ACT_BEHIND : sdur = 99999 : bubble = "裏はどうなってんだ？" : bubt = 70 : evc(EV_BEHIND)++
-	if act = ACT_ICONBALL : sdur = 300 : bubble = "アイコン借りるぞ" : bubt = 60
+	if act = ACT_HANG : sdur = 330 : bubble = "よっ" : bubt = 40
+	if act = ACT_BEHIND : sdur = 99999 : bubble = "ん？" : bubt = 50 : evc(EV_BEHIND)++
+	if act = ACT_ICONBALL : sdur = 300
 	if act = ACT_PPAP : sdur = 300 : dir = 1 : evc(EV_PPAP)++
+	if act = ACT_EXERCISE : sdur = 480 : dir = 1
+	if act = ACT_FLIP : sdur = 40 : flip_t = frame : vy = -7.5 * uis : onh = 0 : vx = 0.0 : bubble = "ほっ" : bubt = 30
+	if act = ACT_FAN : sdur = 260 : dir = 1
+	if act = ACT_YAWN : sdur = 150 : dir = 1 : bubble = "ふぁ～" : bubt = 70
+	if act = ACT_ICONJUG : sdur = 320 : dir = 1 : bubble = "お手玉～" : bubt = 70
+	; アイコンタワー：1つ45コマで投げて積み、ぐらぐらして、崩れる
+	if act = ACT_ICONTOWER : itw_done = icn * 45 + 10 : sdur = itw_done + 140 : dir = 1 : bubble = "タワーだ！" : bubt = 70
 	if act = ACT_SEASON : sdur = 360
 	if act = ACT_STRETCH {
 		sdur = 400 : bubble = "ちょっと伸びようぜ" : bubt = 90
@@ -313,6 +351,7 @@
 *behind_brain
 	onh_bak = onh : onh = behindh : gosub *getrect_on : onh = onh_bak
 	if okrect = 0 : gosub *restore_front : state = ST_IDLE : return
+	if stimer > 60 * 15 : gosub *restore_front : state = ST_IDLE : stimer = 0 : bubble = "ただいま" : bubt = 60 : return
 	fx = int(cx) + CW / 2
 	if (fx > rc(0) - 14) & (fx < rc(2) + 14) {
 		if stimer = 1 : bubble = "探検だ～" : bubt = 60
@@ -337,11 +376,17 @@
 	if stimer > sdur {
 		state = ST_IDLE : stimer = 0 : think = 30
 		if act = ACT_STICK : bubble = "ほいっと" : bubt = 40
-		if act = ACT_TEA : bubble = "ふう、うまい" : bubt = 50
+		if act = ACT_TEA : ln_k = 4 : gosub *pick_line : bubble = ln_out : bubt = 50
 		if act = ACT_WIPE : bubble = "よし、元通りだ" : bubt = 60
 		if act = ACT_AQUA : bubble = "よく食うな" : bubt = 60
 
 		if act = ACT_ICONBALL : bubble = "返しとくぞ" : bubt = 50
+		if act = ACT_ICONJUG : bubble = "返しとくぞ" : bubt = 50
+		if act = ACT_FLIP : bubble = "シュタッ" : bubt = 40
+		if act = ACT_EXERCISE : bubble = "よし、すっきりした" : bubt = 60
+		if act = ACT_FAN : bubble = "これで冷えるかな" : bubt = 60
+		if act = ACT_YAWN : bubble = "…眠いな" : bubt = 50
+		if act = ACT_ICONTOWER : bubble = "片づけとこ" : bubt = 50
 		if act >= ACT_ROPE : gosub *play_end
 		if act = ACT_STRETCH : bubble = "よし、もうひと息！" : bubt = 60
 		if act = ACT_TOSS {
@@ -410,6 +455,30 @@
 		if stimer = 150 : bubble = "ナイスシュート！" : bubt = 60 : se_name = "se_goal" : gosub *se_play
 	}
 	if act >= ACT_ROPE : gosub *play_brain
+	if act = ACT_ICONJUG {
+		if stimer = 160 : bubble = "ほっ、ほっ" : bubt = 50
+	}
+	if act = ACT_EXERCISE {
+		; 4つの動きを2回ずつ。かけ声は動きの頭で
+		if (stimer >= 90) & ((stimer \ 30) = 0) {
+			exn = (stimer - 90) / 30
+			if exn < 12 {
+				if (exn \ 4) = 0 : bubble = "いち" : bubt = 25
+				if (exn \ 4) = 1 : bubble = "に" : bubt = 25
+				if (exn \ 4) = 2 : bubble = "さん" : bubt = 25
+				if (exn \ 4) = 3 : bubble = "し" : bubt = 25
+			}
+		}
+	}
+	if act = ACT_FLIP {
+		; 跳んでいるあいだは数えないので、回りきる前に着いたら少し待つ
+		if frame - flip_t < 40 : stimer = 0
+	}
+	if act = ACT_ICONTOWER {
+		if stimer = itw_done : bubble = "高いぞ～！" : bubt = 50
+		if stimer = itw_done + 40 : bubble = "ぐらぐらする…" : bubt = 40
+		if stimer = itw_done + 66 : bubble = "あっ" : bubt = 40
+	}
 	if act = ACT_PPAP {
 		if stimer = 1 : bubble = "アイハブアアイコン" : bubt = 60
 		if stimer = 70 : bubble = "アイハブアアイコン" : bubt = 60
@@ -479,6 +548,23 @@
 			return
 		}
 	}
+	if ((gettime(4) >= 23) | (gettime(4) < 4)) & (rnd(100) < 8) {
+		act = ACT_YAWN : gosub *start_act
+		return
+	}
+	if (gettime(4) = 12) & (lunch_day != curday) {
+		lunch_day = curday
+		act = ACT_ONIGIRI : gosub *start_act : bubble = "お昼だな、腹へった" : bubt = 70
+		return
+	}
+	if r2 < 25 {
+		gosub *ensure_icons_many
+		if icn >= 3 : act = ACT_ICONJUG : gosub *start_act : return
+	}
+	if r2 < 28 {
+		gosub *ensure_icons_many
+		if icn >= 2 : act = ACT_ICONTOWER : gosub *start_act : return
+	}
 	if (aq_n > 0) & (rnd(100) < 10) {
 		act = ACT_AQUA : gosub *start_act
 		return
@@ -497,7 +583,7 @@
 		goto *wander_move
 	}
 	if r < 54 {
-		state = ST_SLACK : stimer = 0 : sdur = 120 + rnd(180) : bubble = "ちょいとサボるか" : bubt = 90
+		state = ST_SLACK : stimer = 0 : sdur = 120 + rnd(180) : ln_k = 7 : gosub *pick_line : bubble = ln_out : bubt = 90
 		return
 	}
 	if r < 61 {
@@ -598,6 +684,18 @@
 	if k = 24 : act = ACT_STRETCH : gosub *start_act : sdur = 400 : return
 	if k = 25 : act = ACT_TOSS : gosub *start_act : return
 	if (k >= 26) & (k < 26 + NPLAY) : act = ACT_ROPE + k - 26 : gosub *start_act : return
+	if k = 26 + NPLAY {
+		gosub *ensure_icons_many
+		if icn >= 3 : act = ACT_ICONJUG : gosub *start_act : return
+	}
+	if k = 27 + NPLAY {
+		gosub *ensure_icons_many
+		if icn >= 2 : act = ACT_ICONTOWER : gosub *start_act : return
+	}
+	if k = 28 + NPLAY : act = ACT_FLIP : gosub *start_act : return
+	if k = 29 + NPLAY : act = ACT_FAN : gosub *start_act : bubble = "PC、あっちいな" : bubt = 70 : return
+	if k = 30 + NPLAY : act = ACT_YAWN : gosub *start_act : return
+	if k = 31 + NPLAY : act = ACT_EXERCISE : gosub *start_act : return
 	state = ST_IDLE
 	return
 
@@ -633,11 +731,73 @@
 		return
 	}
 	state = ST_IDLE
-	if jumpcd = 0 : ty = rc(1) : gosub *jump_to
+	if jumpcd = 0 {
+		rest_try++
+		if rest_try > 4 : gosub *rest_here : return
+		ty = rc(1) : gosub *jump_to
+	}
+	return
+
+; 見失ったときに呼ぶ（メニュー「ここに呼ぶ」）。いま使っているウィンドウの上に現れて、落ちて乗る
+*call_here
+	if behindh : gosub *restore_front
+	hangoff = 0
+	h = fg_root()
+	; トレイのアイコンから呼んだときは前面がタスクバーなので、その前に使っていた窓へ
+	chk_h = h : gosub *is_shell_win
+	if testmode & (instr(cmd, 0, "calltray") >= 0) : is_shell = 1
+	if is_shell : h = usefg
+	ok = 0
+	if (h != 0) & (h != myhwnd) {
+		if IsWindowVisible(h) & (IsIconic(h) = 0) {
+			onh_bak = onh : onh = h : gosub *rect_of_onh : onh = onh_bak
+			if (rc(2) - rc(0) >= 100) & (rc(1) > vtop + 60) : ok = 1
+		}
+	}
+	if ok {
+		cx = double((rc(0) + rc(2)) / 2 - CW / 2) : cy = double(rc(1) - FOOTY - 40)
+	} else {
+		; 使っているウィンドウが最大化などで乗れないときは、画面のまんなかの上から落ちる
+		cx = double((wa(0) + wa(2)) / 2 - CW / 2) : cy = double(wa(1) + 60)
+	}
+	onh = 0 : vx = 0.0 : vy = 0.0 : dragging = 0 : state = ST_IDLE : stimer = 0 : peek_land = 0
+	SetWindowPos myhwnd, -1, 0, 0, 0, 0, 0x13
+	bubble = "呼んだか？" : bubt = 90
+	if testmode : dbg += strf("CALL ok=%d shell=%d h=%d use=%d cx=%d cy=%d", ok, is_shell, h, usefg, int(cx), int(cy)) + "\n"
+	return
+
+; よく出るセリフを、組（ln_k：0作業 1休憩 2達成 3茶 4茶のあと 5離席 6おかえり 7サボり）から1つ選ぶ。前と同じは出さない
+*pick_line
+	if ln_k = 0 : ln_n = 5 : ln_l = ln_wk_last
+	if ln_k = 1 : ln_n = 5 : ln_l = ln_rs_last
+	if ln_k = 2 : ln_n = 3 : ln_l = ln_pm_last
+	if ln_k = 3 : ln_n = 4 : ln_l = ln_tea_last
+	if ln_k = 4 : ln_n = 4 : ln_l = ln_teb_last
+	if ln_k = 5 : ln_n = 3 : ln_l = ln_idl_last
+	if ln_k = 6 : ln_n = 4 : ln_l = ln_ret_last
+	if ln_k = 7 : ln_n = 4 : ln_l = ln_slk_last
+	; 前と同じものは選ばない（はじめての1回は、どれでも）
+	if ln_l < 0 {
+		ln_i = rnd(ln_n)
+	} else {
+		ln_i = rnd(ln_n - 1) : if ln_i >= ln_l : ln_i++
+	}
+	if ln_k = 0 : ln_wk_last = ln_i : ln_out = ln_wk(ln_i)
+	if ln_k = 1 : ln_rs_last = ln_i : ln_out = ln_rs(ln_i)
+	if ln_k = 2 : ln_pm_last = ln_i : ln_out = ln_pm(ln_i)
+	if ln_k = 3 : ln_tea_last = ln_i : ln_out = ln_tea(ln_i)
+	if ln_k = 4 : ln_teb_last = ln_i : ln_out = ln_teb(ln_i)
+	if ln_k = 5 : ln_idl_last = ln_i : ln_out = ln_idl(ln_i)
+	if ln_k = 6 : ln_ret_last = ln_i : ln_out = ln_ret(ln_i)
+	if ln_k = 7 : ln_slk_last = ln_i : ln_out = ln_slk(ln_i)
 	return
 
 *rest_here
 	if state != ST_REST : state = ST_REST : stimer = 0
+	; 休憩に入って少ししたら、ときどき体操（休憩1回につき1回まで）
+	if (ex_done = 0) & (stimer > 180) & (rnd(600) = 0) & (break_ms >= 180000) {
+		ex_done = 1 : act = ACT_EXERCISE : gosub *start_act : return
+	}
 	; 休憩中もときどき水槽を眺める
 	if (aq_n > 0) & (rnd(2400) = 0) : act = ACT_AQUA : gosub *start_act : return
 	; 休憩中もときどきお茶

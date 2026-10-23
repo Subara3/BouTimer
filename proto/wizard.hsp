@@ -4,7 +4,7 @@
 ; 質問は小さな窓（screen 11）のボタンで答える。棒人間は窓の左の床に立って話し、終わったら窓から飛び出す
 ; スキップすると、ふつうの設定のまま案内だけする
 ; ボタンの中で部品を作りなおさないよう、押された番号を wz_pick に入れて、メインループの *wz_tick で進める
-; ページ：0 あいさつ　1 作業の長さ　2 休憩の長さ　3 タイピング　4 声（VOICEVOX があるときだけ）　5 フレンド　6 起動時　7 おわり
+; ページ：0 あいさつ　1 作業の長さ　2 休憩の長さ　3 タイピング　（4 は使っていない。声はメニューと設定画面から）　5 フレンド　6 起動時　7 おわり
 
 #const WZ_W 560
 #const WZ_H 300
@@ -17,7 +17,7 @@
 	; 質問のあいだはタイマーを止めておく
 	if paused = 0 : paused = 1 : pause_at = timeGetTime() : wz_paused = 1
 	if wz_made = 0 {
-		screen 11, WZ_W, WZ_H, 2, (wa(0) + wa(2)) / 2 - WZ_W / 2, (wa(1) + wa(3)) / 2 - WZ_H / 2
+		screen 11, UI(WZ_W), UI(WZ_H), 2, (wa(0) + wa(2)) / 2 - UI(WZ_W / 2), (wa(1) + wa(3)) / 2 - UI(WZ_H / 2)
 		title "はじめまして"
 		wz_hwnd = hwnd
 		; 窓を動かしたら（ドラッグ中も）棒人間をついて行かせる。ドラッグ中はメインループが止まるので、ここで動かす
@@ -43,9 +43,9 @@
 	redraw 0
 	color 250, 250, 246 : boxf
 	; 左は棒人間の場所。床の線を引く
-	color 236, 236, 228 : boxf 0, 0, 200, WZ_H
-	color 190, 190, 200 : line 24, WZ_FY + 1, 176, WZ_FY + 1
-	font "Meiryo UI", 15 : objmode 2
+	color 236, 236, 228 : boxf 0, 0, UI(200), UI(WZ_H)
+	color 190, 190, 200 : line UI(24), UI(WZ_FY + 1), UI(176), UI(WZ_FY + 1)
+	font "Meiryo UI", UI(15) : objmode 2
 	sdim wz_t1, 256 : sdim wz_t2, 256 : sdim wz_c, 64, 4 : wz_n = 0 : sdim wz_def, 64
 	if wz_page = 0 {
 		wz_t1 = "よっ、はじめまして。\n作業のおともの棒人間だ。\n最初にちょっと聞いていいか？"
@@ -68,7 +68,7 @@
 	if wz_page = 3 {
 		wz_t1 = "キーを打った回数、数えていいか？"
 		wz_t2 = "何を打ったかは見てないぞ。\n速く打つと、おれも一緒にカタカタするぜ"
-		wz_c(0) = "数えていい" : wz_c(1) = "数えない" : wz_n = 2 : wz_def = "数える"
+		wz_c(0) = "数えていい" : wz_c(1) = "数えない" : wz_n = 2 : wz_def = "数えていい"
 		bubble = "打った回数、数えていいか？" : bubt = 400 : pose_kind = 3
 	}
 	if wz_page = 4 {
@@ -78,10 +78,10 @@
 		bubble = "声、出していいか？" : bubt = 400
 	}
 	if wz_page = 5 {
-		wz_t1 = "サーバーと通信していいか？\n通信すると、ほかの人の棒人間が\n休憩中に遊びに来るぜ（ゴースト機能）"
+		wz_t1 = "サーバーと通信していいか？\n通信すると、フレンドやほかの人の棒人間が\n休憩中に遊びに来るぜ（フレンド機能）"
 		wz_t2 = "名前やアプリのことは送らないぞ。\n送るのはポモドーロ数みたいな数字だ"
-		wz_c(0) = "通信しない" : wz_c(1) = "通信する" : wz_n = 2 : wz_def = "通信しない"
-		bubble = "仲間を呼んでいいか？" : bubt = 400 : pose_kind = 2
+		wz_c(0) = "通信する" : wz_c(1) = "通信しない" : wz_n = 2 : wz_def = "通信しない"
+		bubble = "フレンドを呼んでいいか？" : bubt = 400 : pose_kind = 2
 	}
 	if wz_page = 6 {
 		wz_t1 = "Windowsを起動したら、\nおれもいっしょに起動していいか？"
@@ -96,35 +96,35 @@
 		bubble = "ありがとな！" : bubt = 150 : pose_kind = 1
 	}
 	color 40, 40, 48
-	pos 220, 20 : mes wz_t1
-	font "Meiryo UI", 12 : color 110, 110, 120
-	pos 220, 100 : mes wz_t2
+	pos UI(220), UI(20) : mes wz_t1
+	font "Meiryo UI", UI(12) : color 110, 110, 120
+	pos UI(220), UI(100) : mes wz_t2
 	if (wz_page >= 1) & (wz_page <= 6) {
 		; 何問目か（声のページがないときは5問）
 		wz_all = 5
 		wz_no = wz_page - (wz_page > 4)
-		pos 220, 262 : mes strf("%d / %d", wz_no, wz_all)
+		pos UI(220), UI(262) : mes strf("%d / %d", wz_no, wz_all)
 	}
-	font "Meiryo UI", 14
+	font "Meiryo UI", UI(14)
 	; ボタンは右側に横に並べる
 	wz_bw = 104 : if wz_n <= 2 : wz_bw = 150
-	objsize wz_bw, 40
+	objsize UI(wz_bw), UI(40)
 	repeat wz_n
-		pos 220 + cnt * (wz_bw + 10), 160
+		pos UI(220 + cnt * (wz_bw + 10)), UI(160)
 		if cnt = 0 : button gosub wz_c(0), *wz_b0
 		if cnt = 1 : button gosub wz_c(1), *wz_b1
 		if cnt = 2 : button gosub wz_c(2), *wz_b2
 	loop
 	; デフォルトの設定（スキップしたときもこれ）
 	if wz_def != "" {
-		font "Meiryo UI", 12 : color 110, 110, 120
-		pos 220, 210 : mes "デフォルト：" + wz_def
-		font "Meiryo UI", 14
+		font "Meiryo UI", UI(12) : color 110, 110, 120
+		pos UI(220), UI(210) : mes "デフォルト：" + wz_def
+		font "Meiryo UI", UI(14)
 	}
 	; 途中でやめる道も残す
 	if (wz_page >= 1) & (wz_page <= 6) {
-		objsize 150, 30
-		pos WZ_W - 166, 254 : button gosub "残りはスキップ", *wz_bskip
+		objsize UI(150), UI(30)
+		pos UI(WZ_W - 166), UI(254) : button gosub "残りはスキップ", *wz_bskip
 	}
 	redraw 1
 	gsel 1
@@ -142,7 +142,7 @@
 ; 質問の窓が動いたとき（WM_MOVE）。棒人間をその床の位置へ動かし、質問の窓より上に重ね直す
 *wz_moved
 	if wz_on = 0 : return
-	dim wzp, 2 : wzp(0) = WZ_FX : wzp(1) = WZ_FY
+	dim wzp, 2 : wzp(0) = UI(WZ_FX) : wzp(1) = UI(WZ_FY)
 	ClientToScreen wz_hwnd, wzp
 	cx = double(wzp(0) - CW / 2) : cy = double(wzp(1) - FOOTY)
 	SetWindowPos myhwnd, -1, int(cx), int(cy), 0, 0, 0x11
@@ -151,7 +151,7 @@
 ; 質問のあいだは、棒人間を窓の中の床に立たせておく（窓を動かしたらついて行く）
 *wz_hold
 	pressing = 0 : dragging = 0
-	dim wzp, 2 : wzp(0) = WZ_FX : wzp(1) = WZ_FY
+	dim wzp, 2 : wzp(0) = UI(WZ_FX) : wzp(1) = UI(WZ_FY)
 	ClientToScreen wz_hwnd, wzp
 	cx = double(wzp(0) - CW / 2) : cy = double(wzp(1) - FOOTY)
 	vx = 0.0 : vy = 0.0 : onh = 0 : grounded = 1 : wasground = 1 : dir = 1
@@ -170,7 +170,8 @@
 	if testmode : dbg += strf("WZ page=%d pick=%d", wz_page, k) + "\n"
 	if k = 9 : wz_page = 7 : gosub *wz_build : return
 	if wz_page = 0 {
-		if k = 1 : gosub *wz_close : guide = 1 : return
+		; スキップ：あいさつはもう済んでいるので、2つめの案内から
+		if k = 1 : gosub *wz_close : guide = 2 : return
 		wz_start = 1
 	}
 	if wz_page = 1 : r = 11 + k : gosub *menu_do
@@ -185,7 +186,8 @@
 		gosub *menu_do
 	}
 	if wz_page = 5 {
-		if k != friend_on : r = 80 : gosub *menu_do
+		; 左（0）が「通信する」
+		if (k = 0) != friend_on : r = 80 : gosub *menu_do
 	}
 	if wz_page = 6 {
 		sw_start = (k = 0)
@@ -194,7 +196,8 @@
 	if wz_page = 7 {
 		gosub *wz_close
 		; 答えてくれたので、案内は操作の話から
-		guide = 3
+		; 最後のページで右クリックとつまむことは言ったので、タイマーの止め方から
+		guide = 4
 		return
 	}
 	state = ST_HAPPY : stimer = 0

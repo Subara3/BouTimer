@@ -79,12 +79,16 @@
 ; 投げられたり高いところから落ちたりしたら、ポーズを決めて着地する
 *on_land
 	if (thrown | (cy - fallstart > 160.0)) & (state != ST_DIZZY) & (state != ST_POKED) & (state != ST_CHEER) & (state != ST_BEHIND) {
-		state = ST_LAND : stimer = 0 : landpose = rnd(5) : bubt = 70
-		if landpose = 0 : bubble = "着地、成功だ"
-		if landpose = 1 : bubble = "決まった！"
-		if landpose = 2 : bubble = "シュタッ"
-		if landpose = 3 : bubble = "ふっ、余裕だ"
-		if landpose = 4 : bubble = "ほっ"
+		state = ST_LAND : stimer = 0 : landpose = rnd(5)
+		; 投げられたとき以外は、しゃべっている途中（起動のあいさつなど）をさえぎらない。ポーズだけ決める
+		if thrown | (bubt <= 0) {
+			bubt = 70
+			if landpose = 0 : bubble = "着地、成功だ"
+			if landpose = 1 : bubble = "決まった！"
+			if landpose = 2 : bubble = "シュタッ"
+			if landpose = 3 : bubble = "ふっ、余裕だ"
+			if landpose = 4 : bubble = "ほっ"
+		}
 	}
 	thrown = 0
 	return
@@ -153,6 +157,10 @@
 	okrect = 0
 	if IsWindowVisible(onh) = 0 : return
 	if IsIconic(onh) : return
+	if IsZoomed(onh) : return
+	cloak = 0
+	DwmGetWindowAttribute onh, DWMWA_CLOAKED, cloak, 4
+	if cloak : return
 	gosub *rect_of_onh
 	okrect = 1
 	return

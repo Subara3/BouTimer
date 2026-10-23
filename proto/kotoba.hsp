@@ -4,21 +4,24 @@
 ; ---- バージョン情報 ----
 *show_about
 	if about_made = 0 {
-		screen 13, 360, 280, 2, (wa(0) + wa(2)) / 2 - 180, (wa(1) + wa(3)) / 2 - 140
+		screen 13, UI(360), UI(322), 2, (wa(0) + wa(2)) / 2 - UI(180), (wa(1) + wa(3)) / 2 - UI(161)
 		title "作業のおとも、棒人間について"
 		color 250, 250, 246 : boxf
-		font "Meiryo UI", 18, 1 : color 40, 40, 48 : pos 20, 16 : mes "作業のおとも、棒人間"
-		font "Meiryo UI", 13 : color 110, 110, 120 : pos 20, 44 : mes "作業集中用のポモドーロタイマー"
-		font "Meiryo UI", 14 : color 40, 40, 48 : pos 20, 70
+		font "Meiryo UI", UI(18), 1 : color 40, 40, 48 : pos UI(20), UI(16) : mes "作業のおとも、棒人間"
+		font "Meiryo UI", UI(13) : color 110, 110, 120 : pos UI(20), UI(44) : mes "作業集中用のポモドーロタイマー"
+		font "Meiryo UI", UI(14) : color 40, 40, 48 : pos UI(20), UI(70)
 		mes "バージョン " + VERSION_STR
 		mes "作者：subara3（subara3.com）"
 		mes "HSP 3.7で作成"
 		mes "声：VOICEVOX:玄野武宏"
 		mes "効果音：効果音ラボ"
 		mes "着せ替え：珠音（HSP3オフィシャル素材）"
-		objsize 150, 34
-		pos 20, 224 : button gosub "サイトを見る", *about_site
-		pos 190, 224 : button gosub "閉じる", *about_close
+		font "Meiryo UI", UI(14) : objmode 2
+		objsize UI(320), UI(34)
+		pos UI(20), UI(224) : button gosub "新しい版が出ているか確認する", *up_check_now
+		objsize UI(150), UI(34)
+		pos UI(20), UI(268) : button gosub "サイトを見る", *about_site
+		pos UI(190), UI(268) : button gosub "閉じる", *about_close
 		about_made = 1
 	}
 	win_id = 13 : gosub *show_win
@@ -43,6 +46,10 @@
 	noteload datadir + "\\kotoba.txt"
 	repeat notemax
 		noteget kl, cnt
+		; メモ帳で「UTF-8（BOM付き）」で保存されたときの先頭の3バイトを落とす
+		if cnt = 0 {
+			if (peek(kl, 0) = 0xEF) & (peek(kl, 1) = 0xBB) & (peek(kl, 2) = 0xBF) : kl = strmid(kl, 3, strlen(kl))
+		}
 		kl = strtrim(kl)
 		if kl = "" : continue
 		if peek(kl, 0) = '#' : continue
@@ -64,16 +71,16 @@
 
 *teach_open
 	if teach_made = 0 {
-		screen 7, 380, 140, 2, (wa(0) + wa(2)) / 2 - 190, (wa(1) + wa(3)) / 2 - 70
+		screen 7, UI(380), UI(140), 2, (wa(0) + wa(2)) / 2 - UI(190), (wa(1) + wa(3)) / 2 - UI(70)
 		title "セリフを教える"
 		color 250, 250, 246 : boxf
-		font "Meiryo UI", 14 : color 40, 40, 48
-		pos 16, 12 : mes "しゃべってほしいことばを入れてください（20文字まで）"
+		font "Meiryo UI", UI(14) : color 40, 40, 48 : objmode 2
+		pos UI(16), UI(12) : mes "しゃべってほしいことばを入れてください（20文字まで）"
 		sdim teach_in, 256
-		pos 16, 44 : objsize 348, 28 : input teach_in, 348, 28, 120
+		pos UI(16), UI(44) : objsize UI(348), UI(28) : input teach_in, UI(348), UI(28), 120
 		teach_obj = stat
-		pos 16, 88 : objsize 170, 34 : button gosub "覚えさせる", *teach_ok
-		pos 194, 88 : objsize 170, 34 : button gosub "やめる", *teach_cancel
+		pos UI(16), UI(88) : objsize UI(170), UI(34) : button gosub "覚えさせる", *teach_ok
+		pos UI(194), UI(88) : objsize UI(170), UI(34) : button gosub "やめる", *teach_cancel
 		teach_made = 1
 	}
 	gsel 7
@@ -95,6 +102,8 @@
 *teach_add
 	teach_in = strtrim(teach_in)
 	if teach_in = "" : return
+	; 先頭の「#」は注釈の印なので、全角の「＃」にして覚える
+	if peek(teach_in, 0) = '#' : teach_in = "＃" + strmid(teach_in, 1, strlen(teach_in))
 	; 20文字まで（UTF-8 で 60 バイトを目安に切る）
 	if strlen(teach_in) > 60 {
 		; 文字の途中で切らないように、続きのバイト（0x80～0xBF）の前まで戻す

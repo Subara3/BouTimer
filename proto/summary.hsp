@@ -10,6 +10,7 @@
 	cs += strf("作業%d時間%02d分・ポモドーロ%dサイクル\n", workms_today / 3600000, (workms_today / 60000) \ 60, pomos_today)
 	if typecount_on : cs += "タイピング" + keys_today + "打\n"
 	cs += "ウィンドウの切り替え" + switches_today + "回\n"
+	cs += strf("マウスを動かした距離%d.%dm", mouse_cm / 100, (mouse_cm \ 100) / 10) + "\n"
 	nd = 0
 	repeat ntodo
 		if todo_d(cnt) & (todo_day(cnt) = curday) {
@@ -68,7 +69,13 @@
 			memcpy gm, csw, csz
 			GlobalUnlock hg
 			SetClipboardData 13, hg
-			clip_ok = 1
+			if stat {
+				clip_ok = 1
+			} else {
+				GlobalFree hg
+			}
+		} else {
+			if hg : GlobalFree hg
 		}
 		CloseClipboard
 	}

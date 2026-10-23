@@ -328,7 +328,7 @@
 		if r2 = 1 : dev(ndev) = "金魚が釣れた！"
 		if r2 = 2 : dev(ndev) = "きれいな金魚を釣った。"
 		; 水槽のことは、たまに書く
-		if aq_n & (rnd(3) = 0) : dev(ndev) += strf("水槽は%d匹だ。", aq_n)
+		if (aq_n > 0) & (rnd(3) = 0) : dev(ndev) += strf("水槽は%d匹だ。", aq_n)
 		ndev++
 	}
 	if evc(EV_BIG) {
@@ -351,7 +351,7 @@
 		if r2 = 1 : dev(ndev) = "空き缶を蹴った。よく飛んだ。"
 		ndev++
 	}
-	if evc(EV_FISH) & (evc(EV_GOLD) = 0) & (evc(EV_BIG) = 0) {
+	if (evc(EV_FISH) > 0) & (evc(EV_GOLD) = 0) & (evc(EV_BIG) = 0) {
 		r2 = rnd(2)
 		if r2 = 0 : dev(ndev) = strf("釣りを%d回した。", evc(EV_FISH))
 		if r2 = 1 : dev(ndev) = "ウィンドウのふちで釣りをした。"

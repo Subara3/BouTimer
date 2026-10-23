@@ -45,6 +45,8 @@ Copy-Item -Force (Join-Path $root "docs\manual.html") (Join-Path $dist "manual.h
 Copy-Item -Force (Join-Path $root "docs\tech_*.html") $dist
 # 通信に使う hspinet プラグインは exe に入らないので横に置く（HSP 付属のプラグインは再配布可）
 Copy-Item -Force "$hsp\hspinet.dll" (Join-Path $dist "hspinet.dll")
+# 着せ替えの珠音のドット絵（HSP3オフィシャル2D素材。修正BSDライセンスで再配布可）
+Copy-Item -Force "$hsp\hsptv\tamadot.png" (Join-Path $dist "tamadot.png")
 New-Item -ItemType Directory -Force (Join-Path $dist "modules") | Out-Null
 Copy-Item -Force (Join-Path $root "modules\*") (Join-Path $dist "modules")
 # 同梱の声（tools\make_voices.py で作った玄野武宏の声と、口パク用の情報）

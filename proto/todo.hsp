@@ -161,6 +161,8 @@
 
 *todo_remove
 	if (tdi < 0) | (tdi >= ntodo) : return
+	; 番号がずれるので、済ませた直後のもどしはやめる
+	td_undo = -1
 	repeat ntodo - tdi - 1, tdi
 		todo_s(cnt) = todo_s(cnt + 1) : todo_d(cnt) = todo_d(cnt + 1) : todo_day(cnt) = todo_day(cnt + 1) : todo_at(cnt) = todo_at(cnt + 1) : todo_min(cnt) = todo_min(cnt + 1) : todo_dly(cnt) = todo_dly(cnt + 1)
 	loop
@@ -168,6 +170,7 @@
 	return
 
 *todo_add
+	td_added = 0
 	todo_in = strtrim(todo_in)
 	if todo_in = "" : return
 	cu_s = todo_in : cu_n = 40 : gosub *cut_utf8 : todo_in = cu_s
@@ -175,8 +178,13 @@
 		; いっぱいなら、いちばん古い済んだものを消す
 		tdi = -1
 		repeat ntodo
-			if todo_d(cnt) : tdi = cnt : break
+			if todo_d(cnt) & (todo_day(cnt) != curday) : tdi = cnt : break
 		loop
+		if tdi < 0 {
+			repeat ntodo
+				if todo_d(cnt) : tdi = cnt : break
+			loop
+		}
 		if tdi < 0 : bubble = "もう持ちきれないぞ" : bubt = 80 : return
 		gosub *todo_remove
 	}
@@ -190,9 +198,12 @@
 		if tdn_has = 0 : dly_s(ndly) = todo_in : ndly++ : gosub *save_daily
 		todo_dly(ntodo) = 1
 	}
+	td_dfull = todo_daily_chk & (ndly >= 20) & (todo_dly(ntodo) = 0)
 	todo_at(ntodo) = strf("%04d-%02d-%02d %02d:%02d", gettime(0), gettime(1), gettime(3), gettime(4), gettime(5)) : ntodo++
 	gosub *save_todo
 	bubble = "よし、持っとく！" : bubt = 80
+	if td_dfull : bubble = "毎日のは20個までだ。今日の分だけ持っとく" : bubt = 120
+	td_added = 1
 	return
 
 *todo_done
@@ -213,26 +224,28 @@
 
 *todo_open
 	if todo_made = 0 {
-		screen 10, 440, 400, 2, (wa(0) + wa(2)) / 2 - 220, (wa(1) + wa(3)) / 2 - 200
+		screen 10, UI(440), UI(400), 2, (wa(0) + wa(2)) / 2 - UI(220), (wa(1) + wa(3)) / 2 - UI(200)
 		title "やることリスト"
 		color 250, 250, 246 : boxf
-		font "Meiryo UI", 14 : objmode 2
-		color 40, 40, 48 : pos 16, 10 : mes "いちばん上のやることを、棒人間が持って歩きます"
+		font "Meiryo UI", UI(14) : objmode 2
+		color 40, 40, 48 : pos UI(16), UI(10) : mes "いちばん上のやることを、棒人間が持って歩きます"
 		tsel = -1
-		pos 16, 38 : objsize 408, 24 : listbox tsel, 176, "" : todo_lb = stat
+		pos UI(16), UI(38) : objsize UI(408), UI(24) : listbox tsel, UI(176), "" : todo_lb = stat
 		sdim todo_in, 256
-		pos 16, 252 : input todo_in, 232, 30, 120 : todo_inp = stat
+		pos UI(16), UI(252) : input todo_in, UI(232), UI(30), 120 : todo_inp = stat
+		todo_inp_h = objinfo(todo_inp, 2)
 		; 「毎日」にチェックして追加すると、毎日のやることになる（日付が変わるたびに入る）
 		todo_daily_chk = 0
-		pos 256, 254 : objsize 64, 26 : chkbox "毎日", todo_daily_chk
-		pos 324, 250 : objsize 100, 34 : button gosub "追加", *todo_add_btn
-		objsize 100, 34
-		pos 16, 300 : button gosub "終わった！", *todo_done_btn
-		pos 120, 300 : button gosub "いちばん上へ", *todo_up_btn
-		pos 224, 300 : button gosub "消す", *todo_del_btn
-		pos 328, 300 : button gosub "閉じる", *todo_close
-		font "Meiryo UI", 12 : color 130, 130, 140 : pos 16, 352
-		mes "済んだものは次の日に消えます。（　）は追加してから終わるまでの時間"
+		pos UI(256), UI(254) : objsize UI(64), UI(26) : chkbox "毎日", todo_daily_chk
+		pos UI(324), UI(250) : objsize UI(100), UI(34) : button gosub "追加", *todo_add_btn
+		objsize UI(100), UI(34)
+		pos UI(16), UI(300) : button gosub "終わった！", *todo_done_btn
+		pos UI(120), UI(300) : button gosub "いちばん上へ", *todo_up_btn
+		pos UI(224), UI(300) : button gosub "消す", *todo_del_btn
+		pos UI(328), UI(300) : button gosub "閉じる", *todo_close
+		font "Meiryo UI", UI(12) : color 130, 130, 140 : pos UI(16), UI(352)
+		mes "終わったら、次の日に削除するぞ"
+		pos UI(16), UI(370) : mes "（35分）は、入れてから終わるまでにかかった時間だ"
 		todo_made = 1
 	}
 	gsel 10
@@ -272,12 +285,13 @@
 *todo_add_btn
 	gsel 10
 	gosub *todo_add
-	objprm todo_inp, ""
+	if td_added : objprm todo_inp, ""
 	gosub *todo_fill
 	return
 
 *todo_done_btn
 	gosub *todo_sel
+	if tdi < 0 : gosub *todo_first : tdi = todo_top
 	gosub *todo_done
 	gosub *todo_fill
 	return
@@ -324,13 +338,18 @@
 	return
 
 *todo_close
+	todo_inp_h = 0
 	gsel 10, -1
 	gsel 1
 	return
 
 ; カーソルを乗せたときのやることの札をクリックしたとき
 *todo_hover_click
-	if (td_undo >= 0) & (frame < td_undo_t) & (td_undo < ntodo) {
+	if td_undo >= ntodo : td_undo = -1
+	if td_undo >= 0 {
+		if todo_s(td_undo) != td_undo_s : td_undo = -1
+	}
+	if (td_undo >= 0) & (frame < td_undo_t) {
 		; 済ませた直後なら、まだに戻す
 		tdi = td_undo
 		if todo_d(tdi) {
@@ -346,7 +365,7 @@
 		gosub *todo_first
 		if todo_top < 0 : return
 		tdi = todo_top : gosub *todo_done
-		td_undo = tdi : td_undo_t = frame + 60 * 8
+		td_undo = tdi : td_undo_t = frame + 60 * 8 : td_undo_s = todo_s(tdi)
 	}
 	gosub *todo_first
 	if todo_made : gosub *todo_fill

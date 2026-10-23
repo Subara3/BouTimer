@@ -1,0 +1,119 @@
+; 作業のおとも、棒人間：PCのようす（数だけを読む。ファイル名・題名・中身は読まない）
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+;
+; 読むもの：PCをつけてからの時間（GetTickCount64）、CPU の使用率（GetSystemTimes）、メモリの使用率（GlobalMemoryStatusEx）、
+; Cドライブの空き（GetDiskFreeSpaceExW）、ゴミ箱に入っている数（SHQueryRecycleBinW）、開いている窓の数、
+; 今日マウスを動かした距離（画素をモニターの実寸 GetDeviceCaps HORZSIZE で mm にする）
+
+*pc_init
+	dim pc_i0, 2 : dim pc_k0, 2 : dim pc_u0, 2 : dim pc_i1, 2 : dim pc_k1, 2 : dim pc_u1, 2
+	GetSystemTimes pc_i0, pc_k0, pc_u0
+	pc_cpu = 0 : pc_mem = 0 : pc_freegb = 0 : pc_totgb = 0 : pc_rbn = 0 : pc_upmin = 0 : pc_win = 0
+	pc_hot = 0 : pc_acc = 0.0 : pc_cool = 60 * 60 * 3 : pc_day = "" : pc_said = 0
+	pc_mnext = (mouse_cm / 10000 + 1) * 10000
+	; 画素1つが何 mm か（主モニターの実寸から。取れなければ 96dpi とみなす）
+	pc_mmpx = 0.2646
+	dcx = GetDC(0)
+	if (GetDeviceCaps(dcx, 4) > 0) & (GetDeviceCaps(dcx, 8) > 0) : pc_mmpx = double(GetDeviceCaps(dcx, 4)) / double(GetDeviceCaps(dcx, 8))
+	ReleaseDC 0, dcx
+	pc_lmx = ginfo_mx : pc_lmy = ginfo_my
+	gosub *pc_read_slow
+	return
+
+; 毎コマ：マウスの距離をためる。1秒ごとに CPU、1分ごとにほかの数を読む
+*pc_tick
+	pdx = ginfo_mx - pc_lmx : pdy = ginfo_my - pc_lmy
+	pc_lmx = ginfo_mx : pc_lmy = ginfo_my
+	; 画面の切り替えなどで大きく飛んだぶんは数えない
+	if (abs(pdx) < 1500) & (abs(pdy) < 1500) : pc_acc += sqrt(double(pdx * pdx + pdy * pdy)) * pc_mmpx
+	if pc_acc >= 10.0 : pcm = int(pc_acc / 10.0) : mouse_cm += pcm : pc_acc -= double(pcm) * 10.0
+	if pc_cool > 0 : pc_cool--
+	if (frame \ 60) = 7 : gosub *pc_read_cpu
+	if (frame \ 3600) = 11 : gosub *pc_read_slow
+	if (frame \ 60) = 9 : gosub *pc_talk
+	return
+
+*pc_read_cpu
+	GetSystemTimes pc_i1, pc_k1, pc_u1
+	; 100ns 単位の差（1秒なら論理コアの数×1000万まで。32bit に入る）。カーネル時間にはアイドルの時間も入っている
+	pdi = pc_i1(0) - pc_i0(0) : pdk = pc_k1(0) - pc_k0(0) : pdu = pc_u1(0) - pc_u0(0)
+	pc_i0(0) = pc_i1(0) : pc_k0(0) = pc_k1(0) : pc_u0(0) = pc_u1(0)
+	if pdk + pdu > 0 : pc_cpu = limit(int(100.0 * double(pdk + pdu - pdi) / double(pdk + pdu)), 0, 100)
+	; 85% をこえて30秒続いたら「がんばってる」とみなす
+	if pc_cpu >= 85 {
+		pc_hot++
+	} else {
+		pc_hot = 0
+	}
+	return
+
+*pc_read_slow
+	; PCをつけてからの分（GetTickCount64 の下の32bit を符号なしにして）
+	ptk = double(GetTickCount64())
+	if ptk < 0.0 : ptk += 4294967296.0
+	pc_upmin = int(ptk / 60000.0)
+	dim pms, 16 : pms(0) = 64
+	GlobalMemoryStatusEx pms
+	pc_mem = pms(1)
+	dim pfa, 2 : dim pft, 2 : dim pff, 2
+	GetDiskFreeSpaceExW "C:\\", pfa, pft, pff
+	pc_freegb = int((double(pfa(1)) * 4294967296.0 + double(pfa(0)) + 4294967296.0 * (pfa(0) < 0)) / 1073741824.0)
+	pc_totgb = int((double(pft(1)) * 4294967296.0 + double(pft(0)) + 4294967296.0 * (pft(0) < 0)) / 1073741824.0)
+	; ゴミ箱：SHQUERYRBINFO（32bit では詰めて20バイト。数は12バイト目から）
+	dim prb, 6 : prb(0) = 20
+	SHQueryRecycleBinW 0, prb
+	if stat = 0 : pc_rbn = prb(3)
+	; 開いている窓の数（見えていて、題名があって、ツールの窓でなく、ほかの仮想デスクトップにないもの）
+	pc_win = 0
+	ph = GetTopWindow(0)
+	repeat 1024
+		if ph = 0 : break
+		if (IsWindowVisible(ph) != 0) & (ph != myhwnd) {
+			if (GetWindowTextLength(ph) > 0) & ((GetWindowLong(ph, -20) & 0x80) = 0) {
+				pcl = 0
+				DwmGetWindowAttribute ph, DWMWA_CLOAKED, pcl, 4
+				if pcl = 0 : pc_win++
+			}
+		}
+		ph = GetWindow(ph, 2)
+	loop
+	return
+
+; 目立つときだけ、ひとこと（15分に1回まで。同じ話は1日1回。マウスは100mごと）
+*pc_talk
+	if curday != pc_day : pc_day = curday : pc_said = 0
+	if pc_cool > 0 : return
+	if (bubt > 0) | wz_on | fs_hide | (act_level = 0) : return
+	if (state != ST_IDLE) & (state != ST_WALK) : return
+	ptalk = ""
+	; マウスで100m動かすごとに（1日の距離）
+	if mouse_cm >= pc_mnext {
+		ptalk = "今日はマウスで" + (mouse_cm / 100) + "m動かしたぞ"
+		pc_mnext = (mouse_cm / 10000 + 1) * 10000
+	}
+	if (ptalk = "") & (pc_hot >= 30) & ((pc_said & 1) = 0) {
+		pc_said = pc_said | 1
+		if grounded : act = ACT_FAN : gosub *start_act
+		ptalk = "PC、あっちいな"
+	}
+	if (ptalk = "") & (pc_mem >= 90) & ((pc_said & 2) = 0) : ptalk = "メモリ、いっぱいいっぱいだな" : pc_said = pc_said | 2
+	if (ptalk = "") & (pc_totgb > 0) & ((pc_said & 4) = 0) {
+		if (pc_freegb * 10 < pc_totgb) | (pc_freegb < 20) : ptalk = "Cドライブ、きつそうだな" : pc_said = pc_said | 4
+	}
+	if (ptalk = "") & (pc_rbn >= 100) & ((pc_said & 8) = 0) : ptalk = "ゴミ箱、あふれそうだな" : pc_said = pc_said | 8
+	if (ptalk = "") & (pc_upmin >= 60 * 24 * 3) & ((pc_said & 16) = 0) : ptalk = "PC、もう" + (pc_upmin / 1440) + "日つけっぱなしだな" : pc_said = pc_said | 16
+	if ptalk = "" : return
+	bubble = ptalk : bubt = 150 : pc_cool = 60 * 60 * 15
+	if testmode : dbg += "PCTALK " + ptalk + "\n"
+	return
+
+; 内訳の窓に書く行（pc_line に）
+*pc_lines
+	gosub *pc_read_slow
+	sdim pc_line, 512
+	pc_line = strf("PCをつけてから %d時間%02d分", pc_upmin / 60, pc_upmin \ 60) + "\n"
+	pc_line += strf("CPU %d%%・メモリ %d%%", pc_cpu, pc_mem) + "\n"
+	pc_line += strf("Cドライブの空き %dGB（全体 %dGB）", pc_freegb, pc_totgb) + "\n"
+	pc_line += strf("ゴミ箱 %d個・開いている窓 %d個", pc_rbn, pc_win) + "\n"
+	pc_line += strf("マウスを動かした距離 %d.%dm", mouse_cm / 100, (mouse_cm \ 100) / 10)
+	return

@@ -7,11 +7,13 @@
 	sw_work = (work_min = 25) + (work_min = 50) * 2
 	sw_break = (break_min = 10) + (break_min = 15) * 2
 	sw_voice = voice_mode
+	sw_al = alarm_se
+	sw_vol = (100 - volume) / 20
 	sw_act = act_level
 	sw_ink = inkmode
 	sw_close = close_mode
 	sw_cmin = (close_min = 10) + (close_min = 15) * 2 + (close_min = 30) * 3
-	sw_type = typecount_on : sw_sound = sound_on : sw_season = season_on : sw_friend = friend_on
+	sw_type = typecount_on : sw_sound = sound_on : sw_season = season_on : sw_friend = friend_on : sw_upd = update_on
 	sw_idle = idle_stop : sw_slack = slack_stop : sw_ovl = ovl_on : sw_cos = costume : sw_stand = stand_on
 	sw_dh = 0 : if diary_hour >= 17 : sw_dh = diary_hour - 16
 	gosub *startup_path
@@ -21,53 +23,63 @@
 	; （OK を押すと、変わったものとして新しい名前で置きなおし、古いほうを消す）
 	exist su_old
 	if strsize >= 0 : sw_start = 1
-	dim sw_obj, 8
+	dim sw_obj, 10
 	; 開くたびに作り直す（screen で前の部品は消える）
 	; 左によく使う設定、右に「高度な設定」
-	screen 8, 940, 500, 2, (wa(0) + wa(2)) / 2 - 470, (wa(1) + wa(3)) / 2 - 250
+	screen 8, UI(940), UI(500), 2, (wa(0) + wa(2)) / 2 - UI(470), (wa(1) + wa(3)) / 2 - UI(250)
 	title "作業のおとも、棒人間の設定"
 	; チェックボックスの地の色（システムのボタン面の色）に合わせる
 	color 240, 240, 240 : boxf
-	color 220, 220, 224 : line 462, 16, 462, 420
-	font "Meiryo UI", 14 : objmode 2
+	color 220, 220, 224 : line UI(462), UI(16), UI(462), UI(420)
+	font "Meiryo UI", UI(14) : objmode 2
 	color 40, 40, 48
-	pos 18, 22 : mes "作業の長さ"
-	pos 18, 62 : mes "休憩の長さ"
-	pos 18, 102 : mes "声"
-	pos 18, 142 : mes "動きの多さ"
-	pos 18, 182 : mes "絵日記をすすめる時刻"
-	pos 484, 54 : mes "線の色"
-	pos 484, 94 : mes "サボり先を長く開いていたら"
-	pos 484, 134 : mes "何分たったら"
-	font "Meiryo UI", 14, 1 : pos 484, 16 : mes "高度な設定"
-	font "Meiryo UI", 14
-	objsize 260, 28
-	pos 180, 18 : combox sw_work, 120, "15分\n25分\n50分" : sw_obj(0) = stat
-	pos 180, 58 : combox sw_break, 120, "5分\n10分\n15分" : sw_obj(1) = stat
-	pos 180, 98 : combox sw_voice, 120, "しゃべらない\n決まったセリフだけ\nよくしゃべる" : sw_obj(2) = stat
-	pos 180, 138 : combox sw_act, 120, "なし（ほとんど動かない）\nときどき\nたくさん" : sw_obj(3) = stat
-	pos 180, 178 : combox sw_dh, 200, "しない\n17時\n18時\n19時\n20時\n21時\n22時\n23時" : sw_obj(7) = stat
-	objsize 220, 28
-	pos 700, 50 : combox sw_ink, 150, "おまかせ（ウィンドウのアイコンの色）\n黒\n紺\n茶\n緑" : sw_obj(4) = stat
-	pos 700, 90 : combox sw_close, 120, "しない\n最小化する\n閉じる（保存していない内容が消えることがあります）" : sw_obj(5) = stat
+	pos UI(18), UI(22) : mes "作業の長さ"
+	pos UI(18), UI(62) : mes "休憩の長さ"
+	pos UI(18), UI(102) : mes "声"
+	pos UI(18), UI(142) : mes "動きの多さ"
+	pos UI(18), UI(182) : mes "絵日記をすすめる時刻"
+	pos UI(18), UI(222) : mes "時刻を知らせる音"
+	pos UI(18), UI(262) : mes "音量"
+	pos UI(484), UI(54) : mes "線の色"
+	pos UI(484), UI(94) : mes "サボり先を長く開いていたら"
+	pos UI(484), UI(134) : mes "何分たったら"
+	font "Meiryo UI", UI(14), 1 : pos UI(484), UI(16) : mes "高度な設定"
+	font "Meiryo UI", UI(14)
+	objsize UI(260), UI(28)
+	pos UI(180), UI(18) : combox sw_work, UI(120), "15分\n25分\n50分" : sw_obj(0) = stat
+	pos UI(180), UI(58) : combox sw_break, UI(120), "5分\n10分\n15分" : sw_obj(1) = stat
+	pos UI(180), UI(98) : combox sw_voice, UI(120), "しゃべらない\n決まったセリフだけ\nよくしゃべる" : sw_obj(2) = stat
+	pos UI(180), UI(138) : combox sw_act, UI(120), "なし（ほとんど動かない）\nときどき\nたくさん" : sw_obj(3) = stat
+	pos UI(180), UI(178) : combox sw_dh, UI(200), "しない\n17時\n18時\n19時\n20時\n21時\n22時\n23時" : sw_obj(7) = stat
+	sw_al1 = sw_al - 1
+	pos UI(180), UI(218) : combox sw_al1, UI(120), "電子音（ピピピピ）\n玄関チャイム（ピンポーン）\n放送チャイム（ピンポンパンポーン）" : sw_obj(8) = stat
+	pos UI(180), UI(258) : combox sw_vol, UI(120), "100%\n80%\n60%\n40%\n20%" : sw_obj(9) = stat
+	objsize UI(220), UI(28)
+	pos UI(700), UI(50) : combox sw_ink, UI(150), "おまかせ（ウィンドウのアイコンの色）\n黒\n紺\n茶\n緑" : sw_obj(4) = stat
+	pos UI(700), UI(90) : combox sw_close, UI(120), "しない\n最小化する\n閉じる（ブラウザはタブだけ）" : sw_obj(5) = stat
 	; 長い選択肢が切れないように、開いたときの幅だけ広げる（CB_SETDROPPEDWIDTH）
-	sendmsg objinfo(sw_obj(5), 2), 0x160, 400, 0
-	sendmsg objinfo(sw_obj(4), 2), 0x160, 300, 0
-	pos 700, 130 : combox sw_cmin, 150, "5分\n10分\n15分\n30分" : sw_obj(6) = stat
-	objsize 430, 26
-	pos 18, 232 : chkbox "音を鳴らす", sw_sound
-	pos 18, 262 : chkbox "Windowsの起動時に、いっしょに起動する", sw_start
-	pos 484, 180 : chkbox "タイピングを数える（回数だけ）", sw_type
-	pos 484, 210 : chkbox "席を離れたら一時停止する（10分さわらなかったら）", sw_idle
-	pos 484, 240 : chkbox "サボり先を見ているあいだはタイマーを止める", sw_slack
-	pos 484, 270 : chkbox "季節のイベント", sw_season
-	pos 484, 300 : chkbox "認識の図示（足場や道を画面に描く）", sw_ovl
-	pos 484, 330 : chkbox "サーバーと通信する（ゴースト機能用）", sw_friend
-	pos 484, 360 : chkbox "着せ替え：珠音（たまね）の髪型", sw_cos
-	pos 18, 292 : chkbox "1時間ごとに、立って伸びる合図", sw_stand
-	objsize 150, 34
-	pos 316, 444 : button gosub "OK", *settings_ok
-	pos 476, 444 : button gosub "キャンセル", *settings_cancel
+	sendmsg objinfo(sw_obj(5), 2), 0x160, UI(400), 0
+	sendmsg objinfo(sw_obj(4), 2), 0x160, UI(300), 0
+	pos UI(700), UI(130) : combox sw_cmin, UI(150), "5分\n10分\n15分\n30分" : sw_obj(6) = stat
+	objsize UI(430), UI(26)
+	pos UI(18), UI(312) : chkbox "音を鳴らす", sw_sound
+	pos UI(18), UI(342) : chkbox "Windowsの起動時に、いっしょに起動する", sw_start
+	; 閉じるの注意は赤い字で
+	font "Meiryo UI", UI(12) : color 200, 30, 30
+	pos UI(484), UI(160) : mes "閉じると、保存していない作業が失われることがあります"
+	font "Meiryo UI", UI(14) : color 40, 40, 48
+	pos UI(484), UI(180) : chkbox "タイピングを数える（回数だけ）", sw_type
+	pos UI(484), UI(210) : chkbox "席を離れたら一時停止する（10分さわらなかったら）", sw_idle
+	pos UI(484), UI(240) : chkbox "サボり先を見ているあいだはタイマーを止める", sw_slack
+	pos UI(484), UI(270) : chkbox "季節のイベント", sw_season
+	pos UI(484), UI(300) : chkbox "認識の図示（足場や道を画面に描く）", sw_ovl
+	pos UI(484), UI(330) : chkbox "サーバーと通信する（フレンド機能用）", sw_friend
+	pos UI(484), UI(360) : chkbox "着せ替え：珠音（たまね）のドット絵", sw_cos
+	pos UI(484), UI(390) : chkbox "新しい版が出たら知らせる（起動したときに確認）", sw_upd
+	pos UI(18), UI(372) : chkbox "1時間ごとに、立って伸びる合図", sw_stand
+	objsize UI(150), UI(34)
+	pos UI(316), UI(444) : button gosub "OK", *settings_ok
+	pos UI(476), UI(444) : button gosub "キャンセル", *settings_cancel
 	win_id = 8 : gosub *show_win
 	return
 
@@ -87,6 +99,8 @@
 	sendmsg objinfo(sw_obj(5), 2), 0x147, 0, 0 : sw_close = stat
 	sendmsg objinfo(sw_obj(6), 2), 0x147, 0, 0 : sw_cmin = stat
 	sendmsg objinfo(sw_obj(7), 2), 0x147, 0, 0 : sw_dh = stat
+	sendmsg objinfo(sw_obj(8), 2), 0x147, 0, 0 : sw_al = stat + 1
+	sendmsg objinfo(sw_obj(9), 2), 0x147, 0, 0 : sw_vol = stat
 	gsel 8, -1
 	gsel 1
 	; 変わったところだけ、メニューと同じ番号で実行する
@@ -94,6 +108,8 @@
 	if sw_work != ((work_min = 25) + (work_min = 50) * 2) : r = 11 + sw_work : gosub *menu_do
 	if sw_break != ((break_min = 10) + (break_min = 15) * 2) : r = 21 + sw_break : gosub *menu_do
 	if sw_voice != voice_mode : r = 70 + sw_voice : gosub *menu_do
+	if sw_al != alarm_se : r = 74 + sw_al : gosub *menu_do
+	if sw_vol != (100 - volume) / 20 : r = 110 + sw_vol : gosub *menu_do
 	if sw_act != act_level : r = 91 + sw_act : gosub *menu_do
 	if sw_ink != inkmode : r = 40 + sw_ink : gosub *menu_do
 	if sw_close != close_mode : r = 60 + sw_close : gosub *menu_do
@@ -102,6 +118,7 @@
 	if sw_sound != sound_on : r = 32 : gosub *menu_do
 	if sw_season != season_on : r = 95 : gosub *menu_do
 	if sw_friend != friend_on : r = 80 : gosub *menu_do
+	if sw_upd != update_on : r = 104 : gosub *menu_do
 	if sw_idle != idle_stop : r = 97 : gosub *menu_do
 	if sw_slack != slack_stop : r = 96 : gosub *menu_do
 	if sw_ovl != ovl_on : r = 90 : gosub *menu_do

@@ -29,7 +29,7 @@ SCENES = {
     "G": ("G_はじめまして", "wizardtest wzauto", 1, 50, 1.0),
     "H": ("H_やることにチェック", "tdchecktest tdnoundo", 3, 20, 2.0),
     "I": ("I_認識の図示", "realtest ovl", 1, 30, 1.0),
-    "J": ("J_珠音の髪型", "show tamane", 1, 120, 2.2),
+    "J": ("J_珠音のドット絵", "show tamane", 1, 120, 2.2),
     "K": ("K_タイマーで一時停止", "clicktest", 1, 14, 1.8),
     "L": ("L_やることリストと内訳", "pvlisttest", 1, 16, 1.0),
     "R": ("R_道さがし", "pvroutetest", 1, 26, 1.0),

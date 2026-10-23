@@ -15,6 +15,19 @@
 	exename = getpath(cnvwtos(pbuf), 8 + 16)
 	return
 
+; 窓（chk_h）がタスクバーやスタートメニューか（is_shell に 1）。クラス名で見る
+*is_shell_win
+	is_shell = 0
+	memset wbuf, 0, 1024
+	GetClassNameW chk_h, wbuf, 255
+	shcls = cnvwtos(wbuf)
+	if shcls = "Shell_TrayWnd" : is_shell = 1
+	if shcls = "Shell_SecondaryTrayWnd" : is_shell = 1
+	if shcls = "Windows.UI.Core.CoreWindow" : is_shell = 1
+	if shcls = "Progman" : is_shell = 1
+	if shcls = "WorkerW" : is_shell = 1
+	return
+
 ; 窓（chk_h）がこのアプリ自身のものか（is_mine に 1）。プロセスの番号で見る
 *check_mine
 	chk_pid = 0
@@ -34,28 +47,32 @@
 	if fgh != lastfg {
 		if lastfg : switches_today++ : swlog(swi \ 64) = frame : swi++
 		lastfg = fgh
+		chk_h = fgh : gosub *is_shell_win
+		if is_shell = 0 : usefg = fgh
 		ih = fgh : gosub *exe_of : fgexe = exename
 	}
-	if (idlems > 60000) | (fgexe = "") : return
+	if ((idlems > 60000) & (closetest = 0)) | (fgexe = "") : return
 	ai = -1
 	repeat napp
 		if appname(cnt) = fgexe : ai = cnt : break
 	loop
-	if ai < 0 {
-		if napp >= 40 : return
+	if (ai < 0) & (napp < 40) {
 		ai = napp : appname(ai) = fgexe : appsec(ai) = 0 : napp++
 	}
-	appsec(ai)++
+	if ai >= 0 : appsec(ai)++
 	if (phase = 0) & (paused = 0) {
 		; タイトルとアプリ名に、登録した語が入っているか（タイトルは照合するだけで残さない）
 		memset wbuf, 0, 1024
 		GetWindowTextW fgh, wbuf, 255
-		ttl = getpath(cnvwtos(wbuf), 16) + " " + fgexe
+		ttl0 = getpath(cnvwtos(wbuf), 16) : ttl = ttl0 + " " + fgexe
 		hit = 0
 		hiti = 0
-		repeat ndl
-			if instr(ttl, 0, dlist(cnt)) >= 0 : hit = 1 : hiti = cnt : break
-		loop
+		; ブラウザか（閉じるときはタブだけにする）
+		br_is = (fgexe = "chrome.exe") | (fgexe = "msedge.exe") | (fgexe = "firefox.exe") | (fgexe = "brave.exe") | (fgexe = "vivaldi.exe") | (fgexe = "opera.exe")
+		if closetest & (instr(cmd, 0, "brclose") >= 0) : br_is = 1
+		gosub *dl_match
+		; 確認用：brclose は、前面の窓をサボり先とみなしてブラウザの閉じかたを通す（キーは送らず dbg に書く）
+		if closetest & br_is : hit = 1
 		if hit & slack_stop : slack_now = 1
 		if hit {
 			dsec++
@@ -68,18 +85,46 @@
 			lim = close_min * 60
 			if dmin(hiti) > 0 : lim = dmin(hiti) * 60
 			if closetest : lim = 20
+			if closetest & br_is : lim = 8
 			warnat = lim - 60
 			if warnat < lim / 2 : warnat = lim / 2
 			if dsec = warnat {
 				if close_mode = 1 : bubble = "そろそろしまうぞ" : bubt = 120
 				if close_mode = 2 : bubble = "あと少しで閉じるぞ" : bubt = 120
+				if (close_mode = 2) & br_is : bubble = "あと少しでタブを閉じるぞ" : bubt = 120
 			}
 			if dsec >= lim {
+				cl_done = 1
 				if close_mode = 1 : ShowWindow fgh, 6 : bubble = "しまっといたぞ" : bubt = 90
-				; 閉じるときは×ボタンを押したのと同じ通知（WM_SYSCOMMAND / SC_CLOSE）を送る。保存の確認はアプリ側が出す
-				if close_mode = 2 : PostMessage fgh, 0x112, 0xF060, 0 : bubble = "閉じといたぜ" : bubt = 90
-				if closetest : dbg += strf("CLOSE sent stat=%d to=%d", stat, fgh) + "\n"
-				dsec = 0
+				if (close_mode = 2) & (br_is = 0) {
+					; 閉じるときは×ボタンを押したのと同じ通知（WM_SYSCOMMAND / SC_CLOSE）を送る。保存の確認はアプリ側が出す
+					PostMessage fgh, 0x112, 0xF060, 0 : bubble = "閉じといたぜ" : bubt = 90
+					if closetest : dbg += strf("CLOSE sent stat=%d to=%d", stat, fgh) + "\n"
+				}
+				if (close_mode = 2) & br_is {
+					; ブラウザは窓ごと閉じずに、いま見ているタブだけ閉じる（Ctrl+W）
+					; キーはそのとき前面の窓に届く。前面がまだそのブラウザで、Shift・Ctrl・Alt・Win・マウスの左ボタンを押していないときだけ送る（Shift で Ctrl+Shift+W になると窓ごと閉じる）。だめなら次の1秒にもう一度
+					br_ok = (fg_root() = fgh)
+					repeat 6
+						k = 0x10 + cnt
+						if cnt >= 3 : k = 0x5B + cnt - 3
+						if cnt = 5 : k = 0x01
+						if GetAsyncKeyState(k) & 0x8000 : br_ok = 0
+					loop
+					if br_ok {
+						if testmode {
+							dbg += "CTRLW to=" + fgexe + "\n"
+						} else {
+							keybd_event 0x11, 0, 0, 0 : keybd_event 0x57, 0, 0, 0
+							keybd_event 0x57, 0, 2, 0 : keybd_event 0x11, 0, 2, 0
+						}
+						bubble = "タブを閉じといたぜ" : bubt = 90
+					} else {
+						cl_done = 0
+						if closetest : dbg += "CTRLW wait\n"
+					}
+				}
+				if cl_done : dsec = 0
 			}
 		}
 		; 5分（scold_sec）続けて前面にあったら、注意しに行く。ちょっと見るくらいでは来ない
@@ -93,6 +138,25 @@
 		loop
 		if (nrec >= 30) & (switchcool = 0) : bubble = "ひとつずついこうぜ" : bubt = 80 : switchcool = 60 * 60 * 5
 	}
+	return
+
+; 題名（ttl0：小文字）とアプリ名（ttl：題名＋" "＋exe 名）が、サボり先の語に当たるか（hit・hiti）
+; 「/ x」のように / で始まる語は、題名の終わりか「 - 」（ブラウザ名の前）の直前にあるときだけ当てる
+; （「TODO / xyz」のような題名に当たらないように）
+*dl_match
+	hit = 0 : hiti = 0
+	repeat ndl
+		dw = dlist(cnt)
+		if strmid(dw, 0, 1) = "/" {
+			dwl = strlen(dw) : tl = strlen(ttl0)
+			if tl >= dwl {
+				if strmid(ttl0, tl - dwl, dwl) = dw : hit = 1 : hiti = cnt : break
+			}
+			if instr(ttl0, 0, dw + " - ") >= 0 : hit = 1 : hiti = cnt : break
+		} else {
+			if instr(ttl, 0, dw) >= 0 : hit = 1 : hiti = cnt : break
+		}
+	loop
 	return
 
 *load_distract

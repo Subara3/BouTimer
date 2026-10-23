@@ -10,7 +10,7 @@ out = os.path.join(root, "docs", "文言一覧.csv")
 def kind_of(fn, code):
     if "sea_line" in code: return "季節のセリフ"
     if "gbubble" in code: return "ゴーストのセリフ"
-    if "bubble" in code: return "吹き出し（セリフ）"
+    if "bubble" in code or "ptalk" in code: return "吹き出し（セリフ）"
     if "signtext" in code: return "札"
     if fn == "overlay.hsp": return "認識の図示"
     if fn == "draw.hsp" and ("label" in code or "hs_line" in code): return "頭の上の表示"
@@ -49,7 +49,7 @@ for path in sorted(glob.glob(os.path.join(proto, "*.hsp"))):
             if len(ctx) > 90: ctx = ctx[:90] + "…"
             rows.append([kind_of(fn, code), fn, no, s.replace("\\n", "／"), "", ctx])
 
-order = ["はじめての質問", "吹き出し（セリフ）", "季節のセリフ", "札", "ゴーストのセリフ", "頭の上の表示", "絵日記", "右クリックのメニュー", "窓の文字", "ダイアログ", "バージョン情報", "トレイ", "日報用のまとめ", "技術の見える化", "ファイルの説明行", "その他"]
+order = ["はじめての質問", "吹き出し（セリフ）", "季節のセリフ", "札", "ゴーストのセリフ", "頭の上の表示", "絵日記", "右クリックのメニュー", "窓の文字", "ダイアログ", "バージョン情報", "トレイ", "日報用のまとめ", "技術の見える化", "認識の図示", "ファイルの説明行", "その他"]
 rows.sort(key=lambda r: (order.index(r[0]), r[1], r[2]))
 with open(out, "w", encoding="utf-8-sig", newline="") as f:
     w = csv.writer(f)

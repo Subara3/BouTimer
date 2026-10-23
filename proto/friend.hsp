@@ -70,6 +70,7 @@
 		if cnt : frbody += ","
 		frbody += fr_code(cnt)
 	loop
+	CreateDirectory vv_tmp, 0
 	bsave vv_tmp + "\\bt_f.txt", frbody, strlen(frbody)
 	exist vv_tmp + "\\bt_fr.txt"
 	if strsize >= 0 : delete vv_tmp + "\\bt_fr.txt"
@@ -78,7 +79,7 @@
 	sdim frcmd, 2048
 	cnvstow frcmd, "\"" + vv_curl + "\" -s -m 15 -X POST --data-binary @bt_f.txt -o bt_fr.txt \"" + gh_url + "friends\""
 	CreateProcess 0, frcmd, 0, 0, 0, 0x08000000, 0, vv_tmp, fcsi, fcpi
-	if stat = 0 : return
+	if stat = 0 : gosub *fr_visit_fallback : return
 	fr_proc = fcpi(0) : CloseHandle fcpi(1)
 	fr_stage = 1 : fr_t0 = frame : fr_w = 0
 	return
@@ -152,23 +153,23 @@
 ; ---- フレンドの窓（screen 12） ----
 *fr_open
 	if fr_made = 0 {
-		screen 12, 460, 470, 2, (wa(0) + wa(2)) / 2 - 230, (wa(1) + wa(3)) / 2 - 235
+		screen 12, UI(460), UI(470), 2, (wa(0) + wa(2)) / 2 - UI(230), (wa(1) + wa(3)) / 2 - UI(235)
 		title "フレンド"
-		font "Meiryo UI", 14 : objmode 2
+		font "Meiryo UI", UI(14) : objmode 2
 		sdim fr_in, 64 : sdim fr_nin, 128
-		objsize 120, 30
-		pos 300, 40 : button gosub "コードをコピー", *fr_copy_btn
-		pos 20, 150 : input fr_in, 150, 30, 20 : fr_obj_c = stat
-		pos 180, 150 : input fr_nin, 150, 30, 40 : fr_obj_n = stat
-		objsize 100, 30
-		pos 340, 150 : button gosub "追加", *fr_add_btn
+		objsize UI(120), UI(30)
+		pos UI(300), UI(40) : button gosub "コードをコピー", *fr_copy_btn
+		pos UI(20), UI(150) : input fr_in, UI(150), UI(30), 20 : fr_obj_c = stat
+		pos UI(180), UI(150) : input fr_nin, UI(150), UI(30), 40 : fr_obj_n = stat
+		objsize UI(100), UI(30)
+		pos UI(340), UI(150) : button gosub "追加", *fr_add_btn
 		fr_sel = -1
-		objsize 420, 24
-		pos 20, 230 : listbox fr_sel, 136, "" : fr_obj_l = stat
-		objsize 140, 34
-		pos 20, 412 : button gosub "選んだのを消す", *fr_del_btn
-		pos 170, 412 : button gosub "いまの様子を見る", *fr_refresh_btn
-		pos 320, 412 : button gosub "閉じる", *fr_close
+		objsize UI(420), UI(24)
+		pos UI(20), UI(230) : listbox fr_sel, UI(136), "" : fr_obj_l = stat
+		objsize UI(140), UI(34)
+		pos UI(20), UI(412) : button gosub "選んだのを消す", *fr_del_btn
+		pos UI(170), UI(412) : button gosub "いまの様子を見る", *fr_refresh_btn
+		pos UI(320), UI(412) : button gosub "閉じる", *fr_close
 		fr_made = 1
 	}
 	gosub *fr_draw
@@ -181,22 +182,22 @@
 	gsel 12
 	redraw 0
 	color 250, 250, 246 : boxf
-	font "Meiryo UI", 14 : color 40, 40, 48
-	pos 20, 14 : mes "あなたのフレンドコード"
+	font "Meiryo UI", UI(14) : color 40, 40, 48
+	pos UI(20), UI(14) : mes "あなたのフレンドコード"
 	fr_c8 = my_fcode : gosub *fr_dash
 	if fr_show = "" : fr_show = "（まだもらっていない）"
-	font "Meiryo UI", 24, 1 : color 42, 106, 138
-	pos 20, 38 : mes fr_show
-	font "Meiryo UI", 12 : color 110, 110, 120
+	font "Meiryo UI", UI(24), 1 : color 42, 106, 138
+	pos UI(20), UI(38) : mes fr_show
+	font "Meiryo UI", UI(12) : color 110, 110, 120
 	if friend_on = 0 {
-		color 200, 70, 60 : pos 20, 80 : mes "設定の「サーバーと通信する」をオンにすると使えます"
+		color 200, 70, 60 : pos UI(20), UI(80) : mes "設定の「サーバーと通信する」をオンにすると使えます"
 	} else {
-		if vv_curl = "" : color 200, 70, 60 : pos 20, 80 : mes "このWindowsにはcurlがないので使えません"
-		if vv_curl != "" : pos 20, 80 : mes "おたがいにコードを登録すると、サイクル数が見えて、休憩に遊びに来ます"
+		if vv_curl = "" : color 200, 70, 60 : pos UI(20), UI(80) : mes "このWindowsにはcurlがないので使えません"
+		if vv_curl != "" : pos UI(20), UI(80) : mes "おたがいにコードを登録すると、サイクル数が見えて、休憩に遊びに来ます"
 	}
-	font "Meiryo UI", 14 : color 40, 40, 48
-	pos 20, 124 : mes "フレンドのコード" : pos 180, 124 : mes "呼び名（このPCだけ）"
-	pos 20, 204 : mes strf("フレンド（%d／5人）", nfr)
+	font "Meiryo UI", UI(14) : color 40, 40, 48
+	pos UI(20), UI(124) : mes "フレンドのコード" : pos UI(180), UI(124) : mes "呼び名（このPCだけ）"
+	pos UI(20), UI(204) : mes strf("フレンド（%d／5人）", nfr)
 	; 一覧
 	sdim frlist, 2048
 	repeat nfr

@@ -140,7 +140,8 @@ def end_png(path):
     sw = d.textlength(SUB, font=fm)
     d.text(((W - sw) / 2, 290), SUB, font=fm, fill=(90, 90, 100))
     credit = ["HSP 3.7 で作成　／　作者 subara3", "声：VOICEVOX:玄野武宏　ナレーション：VOICEVOX:No.7",
-              "効果音：効果音ラボ　着せ替え：珠音（HSP3 オフィシャル素材）", "プログラムの作成に生成AI（Claude）を使用"]
+              "効果音：効果音ラボ　着せ替え：珠音（HSP3 オフィシャル素材）",
+              "BGM：Light of Heat（STUDIO COM／Audiostock）", "プログラムの作成に生成AI（Claude）を使用"]
     for i, t in enumerate(credit):
         cw = d.textlength(t, font=fs)
         d.text(((W - cw) / 2, 420 + i * 34), t, font=fs, fill=(110, 110, 120))

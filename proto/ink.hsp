@@ -13,31 +13,19 @@
 	if hic = 0 : hic = GetClassLong(ih, -14)
 	if hic = 0 : hic = GetClassLong(ih, -34)
 	if hic = 0 : return
-	if isl = 0 {
-		memset icb0, 0, 4096
-	} else {
-		memset icb1, 0, 4096
-	}
+	dupptr icbx, icppv(isl), 4096, 2
+	memset icbx, 0, 4096
 	DrawIconEx icdc(isl), 0, 0, hic, 32, 32, 0, 0, 3
 	; 古い形式のアイコンはアルファが入らないので、色のある画素を不透明にする
 	nz = 0
 	repeat 1024
-		if isl = 0 {
-			v = lpeek(icb0, cnt * 4)
-		} else {
-			v = lpeek(icb1, cnt * 4)
-		}
+		v = lpeek(icbx, cnt * 4)
 		if (v >> 24) & 255 : nz = 1 : break
 	loop
 	if nz = 0 {
 		repeat 1024
-			if isl = 0 {
-				v = lpeek(icb0, cnt * 4)
-				if v & 0xFFFFFF : lpoke icb0, cnt * 4, v | 0xFF000000
-			} else {
-				v = lpeek(icb1, cnt * 4)
-				if v & 0xFFFFFF : lpoke icb1, cnt * 4, v | 0xFF000000
-			}
+			v = lpeek(icbx, cnt * 4)
+			if v & 0xFFFFFF : lpoke icbx, cnt * 4, v | 0xFF000000
 		loop
 	}
 	icok(isl) = 1 : ichwnd(isl) = ih
@@ -57,6 +45,19 @@
 		ih = plat_h(cnt) : gosub *load_icon
 		if icok(1) : break
 	loop
+	return
+
+; いま見えている窓（足場の一覧）から、アイコンを4つまで集める（icn 個。0番から）
+*ensure_icons_many
+	icn = 0
+	gosub *scan_platforms
+	repeat nplat
+		if icn >= 4 : break
+		ih = plat_h(cnt) : isl = icn
+		gosub *load_icon
+		if icok(isl) : icn++
+	loop
+	if testmode : dbg += "ICONS n=" + icn + "\n"
 	return
 
 ; ---- 主線の色をアイコンの色から決める（おまかせ） ----

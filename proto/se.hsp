@@ -2,20 +2,30 @@
 ; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
 ;
 ; 効果音は効果音ラボ（https://soundeffect-lab.info/）のものを tools/make_se.py で wav にして、se フォルダに同梱している
+; 時刻を知らせる音（se_alarm1〜3）と、その1回だけの版（se_alarm1s〜3s。作業と休憩の切りかわり）は tools/make_alarm_se.py で計算して作ったもの
 ; 声（PlaySound）と重なっても止めあわないように、効果音は MCI で鳴らす
 
 *se_init
 	se_dir = resdir + "\\se"
 	se_ok = 0 : se_jump_next = 0
-	sdim se_names, 32, 4
+	sdim se_names, 32, 10
 	se_names(0) = "se_jump" : se_names(1) = "se_write" : se_names(2) = "se_paper" : se_names(3) = "se_goal"
-	repeat 4
+	se_names(4) = "se_alarm1" : se_names(5) = "se_alarm2" : se_names(6) = "se_alarm3"
+	se_names(7) = "se_alarm1s" : se_names(8) = "se_alarm2s" : se_names(9) = "se_alarm3s"
+	repeat 10
 		exist se_dir + "\\" + se_names(cnt) + ".wav"
 		if strsize > 44 {
 			mciSendString "open \"" + se_dir + "\\" + se_names(cnt) + ".wav\" type waveaudio alias " + se_names(cnt), 0, 0, 0
 			if stat = 0 : se_ok++
 		}
 	loop
+	return
+
+; 音量（volume 0〜100）をこのアプリの音に反映する。waveOutSetVolume は Vista 以降ではアプリごとの音量（音量ミキサーの欄）を変える
+; 声（PlaySound）も効果音（MCI）も同じ winmm を通るので、これひとつで両方に効く
+*apply_volume
+	vol16 = volume * 65535 / 100
+	waveOutSetVolume 0, vol16 | (vol16 << 16)
 	return
 
 ; se_name の効果音を鳴らす。音を鳴らさない設定・全画面のあいだは鳴らさない

@@ -19,7 +19,7 @@
 			neturl gh_url
 			netheader "Content-Type: application/x-www-form-urlencoded\n"
 			netrequest_post "ghost", gbody
-			gh_stage = 1
+			gh_stage = 1 : gh_t0 = frame
 			return
 		}
 		if gh_fetch {
@@ -27,10 +27,11 @@
 			neturl gh_url
 			netheader ""
 			netrequest_get "ghosts?n=1&me=" + myid
-			gh_stage = 2
+			gh_stage = 2 : gh_t0 = frame
 		}
 		return
 	}
+	if frame - gh_t0 > 60 * 20 : gh_stage = 0 : gh_err++ : return
 	netexec gres
 	if gres = 0 : return
 	if gres < 0 : gh_stage = 0 : gh_err++ : return

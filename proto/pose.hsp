@@ -41,6 +41,20 @@
 		la1(0) = 45.0 + c * 25.0 : la2(0) = -5.0 + c * 10.0 : la1(1) = 45.0 - c * 25.0 : la2(1) = -5.0 - c * 10.0
 		return
 	}
+	if (state = ST_ACT) & (act = ACT_FLIP) {
+		; 宙返り：ひざを抱えて、跳んでいるあいだに1回転
+		shadow = (grounded != 0)
+		fq = limitf(double(frame - flip_t) / 38.0, 0.0, 1.0)
+		rot = -360.0 * fq * fq * (3.0 - 2.0 * fq)
+		if fq < 1.0 {
+			la1(0) = 70.0 : la2(0) = -60.0 : la1(1) = 60.0 : la2(1) = -70.0
+			aa1(0) = 60.0 : aa2(0) = 20.0 : aa1(1) = 50.0 : aa2(1) = 10.0
+			eyes = 2 : mouth = 3
+		} else {
+			aa1(0) = 125.0 : aa2(0) = 150.0 : aa1(1) = 125.0 : aa2(1) = 150.0 : eyes = 6 : mouth = 3
+		}
+		return
+	}
 	if (grounded = 0) & (state = ST_SLEEP) {
 		shadow = 0 : eyes = 1 : mouth = 0 : zzz = 1
 		return
@@ -71,6 +85,14 @@
 		}
 		if (beatn \ 8) >= 6 : view = 1
 		mouth = 3 : eyes = 6 * (bz > 0.6)
+		return
+	}
+	if riding & ((state = ST_IDLE) | (state = ST_WALK) | (state = ST_REST)) {
+		; 窓に乗ってすべる：腰を落として両手を広げる
+		view = 1 : mouth = 3 : eyes = 6
+		hipy = -20.0 : lean = sin(double(frame) * 0.08) * 4.0
+		aa1(0) = 85.0 : aa2(0) = 95.0 : aa1(1) = 85.0 : aa2(1) = 95.0
+		la1(0) = -18.0 : la2(0) = 8.0 : la1(1) = 18.0 : la2(1) = -8.0
 		return
 	}
 	if state = ST_ACT : gosub *act_pose : return
@@ -165,6 +187,14 @@
 			gosub *front_steps
 		}
 		sy = sx
+		return
+	}
+	if (state = ST_PAUSE) & (notyet != 0) {
+		; まだ始めていない：頭の上の札を指さして待つ（もう片手は腰）
+		view = 1 : mouth = 3
+		lean = sin(double(frame) * 0.05) * 2.0
+		aa1(1) = 125.0 : aa2(1) = 135.0 + sin(double(frame) * 0.12) * 8.0
+		aa1(0) = 50.0 : aa2(0) = -35.0
 		return
 	}
 	if (state = ST_SLACK) | (state = ST_PAUSE) {
@@ -483,6 +513,61 @@
 	}
 	if act = ACT_BEHIND {
 		lookdown = 1 : mouth = 1
+		return
+	}
+	if act = ACT_EXERCISE {
+		; 体操：腕を上→横→前→下、ひざを少し曲げる。30コマで1つの動き
+		view = 1 : mouth = 3
+		if stimer < 90 : return
+		et = double((stimer - 90) \ 30) / 30.0
+		eph = ((stimer - 90) / 30) \ 4
+		ek = sin(et * 3.1416)
+		if eph = 0 : aa1(0) = 20.0 + 140.0 * ek : aa2(0) = aa1(0) + 10.0 : aa1(1) = aa1(0) : aa2(1) = aa2(0)
+		if eph = 1 : aa1(0) = 20.0 + 70.0 * ek : aa2(0) = aa1(0) : aa1(1) = aa1(0) : aa2(1) = aa2(0) : hipy = -24.0 + 4.0 * ek
+		if eph = 2 : aa1(0) = 20.0 + 70.0 * ek : aa2(0) = 20.0 + 160.0 * ek : aa1(1) = aa1(0) : aa2(1) = aa2(0)
+		if eph = 3 : aa1(0) = 20.0 : aa2(0) = 10.0 : aa1(1) = 20.0 : aa2(1) = 10.0 : hipy = -24.0 + 6.0 * ek : la1(0) = -4.0 - 10.0 * ek : la2(0) = 8.0 * ek : la1(1) = 4.0 + 10.0 * ek : la2(1) = -8.0 * ek
+		return
+	}
+	if act = ACT_FAN {
+		; うちわでPCをあおぐ：右手を左右にふる。汗も少し
+		view = 1 : mouth = 3 : lean = -2.0
+		fa = sin(double(stimer) * 0.45)
+		aa1(1) = 75.0 + fa * 25.0 : aa2(1) = 105.0 + fa * 35.0
+		aa1(0) = -20.0 : aa2(0) = 5.0
+		return
+	}
+	if act = ACT_YAWN {
+		; あくび：のびをしながら大きく口をあける
+		view = 1 : eyes = 1
+		yq = limitf(double(stimer) / 50.0, 0.0, 1.0)
+		if stimer > 100 : yq = limitf(double(150 - stimer) / 50.0, 0.0, 1.0)
+		aa1(0) = 10.0 + 115.0 * yq : aa2(0) = 5.0 + 145.0 * yq : aa1(1) = aa1(0) : aa2(1) = aa2(0)
+		sy = 1.0 + 0.05 * yq : mouth = 4
+		return
+	}
+	if act = ACT_ICONJUG {
+		; アイコンでお手玉（腕の動きはジャグリングと同じ）
+		view = 1 : mouth = 2 : lookdown = 0
+		ja = double(stimer) * 0.22
+		aa1(0) = 70.0 + sin(ja) * 12.0 : aa2(0) = 120.0
+		aa1(1) = 70.0 - sin(ja) * 12.0 : aa2(1) = 120.0
+		return
+	}
+	if act = ACT_ICONTOWER {
+		view = 1 : mouth = 1
+		if stimer < itw_done {
+			; 投げる手：1つごとに右手を上げる
+			if (stimer \ 45) < 14 : aa1(1) = 120.0 : aa2(1) = 150.0 : mouth = 3
+		} else {
+			if stimer < itw_done + 60 {
+				; できた：両手を上げる。ぐらつき始めたら見上げる
+				aa1(0) = 125.0 : aa2(0) = 150.0 : aa1(1) = 125.0 : aa2(1) = 150.0 : eyes = 6 : mouth = 3
+				if stimer >= itw_done + 40 : aa1(0) = 40.0 : aa2(0) = 60.0 : aa1(1) = 40.0 : aa2(1) = 60.0 : eyes = 0 : mouth = 2
+			} else {
+				; 崩れた
+				eyes = 4 : mouth = 4 : aa1(0) = 60.0 : aa2(0) = 100.0 : aa1(1) = 60.0 : aa2(1) = 100.0
+			}
+		}
 		return
 	}
 	if act = ACT_ICONBALL {

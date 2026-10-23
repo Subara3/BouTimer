@@ -16,6 +16,10 @@
 		if frame = 750 : bubble = "教えたことばのテスト" : bubt = 90
 		if frame = 900 : dbg += strf("VC maxgap=%dms spoke=%d", vl_max, vv_spoke) + "\n"
 	}
+	; 確認用：phasese は、作業3秒・休憩3秒にして、切りかわりの音（1回だけ版）を鳴らすか見る（SE 行）
+	if instr(cmd, 0, "phasese") >= 0 {
+		if frame = 1 : endframe = 60 * 10 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 3000 : break_ms = 3000
+	}
 	; 確認用：friendtest は、手元の確認用サーバー（127.0.0.1:8799）につないで、フレンドの窓と、休憩にフレンドが来るのを見る
 	if instr(cmd, 0, "friendtest") >= 0 {
 		if frame = 1 {
@@ -63,6 +67,9 @@
 		if frame = 260 : ac_ph = 3 : se_name = "se_write" : gosub *se_play
 		if frame = 320 : ac_ph = 4 : se_name = "se_paper" : gosub *se_play
 		if frame = 380 : ac_ph = 5 : se_name = "se_goal" : gosub *se_play
+		if frame = 460 : se_name = "se_alarm1" : gosub *se_play
+		if frame = 580 : se_name = "se_alarm2" : gosub *se_play
+		if frame = 700 : se_name = "se_alarm3" : gosub *se_play
 		if (frame >= 2) & (frame < 440) : apk = int(peak * 1000.0) : if apk > ac_mx(ac_ph) : ac_mx(ac_ph) = apk
 		if frame = 450 : dbg += strf("AUDIO meter=%d quiet=%d voice=%d jump=%d write=%d paper=%d goal=%d （千分率）", meter_ok, ac_mx(0), ac_mx(1), ac_mx(2), ac_mx(3), ac_mx(4), ac_mx(5)) + "\n"
 	}
@@ -73,6 +80,17 @@
 		if frame = 200 : bubble = "遠くを見ると目が休まるぞ" : bubt = 600
 		if frame = 300 : bubble = "ほっ" : bubt = 600
 		if (frame = 150) | (frame = 260) | (frame = 360) : GdipSaveImageToFile gbmp, dir_cur + "\\shot\\bub_" + frame + ".png", pngclsid, 0
+	}
+	; 確認用：starttest は、起動してまだ始めていない状態から、頭の上の「作業をはじめる」を押して始める（shot で絵を書き出す）
+	if instr(cmd, 0, "starttest") >= 0 {
+		if frame = 1 : fakein = 2 : endframe = 60 * 20 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : fmx = -9999 : fmy = -9999
+		if (frame = 300) | (frame = 960) : dbg += strf("ST f=%d notyet=%d paused=%d elapsed=%d state=%d", frame, notyet, paused, elapsed, state) + " " + bubble + "\n"
+		if (instr(cmd, 0, "shot") >= 0) & ((frame = 301) | (frame = 341)) : GdipSaveImageToFile gbmp, dir_cur + "\\shot\\start_" + frame + ".png", pngclsid, 0
+		cfx = int(cx) + int(double(LW / 2) * uis) : cfy = int(cy) + int(11.0 * uis)
+		if frame = 700 : fmx = cfx : fmy = cfy : fml = 1
+		if frame = 703 : fml = 0
+		if frame = 706 : fmx = -9999 : fmy = -9999
+		if frame = 712 : dbg += strf("ST f=%d notyet=%d paused=%d", frame, notyet, paused) + " " + bubble + "\n"
 	}
 	; 確認用：clicktest は、頭の上のタイマーの表示をクリックして一時停止し、もう一度クリックして再開する
 	if instr(cmd, 0, "clicktest") >= 0 {
@@ -176,6 +194,7 @@
 	if (instr(cmd, 0, "wzauto") >= 0) & wz_on & (frame >= 120) & (((frame - 120) \ 150) = 0) {
 		wz_pick = 0
 		if wz_page = 1 : wz_pick = 1
+		if wz_page = 5 : wz_pick = 1
 		if wz_page = 6 : wz_pick = 1
 	}
 	if (instr(cmd, 0, "wizardtest") >= 0) & (frame = 1) : endframe = 60 * 40
@@ -204,7 +223,128 @@
 	if (instr(cmd, 0, "teachwin") >= 0) & (frame = 30) : gosub *teach_open
 	if (instr(cmd, 0, "abouttest") >= 0) & (frame = 30) : gosub *show_about : gsel 13 : bmpsave "aboutshot.bmp" : gsel 1
 	if testmode & (frame = 30) : dbg += "BOOT t=" + boot_t + " day=" + boot_day + "\n"
+	; 確認用：newvertest は、手元のファイルを版の番号として読み、お知らせの窓を出す（UP 行、upshot.bmp）。
+	; newverold は同じ版（最新だぞ）、newverbad は版の番号でない中身（無視する）。版の番号の比べ方も UPCMP 行に書く
+	if instr(cmd, 0, "newvertest") >= 0 {
+		if frame = 1 {
+			endframe = 60 * 12
+			uts = "9.9\n"
+			if instr(cmd, 0, "newverold") >= 0 : uts = VERSION_STR + "\n"
+			if instr(cmd, 0, "newverbad") >= 0 : uts = "<html>404</html>\n"
+			bsave "D:\\hsptest_tmp\\bt_ver_src.txt", uts, strlen(uts)
+			up_url = "file:///D:/hsptest_tmp/bt_ver_src.txt"
+			repeat 6
+				if cnt = 0 : up_a = "1.1" : up_b = "1.0"
+				if cnt = 1 : up_a = "1.0" : up_b = "1.0"
+				if cnt = 2 : up_a = "1.0.1" : up_b = "1.0"
+				if cnt = 3 : up_a = "1.10" : up_b = "1.9"
+				if cnt = 4 : up_a = "0.9" : up_b = "1.0"
+				if cnt = 5 : up_a = "1" : up_b = "1.0"
+				gosub *up_cmp
+				dbg += "UPCMP " + up_a + " > " + up_b + " = " + up_gt + "\n"
+			loop
+		}
+		if frame = 30 : gosub *up_check_now
+		if frame = 300 {
+			dbg += "UP made=" + up_made + " new=" + up_new + " bubble=" + bubble + "\n"
+			if up_made : gsel 14 : bmpsave "upshot.bmp" : gsel 1
+		}
+	}
 	if (instr(cmd, 0, "settingswin") >= 0) & (frame = 30) : gosub *settings_open
+	if (instr(cmd, 0, "settingswin") >= 0) & (frame = 40) : gsel 8 : bmpsave "setshot.bmp" : gsel 1
+	; 確認用：icontest は、アイコンのお手玉（2秒目）と積む（9秒目）を見せる（IC 行。shot を付けると絵を書き出す）
+	if instr(cmd, 0, "icontest") >= 0 {
+		if frame = 1 : endframe = 60 * 20 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999 : tm_shot = (shoton != 0)
+		if frame = 120 : gosub *ensure_icons_many : if icn >= 3 : act = ACT_ICONJUG : gosub *start_act : think = 999
+		if frame = 540 : gosub *ensure_icons_many : if icn >= 2 : act = ACT_ICONTOWER : gosub *start_act : think = 999
+		if ((frame \ 60) = 0) & (state = ST_ACT) : dbg += strf("IC f=%d act=%d st=%d icn=%d", frame, act, stimer, icn) + "\n"
+	}
+	; 確認用：ridetest は、乗っている窓をゆっくり動かされたことにする（本物の窓は動かさず、前のコマの足場の位置をずらす）
+	if instr(cmd, 0, "ridetest") >= 0 {
+		if frame = 1 : endframe = 60 * 8 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		if (frame >= 120) & (frame < 300) & (onh != 0) : onl += 4 : state = ST_IDLE : think = 999
+	}
+	; 確認用：animtest は、宙返り・うちわ・あくびを順に見せ、偽のカーソルで棒人間のまわりを回して目を回させる（AN 行。shot で書き出す）
+	if instr(cmd, 0, "animtest") >= 0 {
+		if frame = 1 : endframe = 60 * 36 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999 : tm_shot = (shoton != 0) : fakein = 2 : fmx = -9999 : fmy = -9999
+		if frame = 120 : act = ACT_FLIP : gosub *start_act : think = 999
+		if frame = 300 : act = ACT_FAN : gosub *start_act : think = 999
+		if frame = 600 : act = ACT_YAWN : gosub *start_act : think = 999
+		if frame = 1500 : act = ACT_EXERCISE : gosub *start_act : think = 999
+		if (frame >= 900) & (frame < 1260) {
+			state = ST_IDLE : think = 999
+			fa2 = double(frame - 900) * 0.12
+			fmx = int(cx) + CW / 2 + int(cos(fa2) * 90.0 * uis) : fmy = int(cy) + FOOTY - int(30.0 * uis) + int(sin(fa2) * 90.0 * uis)
+		}
+		if frame = 1260 : fmx = -9999 : fmy = -9999
+		; 左右にすばやく振る
+		if (frame >= 1320) & (frame < 1440) {
+			state = ST_IDLE : think = 999
+			fmx = int(cx) + CW / 2 + 120 + ((frame / 8) \ 2) * 60 : fmy = int(cy) - 40
+		}
+		if frame = 1440 : fmx = -9999 : fmy = -9999
+		if ((frame \ 30) = 0) : dbg += strf("AN f=%d st=%d act=%d stim=%d rot=%d", frame, state, act, stimer, int(rot)) + " " + bubble + "\n"
+	}
+	; 確認用：pctest は、PCのようすの数を書き出し、ひとことの条件をわざと満たして言わせる（PC 行）
+	if instr(cmd, 0, "pctest") >= 0 {
+		if frame = 1 : endframe = 60 * 8 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		if frame = 200 : gosub *pc_lines : dbg += "PC " + pc_line + "\n" : dbg += strf("PCMM %d", int(pc_mmpx * 10000.0)) + "\n"
+		if frame = 240 : pc_cool = 0 : bubt = 0 : state = ST_IDLE : mouse_cm = pc_mnext + 5
+	}
+	; 確認用：metertest は、音量メーターを5回作りなおして落ちないか見る（noaudio を付けない。音は鳴らさない）
+	if instr(cmd, 0, "metertest") >= 0 {
+		if frame = 1 : endframe = 60 * 6
+		if (frame >= 60) & (frame <= 300) & ((frame \ 60) = 0) : gosub *reopen_meter
+	}
+	; 確認用：outsidetest は、2秒目に画面のずっと右へ飛ばして、範囲の外から戻るか見る
+	if instr(cmd, 0, "outsidetest") >= 0 {
+		if frame = 1 : endframe = 60 * 6
+		if frame = 120 : cx = double(vright + 3000) : onh = 0
+		if frame = 200 : dbg += strf("OUTSIDE cx=%d vleft=%d vright=%d", int(cx), vleft, vright) + "\n"
+	}
+	; 確認用：alarm2test は、いまの分に2つのお知らせを入れて、2つとも順に知らせるか見る（AL2 行）
+	if instr(cmd, 0, "alarm2test") >= 0 {
+		if frame = 1 : endframe = 60 * 40 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		if frame = 150 {
+			nal = 2 : al_lastmin = -1
+			al_s(0) = "会議の準備" : al_m(0) = gettime(4) * 60 + gettime(5) : al_rep(0) = 1
+			al_s(1) = "電話をかける" : al_m(1) = al_m(0) : al_rep(1) = 1
+			gosub *alarm_check
+		}
+		if (state = ST_ALARM) & (stimer = 1) : dbg += "AL2 fire " + al_text + "\n"
+	}
+	; 確認用：gaptest は、4秒目にスリープから1時間ぶりに戻ったことにして、作業時間と残り時間が飛ばないか見る
+	if instr(cmd, 0, "gaptest") >= 0 {
+		if frame = 1 : endframe = 60 * 8 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		if frame = 240 : lastnow -= 3600000 : phase_start -= 3600000 : dbg += strf("GAPB work=%d el=%d", workms_today, now - phase_start) + "\n"
+		if frame = 300 : dbg += strf("GAPA work=%d el=%d", workms_today, now - phase_start) + "\n"
+	}
+	; 確認用：linetest は、よく出るセリフの組を8つ×6回選んで、前と同じが続かないか見る（LN 行）
+	if (instr(cmd, 0, "linetest") >= 0) & (frame = 10) {
+		endframe = 60
+		repeat 8
+			ln_k = cnt
+			repeat 6
+				gosub *pick_line
+				dbg += "LN " + ln_k + " " + ln_out + "\n"
+			loop
+		loop
+	}
+	; 確認用：typetest は、速く打っている状態を16秒つくって、打ち始めのひとことと「カタカタ」の変わり方を見る（2回目は3秒あけて）
+	if instr(cmd, 0, "typetest") >= 0 {
+		if frame = 1 : endframe = 60 * 32 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999 : typecount_on = 1
+		; 1回目は1秒12キー（「速いな～！」が出る）、2回目は1秒6キー（出ない）
+		if ((frame > 30) & (frame < 60 * 20)) | (frame > 60 * 23) {
+			krate = 8.0 : lastkey = frame : typecool = 0
+			kper = 10 : if frame < 60 * 20 : kper = 5
+			if (frame \ kper) = 0 : keys_session++
+		}
+		if (frame > 30) & (bubble != ty_lastb) : ty_lastb = bubble : dbg += strf("TY f=%d st=%d stimer=%d ", frame, state, stimer) + bubble + "\n"
+	}
+	; 確認用：calltest は「ここに呼ぶ」を2秒目に実行して、落ちて乗るか見る
+	if (instr(cmd, 0, "calltest") >= 0) & (frame = 120) : gosub *call_here
+	if (instr(cmd, 0, "calltest") >= 0) & ((frame \ 60) = 0) : dbg += strf("CL f=%d st=%d onh=%d cx=%d cy=%d", frame, state, onh, int(cx), int(cy)) + "\n"
+	if (instr(cmd, 0, "todowin") >= 0) & (instr(cmd, 0, "tdshot") >= 0) & (frame = 60) : gsel 10 : bmpsave "todoshot.bmp" : gsel 1
 	; 確認用：alarmtest は今の時刻のお知らせを1つ入れて鳴らす
 	if (instr(cmd, 0, "alarmtest") >= 0) & (frame = 150) {
 		endframe = 60 * 30 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
@@ -335,14 +475,13 @@
 	}
 	; 確認用：matchtest は、ブラウザのタイトルの見本が distract.txt の語に引っかかるかを見る
 	if (instr(cmd, 0, "matchtest") >= 0) & (frame = 30) {
-		sdim mts, 256, 4
+		sdim mts, 256, 6
 		mts(0) = "ホーム / X - Google Chrome" : mts(1) = "(3) 通知 / X - Google Chrome" : mts(2) = "猫の動画 - YouTube - Google Chrome" : mts(3) = "資料.docx - Word"
-		repeat 4
-			mt = mts(cnt) : ttl = getpath(mt, 16) + " chrome.exe" : hit = 0
-			repeat ndl
-				if instr(ttl, 0, dlist(cnt)) >= 0 : hit = 1 : break
-			loop
-			dbg += "MATCH " + hit + " " + mts(cnt) + "\n"
+		mts(4) = "TODO / xyz - Google Chrome" : mts(5) = "ホーム / X"
+		repeat 6
+			mti = cnt : mt = mts(mti) : ttl0 = getpath(mt, 16) : ttl = ttl0 + " chrome.exe"
+			gosub *dl_match
+			dbg += "MATCH " + hit + " " + mts(mti) + "\n"
 		loop
 	}
 	; 確認用：weektest は1週間の記録の見本を出す

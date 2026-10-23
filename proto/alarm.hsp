@@ -51,7 +51,16 @@
 	if al_rep(ai) = 2 : al_today = (gw >= 1) & (gw <= 5)
 	if al_rep(ai) = 3 : al_today = (gw = 0) | (gw = 6)
 	if al_rep(ai) = 4 : al_today = (gw = al_arg(ai))
-	if al_rep(ai) = 5 : al_today = (gdd = al_arg(ai))
+	if al_rep(ai) = 5 {
+		; その日がない月（31日・30日・2月の29日）は、月末の日に知らせる
+		gm = gettime(1) : gy = gettime(0) : gmd = 31
+		if (gm = 4) | (gm = 6) | (gm = 9) | (gm = 11) : gmd = 30
+		if gm = 2 {
+			gmd = 28
+			if ((gy \ 4) = 0) & (((gy \ 100) != 0) | ((gy \ 400) = 0)) : gmd = 29
+		}
+		al_today = (gdd = al_arg(ai)) | ((al_arg(ai) > gmd) & (gdd = gmd))
+	}
 	return
 
 *alarm_open
@@ -59,33 +68,33 @@
 	wds2 = "日月火水木金土" : al_wd0 = gettime(2) : al_dd0 = gettime(3)
 	al_repitems = "1回だけ\n毎日\n平日（月～金）\n土日\n毎週" + strmid(wds2, al_wd0 * 3, 3) + "曜\n毎月" + al_dd0 + "日"
 	if al_made = 0 {
-		screen 9, 440, 440, 2, (wa(0) + wa(2)) / 2 - 220, (wa(1) + wa(3)) / 2 - 220
+		screen 9, UI(440), UI(440), 2, (wa(0) + wa(2)) / 2 - UI(220), (wa(1) + wa(3)) / 2 - UI(220)
 		title "時刻を知らせる"
 		color 250, 250, 246 : boxf
-		font "Meiryo UI", 14 : objmode 2
+		font "Meiryo UI", UI(14) : objmode 2
 		color 40, 40, 48
-		pos 16, 12 : mes "時刻になると、棒人間が手前の窓まで来て知らせます"
-		pos 16, 44 : mes "時" : pos 108, 44 : mes "分" : pos 200, 44 : mes "くり返し"
-		pos 16, 110 : mes "ひとこと（なくてもいい）"
+		pos UI(16), UI(12) : mes "時刻になると、棒人間が手前の窓まで来て知らせます"
+		pos UI(16), UI(44) : mes "時" : pos UI(108), UI(44) : mes "分" : pos UI(200), UI(44) : mes "くり返し"
+		pos UI(16), UI(110) : mes "ひとこと（なくてもいい）"
 		sdim al_hlist, 512 : sdim al_mlist, 256
 		repeat 24 : al_hlist += str(cnt) + "時\n" : loop
 		repeat 12 : al_mlist += strf("%02d分\n", cnt * 5) : loop
 		al_hsel = 0 : al_msel = 0 : al_rsel = 0
-		objsize 84, 28
-		pos 16, 68 : combox al_hsel, 300, al_hlist : al_obj_h = stat
-		pos 108, 68 : combox al_msel, 300, al_mlist : al_obj_m = stat
-		objsize 224, 28
-		pos 200, 68 : combox al_rsel, 200, al_repitems : al_obj_r = stat
+		objsize UI(84), UI(28)
+		pos UI(16), UI(68) : combox al_hsel, UI(300), al_hlist : al_obj_h = stat
+		pos UI(108), UI(68) : combox al_msel, UI(300), al_mlist : al_obj_m = stat
+		objsize UI(224), UI(28)
+		pos UI(200), UI(68) : combox al_rsel, UI(200), al_repitems : al_obj_r = stat
 		sdim al_in_s, 256
-		pos 16, 134 : input al_in_s, 408, 30, 120 : al_obj_s = stat
-		objsize 132, 34
-		pos 16, 178 : button gosub "追加", *alarm_add_btn
-		pos 154, 178 : button gosub "選んだのを消す", *alarm_del_btn
-		pos 292, 178 : button gosub "閉じる", *alarm_close
-		pos 16, 230 : mes "知らせる時刻"
+		pos UI(16), UI(134) : input al_in_s, UI(408), UI(30), 120 : al_obj_s = stat
+		objsize UI(132), UI(34)
+		pos UI(16), UI(178) : button gosub "追加", *alarm_add_btn
+		pos UI(154), UI(178) : button gosub "選んだのを消す", *alarm_del_btn
+		pos UI(292), UI(178) : button gosub "閉じる", *alarm_close
+		pos UI(16), UI(230) : mes "知らせる時刻"
 		al_lsel = -1
-		objsize 408, 24
-		pos 16, 254 : listbox al_lsel, 136, "" : al_obj_l = stat
+		objsize UI(408), UI(24)
+		pos UI(16), UI(254) : listbox al_lsel, UI(136), "" : al_obj_l = stat
 		al_made = 1
 	}
 	gsel 9
@@ -155,9 +164,11 @@
 
 *alarm_remove
 	repeat nal - tdi - 1, tdi
-		al_s(cnt) = al_s(cnt + 1) : al_m(cnt) = al_m(cnt + 1) : al_rep(cnt) = al_rep(cnt + 1) : al_arg(cnt) = al_arg(cnt + 1)
+		al_s(cnt) = al_s(cnt + 1) : al_m(cnt) = al_m(cnt + 1) : al_rep(cnt) = al_rep(cnt + 1) : al_arg(cnt) = al_arg(cnt + 1) : al_pend(cnt) = al_pend(cnt + 1)
 	loop
 	nal--
+	al_pend(nal) = 0
+	gosub *alarm_next
 	return
 
 *alarm_close
@@ -173,13 +184,23 @@
 	repeat nal
 		if al_m(cnt) = nowm {
 			ai = cnt : gosub *alarm_istoday
-			if al_today : al_due = cnt : break
+			if al_today : al_pend(cnt) = 1
 		}
+	loop
+	gosub *alarm_next
+	return
+
+; 待っているお知らせのうち、いちばん前のものを al_due に（なければ -1）
+*alarm_next
+	al_due = -1
+	repeat nal
+		if al_pend(cnt) : al_due = cnt : break
 	loop
 	return
 
 *alarm_fire
 	if (al_due < 0) | (al_due >= nal) : al_due = -1 : return
+	al_pend(al_due) = 0
 	al_time = strf("%d:%02d", al_m(al_due) / 60, al_m(al_due) \ 60)
 	cu_s = al_s(al_due) : cu_n = 13 : gosub *cut_utf8 : al_text = cu_s
 	if al_text = "" : al_text = al_time + "になったぞ！"
@@ -189,7 +210,7 @@
 		gosub *save_alarm
 		if al_made : gosub *alarm_draw
 	}
-	al_due = -1
+	gosub *alarm_next
 	if behindh : gosub *restore_front
 	hangoff = 0
 	alh = fg_root()
@@ -198,5 +219,7 @@
 	if is_mine : alh = 0
 	state = ST_ALARM : stimer = 0 : alt = 0
 	bubble = al_time + "だぞ！" : bubt = 90
-	if sound_on : MessageBeep 0x30
+	; 時刻の音（電子音・玄関チャイム・放送チャイムから選ぶ。音の中で3回くり返す）。音のファイルが読めなかったときは Windows の音
+	se_name = "se_alarm" + alarm_se : gosub *se_play
+	if sound_on & (se_ok < 10) : MessageBeep 0x30
 	return

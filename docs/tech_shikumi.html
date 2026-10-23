@@ -82,12 +82,12 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
 <header>
   <div class="eyebrow">作業のおとも、棒人間　技術解説</div>
   <h1>棒人間が動くしくみ</h1>
-  <p class="lead">デスクトップのウィンドウの上を歩いて、お茶を飲んで、休憩になると使っている窓のふちに座る。TODOリストを管理してくれる、ポモドーロタイマーの棒人間はどうやって動いているのでしょうか？</p>
+  <p class="lead">デスクトップのウィンドウの上を歩いて、お茶を飲んで、休憩になると使っている窓のふちに座る。やることリストを管理してくれる、ポモドーロタイマーの棒人間はどうやって動いているのでしょうか？</p>
   <div class="facts">
     <div><b>60</b><span>1秒に回すメインループの回数</span></div>
     <div><b>24</b><span>動き（お茶・釣り・縄跳びなど）</span></div>
     <div><b>25</b><span>状態（歩く・寝る・のぞくなど）</span></div>
-    <div><b>27</b><span>ソースのファイル数</span></div>
+    <div><b>29</b><span>ソースのファイル数</span></div>
   </div>
   <nav class="toc" aria-label="もくじ">
     <a href="#loop">メインループ</a><a href="#stand">窓の上に立つ</a><a href="#draw">透ける絵</a><a href="#body">体の動かし方</a><a href="#jump">跳ぶ・落ちる</a><a href="#route">道さがし</a><a href="#seed">窓ごとの性格</a><a href="#ink">線の色</a><a href="#music">音楽</a><a href="#input">打つ・離席</a><a href="#caret">文字カーソル</a><a href="#voice">声と口パク</a><a href="#env">全画面と電池</a><a href="#diary">絵日記</a><a href="#ghost">ゴースト</a><a href="#first">はじめての起動</a>
@@ -108,7 +108,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
     gosub *render          <span class="c">; 絵を描いて画面へ</span>
     await 16
     goto *mainloop</pre>
-  <p>止まっているときは描く回数を半分（30回）に落として、CPUを使いすぎないようにしています。ソースは機能ごとに27のファイルに分け、<code>main.hsp</code>から<code>#include</code>で読みこんでいます。</p>
+  <p>止まっているときは描く回数を半分（30回）に落として、CPUを使いすぎないようにしています。ソースは機能ごとに29のファイルに分け、<code>main.hsp</code>から<code>#include</code>で読みこんでいます。</p>
 </section>
 
 <section class="chap" id="stand" data-pose="sit">
@@ -127,8 +127,8 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
   <h2><span class="no">03</span>透ける絵を描く</h2>
   <p class="q">背景はどうやって透かしてるの？</p>
   <p>棒人間は、220×140の小さなウィンドウに描いています。このウィンドウに<code>WS_EX_LAYERED</code>を付けて、32ビットの画像を<code>UpdateLayeredWindow</code>で画面に貼ると、画素ごとに透け具合を変えられます。決まった色を透明にする方法だと、線のふちのにじみが汚く残るので、この方法にしました。</p>
-  <p>絵はGDI+ でその画像に描きます。白い太い線（ふちどり）で1回、黒い線で1回の、2回描くと、どんな色の窓の上でも棒人間が読めます。吹き出しの文字は、同じ文字なら前に作った画像を貼るだけにして、毎回の文字描きを省いています。</p>
-  <p>HSPには、小数をGDI+ の<code>float</code>の並びに直す命令がありません。四角の位置を渡すために、指数と仮数を計算する関数<code>fbits()</code>を自分で書いています。</p>
+  <p>絵はGDI+でその画像に描きます。白い太い線（ふちどり）で1回、黒い線で1回の、2回描くと、どんな色の窓の上でも棒人間が読めます。吹き出しの文字は、同じ文字なら前に作った画像を貼るだけにして、毎回の文字描きを省いています。</p>
+  <p>HSPには、小数をGDI+の<code>float</code>の並びに直す命令がありません。四角の位置を渡すために、指数と仮数を計算する関数<code>fbits()</code>を自分で書いています。</p>
 </section>
 
 <section class="chap" id="body" data-pose="sleep">
@@ -161,7 +161,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
 <section class="chap" id="jump" data-pose="tea">
   <h2><span class="no">05</span>跳ぶ・落ちる</h2>
   <p class="q">ねらった窓にどうやって着地してるの？</p>
-  <p>重力は1フレームあたり0.5ピクセル毎フレームの加速です。跳ぶときは、着地したい点から逆算して、最初の速さを決めます。</p>
+  <p>重力は、1フレームごとに下向きの速さを0.5ピクセルずつ増やす加速です。跳ぶときは、着地したい点から逆算して、最初の速さを決めます。</p>
 <pre class="code">頂点の高さ = 足もとと着地点の高いほう − 40
 上向きの速さ vy = −√(2 × 重力 × (足もと − 頂点))
 かかる時間 t = 上がる時間 + 頂点から着地点まで落ちる時間
@@ -172,7 +172,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
 <section class="chap" id="route" data-pose="sit">
   <h2><span class="no">06</span>窓を渡って行く道さがし</h2>
   <p class="q">ダブルクリックしたところまで、どうやって来るの？</p>
-  <p>窓の上の辺のうち、見えているいちばん長い区間を「ノード」にして、地面も1つのノードにします。2つのノードのあいだは、横のすき間が380ピクセル以内で、上へ跳ぶなら高さの差が330ピクセル以内のとき、跳べることにして、その距離を「かかる手間」にします。</p>
+  <p>窓の上の辺のうち、見えているいちばん長い区間を「ノード」にして、地面も1つのノードにします。2つのノードのあいだは、横のすき間が380ピクセル以内で、上へ跳ぶなら高さの差が330ピクセル以内のとき、跳べることにして、その距離に1回跳ぶぶんの60を足した値を「かかる手間」にします。</p>
   <p>いまいるノードからゴールまで、手間がいちばん小さい道を探す方法は、ダイクストラ法です。窓が動いたり閉じたりしたら、その場で探しなおします。文字カーソルをのぞきに行くときだけは、道がなければ大ジャンプで飛び乗ります。</p>
 </section>
 
@@ -187,6 +187,8 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
   <h2><span class="no">08</span>線の色を窓のアイコンから</h2>
   <p class="q">線の色はどこから来てるの？</p>
   <p>線の色が「おまかせ」のとき、乗っている窓のアイコンを取り出して（<code>WM_GETICON</code>）、32×32の画像に描きます。その画素のうち、鮮やかな色ほど重みを大きくして平均し、いちばん明るい成分が110になるまで暗くして、線の色にします。</p>
+  <p>同じしくみで、見えている窓のアイコンを4つまで借りて遊びます。アイコンでリフティングやお手玉をしたり、1つずつ投げて積み上げたりします。積んだアイコンは、上の段ほど大きく揺れてから、回りながら崩れます。回して描くときは、<code>GdipTranslateWorldTransform</code>と<code>GdipRotateWorldTransform</code>でアイコンの中心に座標を移して回し、描いたあとに逆の順で戻しています。</p>
+  <p>「PCのようす」は、Windowsが数だけを返す関数を読んでいます。CPUの使用率は<code>GetSystemTimes</code>のアイドル・カーネル・ユーザーの時間の1秒ぶんの差から、メモリは<code>GlobalMemoryStatusEx</code>、ディスクの空きは<code>GetDiskFreeSpaceExW</code>、ゴミ箱の数は<code>SHQueryRecycleBinW</code>、PCをつけてからの時間は<code>GetTickCount64</code>です。64bitの値は、HSPの32bitの整数を2つ並べて受け取り、小数で組み立てます。マウスの距離は、毎フレームのカーソルの移動を、モニターの実寸（<code>GetDeviceCaps</code>のHORZSIZE÷HORZRES）でミリメートルに直して足しています。</p>
   <p>色は一度に変えず、毎フレーム少しずつ目標の色へ寄せています。窓を移ると、じわっと色が変わるのはそのためです。</p>
 </section>
 
@@ -204,7 +206,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
   <h2><span class="no">10</span>打つ速さと離席</h2>
   <p class="q">速く打つと、なんで一緒に打ちはじめるの？</p>
   <p>キーは「押された瞬間の回数」だけを数えます。どのキーかは変数にも残しません。最後に操作した時刻（<code>GetLastInputInfo</code>）が変わったフレームだけキーの状態を読むので、何もしていないあいだは調べることもしません。</p>
-  <p>打った回数を、毎フレーム0.98倍しながら足していった値を「打つ速さ」にして、速いと小さなノートパソコンを出して一緒に打ちます。5分操作がないと「おーい」と呼び、10分ないとタイマーを止めて寝て待ちます。絵を描いているときなど止めてほしくない人のために、止めない設定もあります。</p>
+  <p>打った回数を、毎フレーム0.98倍しながら足していった値を「打つ速さ」にして、速いと小さなノートパソコンを出して一緒に打ちます。5分操作がないと「おーい、どこ行った～？」などと呼び、10分ないとタイマーを止めて寝て待ちます。絵を描いているときなど止めてほしくない人のために、止めない設定もあります。</p>
   <p>カーソルが棒人間に重なっているあいだは、つまみやすいように、その場で立ち止まります。重なっているかは、描いた絵のその画素が透明かどうかで決めています。</p>
 </section>
 
@@ -220,7 +222,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
   <p class="q">口の動きを声に合わせるには？</p>
   <p>声は、決まった文のセリフをVOICEVOX（玄野武宏）で前もって作り、<code>voice</code>フォルダに入れてあります。ファイル名は、セリフのUTF-8のバイト列から作るハッシュ（djb2）です。アプリも同じ計算をするので、吹き出しの文からファイルを探せます。数字の入るセリフは「3個目！やったな」の「やったな」のように、決まった部分だけを声にします。</p>
   <p>声を作るときに<code>audio_query</code>の答え（1音ごとの子音と母音の長さのJSON）も一緒に残しておきます。これを読んで「何秒後に、あ・い・う・え・おのどの口にするか」の表を作り、再生を始めた時刻に合わせて口の形を切りかえます。</p>
-  <p>wavは16kHzのIMA ADPCMにして、全部で約1.9MBです。メモリに読んで<code>PlaySound</code>（<code>SND_MEMORY</code>）で鳴らします。効果音はMCI（<code>mciSendString</code>）で鳴らすので、声と重なっても止めあいません。</p>
+  <p>wavは16kHzのIMA ADPCMにして、全部で約2.0MBです。メモリに読んで<code>PlaySound</code>（<code>SND_MEMORY</code>）で鳴らします。効果音はMCI（<code>mciSendString</code>）で鳴らすので、声と重なっても止めあいません。</p>
 </section>
 
 <section class="chap" id="env" data-pose="sleep">
@@ -233,7 +235,7 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
 <section class="chap" id="diary" data-pose="read">
   <h2><span class="no">14</span>絵日記</h2>
   <p class="q">絵日記はどうやって描いてるの？</p>
-  <p>日付が変わると、前の日の記録から640×500の絵日記を描いてPNGで保存します。画面には出さない画像にGDI+ で描き、<code>GdipSaveImageToFile</code>で書き出しています。</p>
+  <p>日付が変わると、前の日の記録から640×500の絵日記を描いてPNGで保存します。画面には出さない画像にGDI+で描き、<code>GdipSaveImageToFile</code>で書き出しています。</p>
   <p>日付の文字から乱数の種を作るので、同じ日なら何度描いても同じ絵日記です。空は5通り、場面は21通りあり、その日にあった出来事（釣った・こぼした・紙飛行機を飛ばした など）から場面と文を選びます。</p>
 </section>
 
@@ -244,10 +246,10 @@ footer { color: var(--sub); font-size: 13px; border-top: 1px solid var(--line); 
 </section>
 
 <section class="chap" id="costume" data-pose="read">
-  <h2><span class="no">16</span>着せ替え（珠音の髪型）</h2>
-  <p class="q">どのポーズでも髪がずれないのは？</p>
-  <p>HSP3のオフィシャル素材の珠音はドット絵なので、そのまま差し替えると、お茶や釣りのポーズが使えなくなります。そこで、棒人間の頭に髪だけを重ねています。頭の中心から「角度と半径」で点を並べて塗るので、寝転んだり傾いたりしても、体の傾きの角度を足すだけでついてきます。</p>
-  <p>GDI+の小数の座標で塗る関数には、点を<code>float</code>の並びで渡す必要があります。HSPには<code>float</code>のビット列を作る命令がなく、自前の変換は負の数を扱えないので、点は4倍した整数で作り、描くあいだだけ座標を1/4に縮めています。</p>
+  <h2><span class="no">16</span>着せ替え（珠音のドット絵）</h2>
+  <p class="q">ドット絵がにじまないのは？</p>
+  <p>着せ替えで珠音を選ぶと、棒人間の代わりに、HSP3のオフィシャル素材のドット絵（<code>tamadot.png</code>）を描きます。1枚の画像に64×64ドットのコマが8×8並んでいるので、向きと状態から行と列を選び、<code>GdipDrawImageRectRectI</code>でそのコマだけを切り出して描きます。右を向くときは、左向きのコマを左右反転して使います。</p>
+  <p>画面の拡大率が100%でないときもドットがにじまないように、描くあいだだけ<code>GdipSetInterpolationMode</code>でいちばん近い画素を使う設定にし、<code>GdipSetPixelOffsetMode</code>で画素の中心をそろえています。</p>
 </section>
 
 <section class="chap" id="first" data-pose="tea">

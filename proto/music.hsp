@@ -19,6 +19,16 @@
 	meter_ok = 1
 	return
 
+; 既定の再生デバイスが変わったとき用に、メーターを作りなおす
+*reopen_meter
+	if meter_ok {
+		meter_ok = 0
+		delcom meter : delcom mmdev : delcom mmde
+	}
+	gosub *open_meter
+	if testmode : dbg += "METER reopen ok=" + meter_ok + "\n"
+	return
+
 ; 拍を拾う：いまのピークが、ならした音量よりはっきり大きいときを拍の頭とみなす
 *listen
 	if meter_ok = 0 : return

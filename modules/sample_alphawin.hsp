@@ -1,6 +1,6 @@
 ; mod_alphawin.as の使用例：画素ごとに半透明な円が、マウスのあとをついてくる。
 ; 縁はアンチエイリアスでなめらかに溶け、透明なところはクリックが下のウィンドウに届く。
-; 円の色のついたところをクリックすると終わる（alphawin_alpha で当たり判定）。
+; 円の色のついたところをクリックするか、Esc キーで終わる（alphawin_alpha で当たり判定）。
 #include "hsp3utf.as"
 #include "mod_alphawin.as"
 
@@ -24,8 +24,8 @@
 	repeat
 		frame++
 		if testmode & (frame > 180) : end
-		; マウスに少し遅れてついていく
-		x += (double(ginfo_mx + 24) - x) * 0.15 : y += (double(ginfo_my + 24) - y) * 0.15
+		; マウスに少し遅れてついていく（止まると、円のまんなかがマウスの位置に来る）
+		x += (double(ginfo_mx - SZ / 2) - x) * 0.15 : y += (double(ginfo_my - SZ / 2) - y) * 0.15
 		alphawin_clear
 		; 外側ほど薄くなる円を重ねる（アルファは画素ごと）
 		repeat 6
@@ -36,6 +36,7 @@
 		GdipSetSolidFillColor br, 0xF0FFFFFF
 		GdipFillEllipse g, br, 44.0, 44.0, 32.0, 32.0
 		alphawin_show int(x), int(y)
+		getkey kesc, 27 : if kesc : end
 		getkey k, 1
 		if k & (alphawin_alpha(ginfo_mx - int(x), ginfo_my - int(y)) > 0) : end
 		await 16

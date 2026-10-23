@@ -47,7 +47,7 @@
 	h = dw_GetTopWindow(0)
 	repeat
 		if (h = 0) | (n >= 512) : break
-		ok = (h != p_self) & dw_IsWindowVisible(h)
+		ok = (h != p_self) & (dw_IsWindowVisible(h) != 0)
 		if ok : ok = (dw_IsIconic(h) = 0) & (dw_IsZoomed(h) = 0) & ((dw_GetWindowLong(h, -20) & 0x20) = 0)
 		if ok {
 			cloak = 0

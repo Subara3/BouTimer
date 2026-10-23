@@ -9,9 +9,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "voice")
 ENGINE = "http://127.0.0.1:50021"
 SPEAKER = 11  # 玄野武宏（ノーマル）
-SKIP = {"カタカタ", "コンコン", "せいっ", "zzz…", "♪", "z", "Z"}
+SKIP = {"カタカタ", "カタカタカタカタ", "カタカタ…ターン", "コンコン", "せいっ", "zzz…", "♪", "z", "Z"}
 # 数字の入るセリフは、決まった部分だけを声にする（voice.hsp の *vv_spoken と合わせる）
-EXTRA = ["やったな", "いい調子", "やるじゃん", "水飲もうぜ", "時間だぞ！"]
+EXTRA = ["やったな", "いい調子", "やるじゃん", "水飲もうぜ", "時間だぞ！",
+         # 打ち始めのひとこと（main.hsp の tyopen）
+         "お、仕事か？", "よし、やるか", "お、始まったな", "おれも打つぜ", "いい調子だな", "手伝うぜ", "集中してるな",
+         # よく出るセリフの組（main.hsp の ln_*）
+         "さ、やるか", "よし、次いくぞ", "よし、集中な", "もうひと山いこうぜ", "さて、続きだ", "休憩だ、休憩！", "いったん休もうぜ", "目を休めな", "ふー、ひと区切り", "水でも飲んでこいよ", "やったな", "いいぞ", "調子出てきたな", "茶でも飲むか", "ひと息いれるか", "のど渇いたな", "お茶の時間だ", "ふう、うまい", "生き返るな", "よし、もどるか", "あったまった", "おーい、どこ行った～？", "いないのか～？", "留守番しとくぞ", "おう、おかえり！", "おかえり、続きやろうぜ", "待ってたぞ", "お、もどったな", "ちょいとサボるか", "ちょっと一服", "おれも休むか", "見てないよな？"]
 
 def ffmpeg():
     base = os.path.join(os.environ["LOCALAPPDATA"], "Microsoft", "WinGet", "Packages")
@@ -31,8 +35,8 @@ def lines_from_source():
         if os.path.basename(path) == "tests.hsp": continue
         for line in open(path, encoding="utf-8"):
             code = line.split(";")[0] if not line.lstrip().startswith(";") else ""
-            # bubble = "…" と sea_line = "…"。うしろに + が続くもの（文字をつなぐもの）は外す
-            for m in re.finditer(r'\b(bubble|sea_line)\s*=\s*"([^"]*)"\s*(\+)?', code):
+            # bubble = "…" と sea_line = "…"（PCのようすの ptalk も）。うしろに + が続くもの（文字をつなぐもの）は外す
+            for m in re.finditer(r'\b(bubble|sea_line|ptalk)\s*=\s*"([^"]*)"\s*(\+)?', code):
                 if m.group(3): continue
                 s = m.group(2)
                 if re.search(r"[0-9０-９]", s): continue

@@ -1,0 +1,140 @@
+; 作業のおとも、棒人間：新しい版のお知らせ
+; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
+
+; ---- 新しい版があるか確かめる ----
+; 版の番号が1行だけ書いてあるテキストを読んで、いまの版と比べるだけ。何も送らない。
+; 自動でダウンロードや入れかえはしない。開くページも決まったURL（UPDATE_PAGE）だけで、読んだテキストの中身は開かない
+; 通信はフレンドと同じく curl.exe を窓なしで起動する（hspinet だと受け取るあいだメインループが止まる）
+; 読むURL（UPDATE_URL）と開くページ（UPDATE_PAGE）は main.hsp の VERSION_STR の横で決めている
+
+*up_tick
+	if up_stage = 0 {
+		if up_go = 0 : return
+		up_go = 0
+		if vv_curl = "" : gosub *up_fail : return
+		CreateDirectory vv_tmp, 0
+		exist vv_tmp + "\\bt_ver.txt"
+		if strsize >= 0 : delete vv_tmp + "\\bt_ver.txt"
+		dim ucsi, 17 : ucsi(0) = 68
+		dim ucpi, 4
+		sdim ucmd, 1024
+		; 大きなファイルが返ってきても読まない（--max-filesize）
+		cnvstow ucmd, "\"" + vv_curl + "\" -s -f -m 15 --max-filesize 1024 -o bt_ver.txt \"" + up_url + "\""
+		CreateProcess 0, ucmd, 0, 0, 0, 0x08000000, 0, vv_tmp, ucsi, ucpi
+		if stat = 0 : gosub *up_fail : return
+		up_proc = ucpi(0) : CloseHandle ucpi(1)
+		up_stage = 1 : up_t0 = frame
+		return
+	}
+	if WaitForSingleObject(up_proc, 0) != 0 {
+		if frame - up_t0 > 60 * 20 : TerminateProcess up_proc, 1 : CloseHandle up_proc : up_stage = 0 : gosub *up_fail
+		return
+	}
+	ucode = 1
+	GetExitCodeProcess up_proc, ucode
+	CloseHandle up_proc : up_stage = 0
+	exist vv_tmp + "\\bt_ver.txt"
+	if (ucode != 0) | (strsize <= 0) | (strsize > 1024) : gosub *up_fail : return
+	sdim utxt, strsize + 16
+	bload vv_tmp + "\\bt_ver.txt", utxt, strsize
+	; 1行目だけを見る（改行は LF でも CRLF でも）
+	repeat strlen(utxt)
+		uc = peek(utxt, cnt)
+		if (uc = 10) | (uc = 13) : poke utxt, cnt, 0 : break
+	loop
+	utxt = strtrim(utxt)
+	; 数字とピリオドだけの短い行のときだけ使う（エラーページなどが返ってきたら無視する）
+	uok = (strlen(utxt) >= 1) & (strlen(utxt) <= 15)
+	if uok : if (peek(utxt, 0) < '0') | (peek(utxt, 0) > '9') : uok = 0
+	repeat strlen(utxt)
+		uc = peek(utxt, cnt)
+		if ((uc < '0') | (uc > '9')) & (uc != '.') : uok = 0 : break
+	loop
+	if uok = 0 : gosub *up_fail : return
+	up_day = today : gosub *save_settings
+	up_a = utxt : up_b = VERSION_STR : gosub *up_cmp
+	if testmode : dbg += "UPDATE got=" + utxt + " newer=" + up_gt + "\n"
+	if up_gt {
+		; 「この版は知らせない」を押した版は、自分で確認したときだけ知らせる
+		if up_manual | (utxt != up_skip) : up_new = utxt : up_wait = 1
+	} else {
+		if up_manual : bubble = "いまの版が最新だぞ" : bubt = 120
+	}
+	if up_manual & up_wait : up_wait = 0 : gosub *up_open
+	up_manual = 0
+	return
+
+*up_fail
+	if testmode : dbg += "UPDATE fail\n"
+	if up_manual : bubble = "確かめられなかった、ネットにつながってるか？" : bubt = 150
+	up_manual = 0
+	return
+
+; up_a が up_b より新しければ up_gt = 1（「1.0」「1.0.1」「1.10」のような番号を、区切りごとに数で比べる）
+*up_cmp
+	split up_a, ".", ua : una = stat
+	split up_b, ".", ub : unb = stat
+	up_gt = 0
+	repeat 4
+		uva = 0 : uvb = 0
+		if cnt < una : uva = int(ua(cnt))
+		if cnt < unb : uvb = int(ub(cnt))
+		if uva > uvb : up_gt = 1 : break
+		if uva < uvb : break
+	loop
+	return
+
+; 作業中は知らせない。始める前・一時停止中・休憩中に、ほかの話をしていないときに知らせる
+*up_prompt_check
+	if up_wait = 0 : return
+	if (notyet = 0) & (paused = 0) & (phase = 0) : return
+	if (bubt > 0) | (dragging != 0) | (wz_on != 0) | (guide != 0) | (fs_hide != 0) : return
+	up_wait = 0
+	bubble = "新しい版が出てるぞ" : bubt = 150
+	gosub *up_open
+	return
+
+; ---- お知らせの窓 ----
+*up_open
+	if up_made = 0 {
+		screen 14, UI(380), UI(190), 2, (wa(0) + wa(2)) / 2 - UI(190), (wa(1) + wa(3)) / 2 - UI(95)
+		title "新しい版のお知らせ"
+		up_made = 1
+	}
+	gsel 14
+	clrobj
+	color 250, 250, 246 : boxf
+	font "Meiryo UI", UI(17), 1 : color 40, 40, 48 : pos UI(20), UI(16) : mes "新しい版が出ています"
+	font "Meiryo UI", UI(14) : pos UI(20), UI(50)
+	mes "いまの版：" + VERSION_STR + "　新しい版：" + up_new
+	mes "ページを開いて、ダウンロードしてください。"
+	objmode 2
+	objsize UI(108), UI(34)
+	pos UI(20), UI(132) : button gosub "ページを開く", *up_page
+	pos UI(136), UI(132) : button gosub "あとで", *up_close
+	objsize UI(108), UI(34)
+	pos UI(252), UI(132) : button gosub "この版は飛ばす", *up_skip_btn
+	win_id = 14 : gosub *show_win
+	return
+
+*up_page
+	exec UPDATE_PAGE, 16
+	gosub *up_close
+	return
+
+*up_skip_btn
+	up_skip = up_new : gosub *save_settings
+	gosub *up_close
+	return
+
+*up_close
+	gsel 14, -1
+	gsel 1
+	return
+
+; バージョン情報の窓の「新しい版を確認」
+*up_check_now
+	if (up_stage != 0) | (up_go != 0) : return
+	up_manual = 1 : up_go = 1
+	bubble = "見てくるぞ" : bubt = 60
+	return

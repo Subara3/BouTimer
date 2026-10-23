@@ -20,7 +20,7 @@ sample_bounce.hsp
 
 sample_alphawin.hsp
   mod_alphawin.as だけを使う例です。画素ごとに半透明な円が、マウスのあとをついてきます。
-  色のついたところをクリックすると終わります（alphawin_alpha で当たり判定）。
+  色のついたところをクリックするか、Esc キーで終わります（alphawin_alpha で当たり判定）。
 
 sample_deskwin.hsp
   mod_deskwin.as だけを使う例です。開いているウィンドウを手前から並べ、上の辺が隠れていないかを1秒ごとに表で出します。

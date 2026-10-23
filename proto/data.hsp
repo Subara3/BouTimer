@@ -8,11 +8,12 @@
 	GetModuleFileName 0, mfn, 512
 	myexe = getpath(cnvwtos(mfn), 8 + 16)
 	boot_t = 0 : boot_day = ""
-	sdim appname, 64, 40 : dim appsec, 40 : napp = 0 : switches_today = 0 : todos_today = 0
+	sdim appname, 64, 40 : dim appsec, 40 : napp = 0 : switches_today = 0 : todos_today = 0 : mouse_cm = 0
 	dim evc, NEV : sdate = "" : diary_pending = 0
 	today = strf("%04d-%02d-%02d", gettime(0), gettime(1), gettime(3))
-	work_min = 25 : break_min = 5 : typecount_on = 1 : sound_on = 1 : inkmode = 0 : close_mode = 0 : close_min = 15
-	season_on = 1 : slack_stop = 0 : idle_stop = 1 : costume = 0 : stand_on = 1 : act_level = 1 : my_fcode = "" : diary_hour = 21 : diary_asked = "" : voice_mode = 0 : voice_asked = 0 : vv_speaker = 11 : friend_on = 0 : myid = "" : gh_url = "https://boutimer-ghost.subara3.workers.dev/"
+	work_min = 25 : break_min = 5 : typecount_on = 1 : sound_on = 1 : volume = 100 : alarm_se = 3 : inkmode = 0 : close_mode = 0 : close_min = 15
+	season_on = 1 : slack_stop = 0 : idle_stop = 1 : costume = 0 : stand_on = 1 : act_level = 1 : my_fcode = "" : diary_hour = 21 : diary_asked = "" : voice_mode = 1 : voice_asked = 0 : vv_speaker = 11 : friend_on = 0 : myid = "" : gh_url = "https://boutimer-ghost.subara3.workers.dev/"
+	update_on = 1 : up_day = "" : up_skip = ""
 	pomos_today = 0 : keys_today = 0 : pomos_total = 0 : workms_today = 0
 	aq_n = 0 : aq_gold = 0 : aq_big = 0
 	exist datadir + "\\settings.txt"
@@ -33,30 +34,36 @@
 		if sk = "aq_gold" : aq_gold = int(sv)
 		if sk = "aq_big" : aq_big = int(sv)
 		if sk = "pomos_total" : pomos_total = int(sv)
-		if sk = "work_min" : work_min = int(sv)
-		if sk = "break_min" : break_min = int(sv)
-		if sk = "typecount" : typecount_on = int(sv)
-		if sk = "sound" : sound_on = int(sv)
-		if sk = "ink" : inkmode = int(sv)
-		if sk = "close_mode" : close_mode = int(sv)
-		if sk = "close_min" : close_min = int(sv)
-		if sk = "voice" : voice_mode = int(sv)
+		if sk = "work_min" : work_min = limit(int(sv), 1, 180)
+		if sk = "break_min" : break_min = limit(int(sv), 1, 60)
+		if sk = "typecount" : typecount_on = (int(sv) != 0)
+		if sk = "sound" : sound_on = (int(sv) != 0)
+		if sk = "alarm_se" : alarm_se = limit(int(sv), 1, 3)
+		if sk = "volume" : volume = limit(int(sv), 0, 100)
+		if sk = "ink" : inkmode = limit(int(sv), 0, 4)
+		if sk = "close_mode" : close_mode = limit(int(sv), 0, 2)
+		if sk = "close_min" : close_min = limit(int(sv), 1, 120)
+		if sk = "voice" : voice_mode = limit(int(sv), 0, 2)
 		if sk = "voice_asked" : voice_asked = int(sv)
 		if sk = "boot_day" : boot_day = sv
 		if sk = "speaker" : vv_speaker = int(sv)
 		if sk = "friend" : friend_on = int(sv)
 		if sk = "season" : season_on = int(sv)
-		if sk = "act_level" : act_level = int(sv)
+		if sk = "act_level" : act_level = limit(int(sv), 0, 2)
 		if sk = "slack_stop" : slack_stop = int(sv)
 		if sk = "idle_stop" : idle_stop = int(sv)
-		if sk = "costume" : costume = int(sv)
+		if sk = "costume" : costume = limit(int(sv), 0, 1)
 		if sk = "stand" : stand_on = int(sv)
-		if sk = "diary_hour" : diary_hour = int(sv)
+		if sk = "diary_hour" : diary_hour = int(sv) : if (diary_hour != 0) & ((diary_hour < 17) | (diary_hour > 23)) : diary_hour = 21
 		if sk = "diary_asked" : diary_asked = sv
 		if sk = "myid" : myid = sv
 		if sk = "fcode" : my_fcode = sv
 		if sk = "ghost_url" : gh_url = sv
+		if sk = "update" : update_on = (int(sv) != 0)
+		if sk = "up_day" : up_day = sv
+		if sk = "up_skip" : up_skip = sv
 		if sk = "switches" : switches_today = int(sv)
+		if sk = "mouse_cm" : mouse_cm = int(sv)
 		if sk = "todos_today" : todos_today = int(sv)
 		if sk = "ev" {
 			split sv, ",", evs
@@ -104,6 +111,8 @@
 	stxt += "break_min=" + break_min + "\n"
 	stxt += "typecount=" + typecount_on + "\n"
 	stxt += "sound=" + sound_on + "\n"
+	stxt += "alarm_se=" + alarm_se + "\n"
+	stxt += "volume=" + volume + "\n"
 	stxt += "ink=" + inkmode + "\n"
 	stxt += "close_mode=" + close_mode + "\n"
 	stxt += "close_min=" + close_min + "\n"
@@ -123,7 +132,11 @@
 	stxt += "myid=" + myid + "\n"
 	stxt += "fcode=" + my_fcode + "\n"
 	stxt += "ghost_url=" + gh_url + "\n"
+	stxt += "update=" + update_on + "\n"
+	stxt += "up_day=" + up_day + "\n"
+	stxt += "up_skip=" + up_skip + "\n"
 	stxt += "switches=" + switches_today + "\n"
+	stxt += "mouse_cm=" + mouse_cm + "\n"
 	stxt += "todos_today=" + todos_today + "\n"
 	evline = ""
 	repeat NEV

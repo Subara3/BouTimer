@@ -32,7 +32,7 @@
 	; 離席：作業中にマウスもキーも5分さわらなかったら呼んで、10分で寝て待つ（メニューで止めないようにもできる）
 	if (phase = 0) & idle_stop {
 		if (idlems > idle_warn) & (called = 0) & (paused = 0) & (dragging = 0) {
-			called = 1 : state = ST_CALL : stimer = 0 : bubble = "おーい、どこ行った～？" : bubt = 90
+			called = 1 : state = ST_CALL : stimer = 0 : ln_k = 5 : gosub *pick_line : bubble = ln_out : bubt = 90
 		}
 		if (idlems > idle_pause) & (paused = 0) {
 			paused = 1 : autopaused = 1 : pause_at = now
@@ -42,7 +42,7 @@
 		called = 0
 		if autopaused {
 			autopaused = 0 : paused = 0 : phase_start += now - pause_at
-			state = ST_IDLE : stimer = 0 : bubble = "おう、おかえり！" : bubt = 90
+			state = ST_IDLE : stimer = 0 : ln_k = 6 : gosub *pick_line : bubble = ln_out : bubt = 90
 		}
 	}
 	return
@@ -75,6 +75,8 @@
 ; ---- マウス：つつく／つまむ／メニュー ----
 *poll_mouse
 	getkey ml, 1 : getkey mr, 2
+	; 全画面で隠れているあいだは、見えない棒人間をクリックしたことにしない
+	if fs_hide : hovering = 0 : ml_old = ml : mr_old = mr : return
 	mx = ginfo_mx : my = ginfo_my
 	; 確認用：偽のマウス入力に差しかえる（interact モードのみ）
 	if fakein : ml = fml : mx = fmx : my = fmy : mr = 0
@@ -93,7 +95,7 @@
 		dcls = cnvwtos(wbuf)
 		if (dcls = "Progman") | (dcls = "WorkerW") {
 			if (now - dclk_t < 450) & (abs(mx - dclk_x) < 8) & (abs(my - dclk_y) < 8) {
-				gt_x = mx : gt_y = my : dclk_t = 0
+				gt_x = mx : gt_y = my : dclk_t = 0 : dclk_x = -99999
 				gosub *goto_start
 			} else {
 				dclk_t = now : dclk_x = mx : dclk_y = my
@@ -153,14 +155,22 @@
 			cl_td = td_vis & hovering & (wz_on = 0) & (clx >= td_x) & (clx <= td_x + td_w) & (cly >= 37.0) & (cly <= 57.0)
 			cl_tl = (wz_on = 0) & (clx >= tl_x) & (clx <= tl_x + tl_w) & (cly >= 0.0) & (cly <= 22.0)
 			if cl_td {
-				gosub *todo_hover_click
+				if td_empty {
+					gosub *todo_open
+				} else {
+					gosub *todo_hover_click
+				}
 			} else {
 				if cl_tl {
+					; まだ始めていなかったときのひとことは *menu_do が出す
+					ny_was = notyet
 					r = 1 : gosub *menu_do
-					if paused {
-						bubble = "いってらっしゃい！" : bubt = 80
-					} else {
-						bubble = "おかえり！続きやろうぜ" : bubt = 80
+					if ny_was = 0 {
+						if paused {
+							bubble = "いってらっしゃい！" : bubt = 80
+						} else {
+							bubble = "おかえり！続きやろうぜ" : bubt = 80
+						}
 					}
 				} else {
 					gosub *poked
@@ -170,11 +180,61 @@
 		pressing = 0
 	}
 	if mr & (mr_old = 0) & over : gosub *popup
+	gosub *spin_watch
+	gosub *wave_watch
 	ml_old = ml : mr_old = mr : pmx = mx : pmy = my
+	return
+
+*wave_watch
+	if wav_cool > 0 : wav_cool--
+	wdx = mx - wav_x
+	if absf(double(mx - (int(cx) + CW / 2))) > 260.0 * uis : wav_n = 0 : wav_x = mx : return
+	if abs(wdx) < 6 : return
+	wnd = 1 : if wdx < 0 : wnd = -1
+	if (wav_dir != 0) & (wnd != wav_dir) {
+		if frame - wav_t > 48 : wav_n = 0
+		wav_n++ : wav_t = frame
+	}
+	wav_dir = wnd : wav_x = mx
+	if (wav_n >= 4) & (wav_cool = 0) & grounded & (over = 0) & ((state = ST_IDLE) | (state = ST_WALK) | (state = ST_REST)) {
+		state = ST_WAVE : stimer = 0 : vx = 0.0 : bubble = "よう！" : bubt = 60
+		wav_n = 0 : wav_cool = 60 * 8
+		if testmode : dbg += "WAVE back\n"
+	}
+	return
+
+; 棒人間のまわりでカーソルをぐるぐる回すと（2周）、目を回す
+*spin_watch
+	if spin_cool > 0 : spin_cool--
+	scx = double(int(cx) + CW / 2) : scy = double(int(cy) + FOOTY) - 30.0 * uis
+	sdx = double(mx) - scx : sdy = double(my) - scy
+	sd = sqrt(sdx * sdx + sdy * sdy)
+	; 遠く離れたら数えなおす。近すぎるときや、絵（吹き出しなど）の上を通るときは、そのぶんだけ数えない
+	if (sd > 260.0 * uis) | dragging : spin_on = 0 : spin_a = 0.0 : return
+	if (sd < 25.0 * uis) | over : spin_on = 0 : return
+	sang = atan(sdy, sdx)
+	if spin_on {
+		sda = sang - spin_last
+		if sda > 3.1416 : sda -= 6.2832
+		if sda < -3.1416 : sda += 6.2832
+		spin_a = spin_a * 0.993 + sda
+	}
+	spin_on = 1 : spin_last = sang
+	if (absf(spin_a) > 12.5) & (spin_cool = 0) & grounded & ((state = ST_IDLE) | (state = ST_WALK) | (state = ST_REST) | (state = ST_GOTO)) {
+		state = ST_DIZZY : stimer = 0 : vx = 0.0 : bubble = "目が回る～" : bubt = 70 : evc(EV_DIZZY)++
+		spin_a = 0.0 : spin_cool = 60 * 10
+		if testmode : dbg += "SPIN dizzy\n"
+	}
 	return
 
 *poked
 	evc(EV_POKE)++
+	; すばやく2回つついたら（ダブルクリック）、宙返り
+	if (frame - lastpoke < 24) & (state != ST_CLIMB) & (state != ST_ALARM) & (diary_ask = 0) & (behindh = 0) {
+		lastpoke = frame : pokes = 0
+		act = ACT_FLIP : gosub *start_act
+		return
+	}
 	if frame - lastpoke < 120 {
 		pokes++
 	} else {
@@ -192,6 +252,7 @@
 	if (state = ST_ACT) & (act = ACT_PUSHUP) : act = ACT_FLAT : gosub *start_act : return
 	if (state = ST_REST) | (state = ST_PAUSE) {
 		state = ST_WAVE : stimer = 0 : bubble = "おう" : bubt = 60
+		if notyet : bubble = "上の札を押したら始まるぞ" : bubt = 90
 		return
 	}
 	if state = ST_SLEEP {

@@ -8,6 +8,22 @@
 	if typecount_on : stat_line += "・" + keys_today + "打"
 	if aq_n : stat_line += "・水槽" + aq_n + "匹"
 	AppendMenu hm, 1, 0, stat_line
+	if notyet {
+		AppendMenu hm, 0, 1, "作業をはじめる"
+	} else {
+		if paused {
+			AppendMenu hm, 0, 1, "再開"
+		} else {
+			AppendMenu hm, 0, 1, "一時停止"
+		}
+	}
+	if phase = 0 {
+		AppendMenu hm, 0, 2, "休憩にする"
+	} else {
+		AppendMenu hm, 0, 2, "作業にもどる"
+	}
+	AppendMenu hm, 0, 58, "ここに呼ぶ（いま使っているウィンドウへ）"
+	AppendMenu hm, 0x800, 0, ""
 	AppendMenu hm, 0, 50, "今日の内訳と1週間の記録"
 	AppendMenu hm, 0, 56, "今日のまとめをコピー（日報用）"
 	AppendMenu hm, 0, 54, "やることリスト…"
@@ -17,17 +33,7 @@
 	AppendMenu hm, 0, 52, "今日の絵日記を描く"
 	AppendMenu hm, 0, 53, "絵日記のフォルダを開く"
 	AppendMenu hm, 0x800, 0, ""
-	if paused {
-		AppendMenu hm, 0, 1, "再開"
-	} else {
-		AppendMenu hm, 0, 1, "一時停止"
-	}
-	if phase = 0 {
-		AppendMenu hm, 0, 2, "休憩にする"
-	} else {
-		AppendMenu hm, 0, 2, "作業にもどる"
-	}
-	AppendMenu hm, 0x800, 0, ""
+	AppendMenu hm, 0, 103, "設定…"
 	hw = CreatePopupMenu()
 	AppendMenu hw, 8 * (work_min = 15), 11, "15分"
 	AppendMenu hw, 8 * (work_min = 25), 12, "25分"
@@ -48,7 +54,22 @@
 	AppendMenu ha, 8 * (act_level = 1), 92, "ときどき"
 	AppendMenu ha, 8 * (act_level = 2), 93, "たくさん"
 	AppendMenu hm, 0x10, ha, "動きの多さ"
-	AppendMenu hm, 8 * sound_on, 32, "音を鳴らす"
+	; 音のことは「音」にまとめる（鳴らす・音量・時刻の音）
+	hsn = CreatePopupMenu()
+	AppendMenu hsn, 8 * sound_on, 32, "音を鳴らす"
+	hvo = CreatePopupMenu()
+	AppendMenu hvo, 8 * (volume = 100), 110, "100%"
+	AppendMenu hvo, 8 * (volume = 80), 111, "80%"
+	AppendMenu hvo, 8 * (volume = 60), 112, "60%"
+	AppendMenu hvo, 8 * (volume = 40), 113, "40%"
+	AppendMenu hvo, 8 * (volume = 20), 114, "20%"
+	AppendMenu hsn, 0x10, hvo, "音量"
+	hs = CreatePopupMenu()
+	AppendMenu hs, 8 * (alarm_se = 1), 75, "電子音（ピピピピ）"
+	AppendMenu hs, 8 * (alarm_se = 2), 76, "玄関チャイム（ピンポーン）"
+	AppendMenu hs, 8 * (alarm_se = 3), 77, "放送チャイム（ピンポンパンポーン）"
+	AppendMenu hsn, 0x10, hs, "時刻を知らせる音"
+	AppendMenu hm, 0x10, hsn, "音"
 	; ふだんは変えない設定は「高度な設定」にまとめる
 	hx = CreatePopupMenu()
 	AppendMenu hx, 8 * typecount_on, 31, "タイピングを数える（回数だけ）"
@@ -61,11 +82,11 @@
 	AppendMenu hc, 8 * (inkmode = 3), 43, "茶"
 	AppendMenu hc, 8 * (inkmode = 4), 44, "緑"
 	AppendMenu hx, 0x10, hc, "線の色"
-	AppendMenu hx, 8 * season_on, 95, "季節のイベント"
 	hz = CreatePopupMenu()
 	AppendMenu hz, 8 * (costume = 0), 85, "なし"
-	AppendMenu hz, 8 * (costume = 1), 86, "珠音（たまね）の髪型"
+	AppendMenu hz, 8 * (costume = 1), 86, "珠音（たまね）のドット絵"
 	AppendMenu hx, 0x10, hz, "着せ替え"
+	AppendMenu hx, 8 * season_on, 95, "季節のイベント"
 	AppendMenu hx, 8 * ovl_on, 90, "認識の図示（足場や道を画面に描く）"
 	AppendMenu hx, 0x800, 0, ""
 	AppendMenu hx, 0, 51, "サボり先の語を編集…"
@@ -73,7 +94,7 @@
 	hk = CreatePopupMenu()
 	AppendMenu hk, 8 * (close_mode = 0), 60, "しない"
 	AppendMenu hk, 8 * (close_mode = 1), 61, "最小化する"
-	AppendMenu hk, 8 * (close_mode = 2), 62, "閉じる（保存していない内容が失われることがあります）"
+	AppendMenu hk, 8 * (close_mode = 2), 62, "閉じる（ブラウザはタブだけ。保存していない作業が失われることがあります）"
 	AppendMenu hk, 0x800, 0, ""
 	AppendMenu hk, 8 * (close_min = 5), 65, "5分たったら"
 	AppendMenu hk, 8 * (close_min = 10), 66, "10分たったら"
@@ -81,11 +102,13 @@
 	AppendMenu hk, 8 * (close_min = 30), 68, "30分たったら"
 	AppendMenu hx, 0x10, hk, "サボり先を長く開いていたら"
 	AppendMenu hx, 0x800, 0, ""
-	AppendMenu hx, 8 * friend_on, 80, "サーバーと通信する（ゴースト機能用）"
+	AppendMenu hx, 8 * friend_on, 80, "サーバーと通信する（フレンド機能用）"
+	AppendMenu hx, 8 * update_on, 104, "新しい版が出たら知らせる（起動したときに確認）"
 	AppendMenu hx, 0, 101, "教えたセリフを編集…"
+	AppendMenu hx, 0x800, 0, ""
+	AppendMenu hx, 0, 59, "今日のポモドーロの数を0にもどす…"
 	AppendMenu hm, 0x10, hx, "高度な設定"
 	AppendMenu hm, 0x800, 0, ""
-	AppendMenu hm, 0, 103, "設定…"
 	AppendMenu hm, 0, 100, "セリフを教える…"
 	AppendMenu hm, 0, 102, "バージョン情報"
 	AppendMenu hm, 0x800, 0, ""
@@ -112,8 +135,12 @@
 ; ---- メニューで選んだ項目を実行する（設定画面からも呼ぶ） ----
 *menu_do
 	if r = 1 {
+		; はじめての質問で止めていたぶんは、ここで扱ったことにする（閉じるときに二重にずらさない）
+		wz_paused = 0
 		if paused {
-			paused = 0 : autopaused = 0 : phase_start += timeGetTime() - pause_at : state = ST_IDLE
+			; まだ始めていなかったときは、始めたことがわかるように跳ねる
+			if notyet : bubble = "よし、はじめるぞ！" : bubt = 80 : hop = 1
+			paused = 0 : autopaused = 0 : notyet = 0 : phase_start += timeGetTime() - pause_at : state = ST_IDLE
 		} else {
 			paused = 1 : pause_at = timeGetTime()
 		}
@@ -127,7 +154,15 @@
 		gosub *save_settings
 	}
 	if r = 32 : sound_on = 1 - sound_on : gosub *save_settings
+	; 音量を選んだら、反映して、ぷよんを1回鳴らして聞かせる
+	if (r >= 110) & (r <= 114) : volume = 100 - (r - 110) * 20 : gosub *apply_volume : gosub *save_settings : se_name = "se_jump" : gosub *se_play
 	if r = 50 : gosub *show_report
+	; 今日のポモドーロの数を0に（聞いてから。作業時間や打数はそのまま）
+	if r = 59 {
+		dialog "今日のポモドーロの数（" + pomos_today + "サイクル）を0にもどすか？", 2, "作業のおとも、棒人間"
+		if stat = 6 : pomos_today = 0 : gosub *save_settings : bubble = "0からだな" : bubt = 90
+	}
+	if r = 58 : gosub *call_here
 	if r = 54 : gosub *todo_open
 	if r = 55 : gosub *alarm_open
 	if r = 57 : gosub *fr_open
@@ -137,6 +172,7 @@
 	if r = 101 : gosub *save_kotoba : exec "notepad.exe " + datadir + "\\kotoba.txt"
 	if r = 102 : gosub *show_about
 	if r = 103 : gosub *settings_open
+	if r = 104 : update_on = 1 - update_on : gosub *save_settings
 	if (r >= 85) & (r <= 86) : costume = r - 85 : gosub *save_settings
 	if r = 98 : stand_on = 1 - stand_on : stand_ms = 0 : gosub *save_settings
 	if r = 97 : idle_stop = 1 - idle_stop : gosub *save_settings
@@ -144,6 +180,8 @@
 	if r = 95 : season_on = 1 - season_on : gosub *season_update : gosub *save_settings
 	if (r >= 60) & (r <= 62) : close_mode = r - 60 : gosub *save_settings
 	if (r >= 70) & (r <= 72) : voice_mode = r - 70 : gosub *save_settings
+	; 時刻の音を選んだら、保存して、その音を1回鳴らして聞かせる
+	if (r >= 75) & (r <= 77) : alarm_se = r - 74 : gosub *save_settings : se_name = "se_alarm" + alarm_se : gosub *se_play
 	if (r >= 91) & (r <= 93) : act_level = r - 91 : think = 0 : gosub *save_settings
 	if r = 80 : friend_on = 1 - friend_on : gosub *save_settings : if friend_on : gh_post = 1 : gh_fetch = 1
 	if r = 65 : close_min = 5 : gosub *save_settings

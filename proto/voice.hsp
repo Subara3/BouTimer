@@ -38,6 +38,16 @@
 		if instr(bubble, 0, "だぞ！") >= 0 : imp = 1
 		if instr(bubble, 0, "片づいた") >= 0 : imp = 1
 		if instr(bubble, 0, "伸びようぜ") >= 0 : imp = 1
+		; 作業・休憩の切り替え（ln_wk・ln_rs）と、おかえり（ln_ret）の組は全部
+		repeat 5
+			if bubble = ln_wk(cnt) : imp = 1
+		loop
+		repeat 5
+			if bubble = ln_rs(cnt) : imp = 1
+		loop
+		repeat 4
+			if bubble = ln_ret(cnt) : imp = 1
+		loop
 		if imp = 0 : return
 	}
 	gosub *vv_spoken
