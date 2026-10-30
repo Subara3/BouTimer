@@ -54,6 +54,10 @@
 	AppendMenu ha, 8 * (act_level = 1), 92, "ときどき"
 	AppendMenu ha, 8 * (act_level = 2), 93, "たくさん"
 	AppendMenu hm, 0x10, ha, "動きの多さ"
+	hvt = CreatePopupMenu()
+	AppendMenu hvt, 8 * (vtimer = 0), 120, "数字"
+	AppendMenu hvt, 8 * (vtimer = 1), 121, "目盛りの円盤（30分）"
+	AppendMenu hm, 0x10, hvt, "タイマーの見せ方"
 	; 音のことは「音」にまとめる（鳴らす・音量・時刻の音）
 	hsn = CreatePopupMenu()
 	AppendMenu hsn, 8 * sound_on, 32, "音を鳴らす"
@@ -173,6 +177,7 @@
 	if r = 102 : gosub *show_about
 	if r = 103 : gosub *settings_open
 	if r = 104 : update_on = 1 - update_on : gosub *save_settings
+	if (r >= 120) & (r <= 121) : vtimer = r - 120 : gosub *save_settings
 	if (r >= 85) & (r <= 86) : costume = r - 85 : gosub *save_settings
 	if r = 98 : stand_on = 1 - stand_on : stand_ms = 0 : gosub *save_settings
 	if r = 97 : idle_stop = 1 - idle_stop : gosub *save_settings

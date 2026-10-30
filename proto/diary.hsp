@@ -409,6 +409,11 @@
 	}
 	if evc(EV_ONIGIRI) : dev(ndev) = strf("おにぎりを%d個食べた。", evc(EV_ONIGIRI)) : ndev++
 	if evc(EV_YOYO) : dev(ndev) = "ヨーヨーで犬の散歩をした。" : ndev++
+	if evc(EV_HOOP) : dev(ndev) = "フラフープを回した。最後に落とした。" : ndev++
+	if evc(EV_KENDAMA) : dev(ndev) = "けん玉が3回目でのった。" : ndev++
+	if evc(EV_DUMBBELL) : dev(ndev) = "ダンベルで腕をきたえた。" : ndev++
+	if evc(EV_SELFIE) : dev(ndev) = "自撮りをした。よく撮れた。" : ndev++
+	if evc(EV_BOOMERANG) : dev(ndev) = "ブーメランがちゃんと戻ってきた。" : ndev++
 	if evc(EV_NAP) {
 		r2 = rnd(2)
 		if r2 = 0 : dev(ndev) = strf("%d回昼寝した。", evc(EV_NAP))

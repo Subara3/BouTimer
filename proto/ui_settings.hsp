@@ -15,6 +15,7 @@
 	sw_cmin = (close_min = 10) + (close_min = 15) * 2 + (close_min = 30) * 3
 	sw_type = typecount_on : sw_sound = sound_on : sw_season = season_on : sw_friend = friend_on : sw_upd = update_on
 	sw_idle = idle_stop : sw_slack = slack_stop : sw_ovl = ovl_on : sw_cos = costume : sw_stand = stand_on
+	sw_vt = vtimer
 	sw_dh = 0 : if diary_hour >= 17 : sw_dh = diary_hour - 16
 	gosub *startup_path
 	exist su_lnk
@@ -23,7 +24,7 @@
 	; （OK を押すと、変わったものとして新しい名前で置きなおし、古いほうを消す）
 	exist su_old
 	if strsize >= 0 : sw_start = 1
-	dim sw_obj, 10
+	dim sw_obj, 11
 	; 開くたびに作り直す（screen で前の部品は消える）
 	; 左によく使う設定、右に「高度な設定」
 	screen 8, UI(940), UI(500), 2, (wa(0) + wa(2)) / 2 - UI(470), (wa(1) + wa(3)) / 2 - UI(250)
@@ -40,6 +41,7 @@
 	pos UI(18), UI(182) : mes "絵日記をすすめる時刻"
 	pos UI(18), UI(222) : mes "時刻を知らせる音"
 	pos UI(18), UI(262) : mes "音量"
+	pos UI(18), UI(302) : mes "タイマーの見せ方"
 	pos UI(484), UI(54) : mes "線の色"
 	pos UI(484), UI(94) : mes "サボり先を長く開いていたら"
 	pos UI(484), UI(134) : mes "何分たったら"
@@ -54,6 +56,7 @@
 	sw_al1 = sw_al - 1
 	pos UI(180), UI(218) : combox sw_al1, UI(120), "電子音（ピピピピ）\n玄関チャイム（ピンポーン）\n放送チャイム（ピンポンパンポーン）" : sw_obj(8) = stat
 	pos UI(180), UI(258) : combox sw_vol, UI(120), "100%\n80%\n60%\n40%\n20%" : sw_obj(9) = stat
+	pos UI(180), UI(298) : combox sw_vt, UI(120), "数字\n目盛りの円盤（30分）" : sw_obj(10) = stat
 	objsize UI(220), UI(28)
 	pos UI(700), UI(50) : combox sw_ink, UI(150), "おまかせ（ウィンドウのアイコンの色）\n黒\n紺\n茶\n緑" : sw_obj(4) = stat
 	pos UI(700), UI(90) : combox sw_close, UI(120), "しない\n最小化する\n閉じる（ブラウザはタブだけ）" : sw_obj(5) = stat
@@ -62,8 +65,8 @@
 	sendmsg objinfo(sw_obj(4), 2), 0x160, UI(300), 0
 	pos UI(700), UI(130) : combox sw_cmin, UI(150), "5分\n10分\n15分\n30分" : sw_obj(6) = stat
 	objsize UI(430), UI(26)
-	pos UI(18), UI(312) : chkbox "音を鳴らす", sw_sound
-	pos UI(18), UI(342) : chkbox "Windowsの起動時に、いっしょに起動する", sw_start
+	pos UI(18), UI(348) : chkbox "音を鳴らす", sw_sound
+	pos UI(18), UI(378) : chkbox "Windowsの起動時に、いっしょに起動する", sw_start
 	; 閉じるの注意は赤い字で
 	font "Meiryo UI", UI(12) : color 200, 30, 30
 	pos UI(484), UI(160) : mes "閉じると、保存していない作業が失われることがあります"
@@ -76,7 +79,7 @@
 	pos UI(484), UI(330) : chkbox "サーバーと通信する（フレンド機能用）", sw_friend
 	pos UI(484), UI(360) : chkbox "着せ替え：珠音（たまね）のドット絵", sw_cos
 	pos UI(484), UI(390) : chkbox "新しい版が出たら知らせる（起動したときに確認）", sw_upd
-	pos UI(18), UI(372) : chkbox "1時間ごとに、立って伸びる合図", sw_stand
+	pos UI(18), UI(408) : chkbox "1時間ごとに、立って伸びる合図", sw_stand
 	objsize UI(150), UI(34)
 	pos UI(316), UI(444) : button gosub "OK", *settings_ok
 	pos UI(476), UI(444) : button gosub "キャンセル", *settings_cancel
@@ -101,6 +104,7 @@
 	sendmsg objinfo(sw_obj(7), 2), 0x147, 0, 0 : sw_dh = stat
 	sendmsg objinfo(sw_obj(8), 2), 0x147, 0, 0 : sw_al = stat + 1
 	sendmsg objinfo(sw_obj(9), 2), 0x147, 0, 0 : sw_vol = stat
+	sendmsg objinfo(sw_obj(10), 2), 0x147, 0, 0 : sw_vt = stat
 	gsel 8, -1
 	gsel 1
 	; 変わったところだけ、メニューと同じ番号で実行する
@@ -124,6 +128,7 @@
 	if sw_ovl != ovl_on : r = 90 : gosub *menu_do
 	if sw_cos != costume : r = 85 + sw_cos : gosub *menu_do
 	if sw_stand != stand_on : r = 98 : gosub *menu_do
+	if sw_vt != vtimer : r = 120 + sw_vt : gosub *menu_do
 	if sw_start != sw_start0 : gosub *startup_set
 	if sw_dh >= 1 : sw_dh += 16
 	if sw_dh != diary_hour : diary_hour = sw_dh : gosub *save_settings

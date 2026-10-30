@@ -85,7 +85,7 @@
 #func GlobalFree "GlobalFree" int
 #cfunc GlobalLock "GlobalLock" int
 #func GlobalUnlock "GlobalUnlock" int
-#define VERSION_STR "1.1"
+#define VERSION_STR "1.2"
 ; 新しい版のお知らせ：版の番号を1行書いたテキストと、知らせたときに開くページ
 #define UPDATE_URL "https://raw.githubusercontent.com/Subara3/BouTimer/main/version.txt"
 #define UPDATE_PAGE "https://github.com/Subara3/BouTimer/releases"
@@ -237,14 +237,19 @@
 #enum ACT_YAWN
 ; 休憩中の体操
 #enum ACT_EXERCISE
-; あそびの動き（play.hsp）。ACT_ROPE から NPLAY 個
+; あそびの動き（play.hsp）。ACT_ROPE から NPLAY 個（フラフープ・けん玉・ダンベル・自撮り・ブーメランは 2026-10-30 に追加）
 #enum ACT_ROPE
 #enum ACT_JUGGLE
 #enum ACT_BUBBLE
 #enum ACT_PLANE
 #enum ACT_ONIGIRI
 #enum ACT_YOYO
-#const NPLAY 6
+#enum ACT_HOOP
+#enum ACT_KENDAMA
+#enum ACT_DUMBBELL
+#enum ACT_SELFIE
+#enum ACT_BOOMERANG
+#const NPLAY 11
 #const NACT 6
 
 ; 絵日記のための出来事（釣ったものは catchk と同じ並び）
@@ -271,7 +276,12 @@
 #enum EV_PLANE
 #enum EV_ONIGIRI
 #enum EV_YOYO
-#const NEV 23
+#enum EV_HOOP
+#enum EV_KENDAMA
+#enum EV_DUMBBELL
+#enum EV_SELFIE
+#enum EV_BOOMERANG
+#const NEV 28
 
 ; 季節の行事でやる動き
 #enum SK_NONE = 0
@@ -459,6 +469,8 @@
 	; 確認用：tamane を付けると珠音のドット絵で動かし、show と合わせると30コマごとに絵を書き出す
 	tm_shot = 0
 	if instr(cmd, 0, "tamane") >= 0 : costume = 1 : tm_shot = showmode
+	; 確認用：vton を付けると、タイマーを目盛りの円盤で見せる（ほかの確認用モードと合わせて使う）
+	if instr(cmd, 0, "vton") >= 0 : vtimer = 1
 	; PV 用モード（pvmode）：tools\pvstage.ax を quiet で動かしてから使う。足場と前面の窓を舞台の窓だけで決め、
 	; 本物の画面を録画せずに PV を作れるよう、pvframes を付けると2コマごとの絵と位置を pvf フォルダに書き出す
 	pvmode = 0 : pv_fg = 0 : pv_fgid = 0 : pvframes = 0 : pvn = 0 : pv_sec = 0 : dim pv_h, 3 : sdim pvlog, 65536
@@ -539,6 +551,9 @@
 	GdipCreateSolidFill 0xFFFFFFFF, brush
 	GdipCreateFontFamilyFromName "Meiryo UI", 0, gfam
 	GdipCreateFont gfam, 11.0, 1, 2, gfont
+	; 目盛りの円盤のつまみに書く数字
+	GdipCreateFont gfam, 9.0, 1, 2, gfont_s
+	sdim bub_src, 256 : sdim bub_txt, 256 : bub_cols = 0 : bub_rows = 1 : vt_s = 0.0 : tl_h = 22.0 : vt_hov = 0
 	GdipCreateStringFormat 0, 0, gfmt
 	GdipSetStringFormatAlign gfmt, 1
 	GdipSetStringFormatLineAlign gfmt, 1

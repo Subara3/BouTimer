@@ -81,6 +81,15 @@
 		if frame = 300 : bubble = "ほっ" : bubt = 600
 		if (frame = 150) | (frame = 260) | (frame = 360) : GdipSaveImageToFile gbmp, dir_cur + "\\shot\\bub_" + frame + ".png", pngclsid, 0
 	}
+	; 確認用：vtimertest は、目盛りの円盤（大きい・吹き出しでよける・止まっている）と、2行に分けた吹き出しを proto\shot に書き出す
+	if instr(cmd, 0, "vtimertest") >= 0 {
+		if frame = 1 : endframe = 60 * 9 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 1500000 : vtimer = 1 : phase_start -= 380000 : CreateDirectory dir_cur + "\\shot", 0
+		if frame = 150 : bubble = "準備ができたら、上の札を押してくれ" : bubt = 100
+		if frame = 260 : bubble = "おれにカーソルを乗せると、やることを持たせられるぞ" : bubt = 100
+		if frame = 380 : paused = 1 : pause_at = timeGetTime()
+		if (frame = 121) | (frame = 201) | (frame = 311) | (frame = 451) : GdipSaveImageToFile gbmp, dir_cur + "\\shot\\vt_" + frame + ".png", pngclsid, 0
+		if (frame = 201) | (frame = 451) : dbg += strf("VT f=%d s=%d tlw=%d tlh=%d paused=%d", frame, int(vt_s * 100.0), int(tl_w), int(tl_h), paused) + "\n"
+	}
 	; 確認用：starttest は、起動してまだ始めていない状態から、頭の上の「作業をはじめる」を押して始める（shot で絵を書き出す）
 	if instr(cmd, 0, "starttest") >= 0 {
 		if frame = 1 : fakein = 2 : endframe = 60 * 20 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 600000 : fmx = -9999 : fmy = -9999
@@ -145,6 +154,8 @@
 	}
 	; 確認用：playtest は、あそびの動きを1つずつ順に出す（6つ × 6秒）
 	if (instr(cmd, 0, "playtest2") >= 0) & (frame = 2) : playskip = 3
+	; playtest3 は 2026-10-30 に足した5つ（フラフープから）を先に出す
+	if (instr(cmd, 0, "playtest3") >= 0) & (frame = 2) : playskip = 6
 	if instr(cmd, 0, "playtest") >= 0 {
 		endframe = 180 + 360 * NPLAY + 60 : scoldcool = 999999 : idle_warn = 99999999 : idle_pause = 99999999 : work_ms = 6000000 : tea_every = 999999 : next_tea = 999999
 		if (frame >= 180) & (((frame - 180) \ 360) = 0) & ((frame - 180) / 360 < NPLAY) {
@@ -252,6 +263,26 @@
 	}
 	if (instr(cmd, 0, "settingswin") >= 0) & (frame = 30) : gosub *settings_open
 	if (instr(cmd, 0, "settingswin") >= 0) & (frame = 40) : gsel 8 : bmpsave "setshot.bmp" : gsel 1
+	; 確認用：wraptest は、wraptest.txt の各行を吹き出しの2行に分けてみて、分けた結果を書き出す（WRAP 行。| が改行の位置）
+	if (instr(cmd, 0, "wraptest") >= 0) & (frame = 5) {
+		endframe = 20
+		sdim wtxt, 65536 : notesel wtxt : noteload dir_cur + "\\wraptest.txt"
+		repeat notemax
+			noteget bubble, cnt
+			gosub *bubble_wrap
+			wout = bub_txt : strrep wout, "\n", "|"
+			dbg += strf("WRAP rows=%d cols=%d ", bub_rows, bub_cols) + wout + "\n"
+		loop
+		noteunsel
+	}
+	; 確認用：setvttest は、設定画面の「タイマーの見せ方」を円盤にして OK を押し、ほかの設定が変わらないかも見る（SETVT 行）
+	if instr(cmd, 0, "setvttest") >= 0 {
+		if frame = 1 : endframe = 60 * 4 : vtimer = 0
+		if frame = 30 : gosub *settings_open
+		if frame = 40 : dbg += strf("SETVT before vt=%d work=%d brk=%d vol=%d act=%d", vtimer, work_min, break_min, volume, act_level) + "\n"
+		if frame = 41 : gsel 8 : sendmsg objinfo(sw_obj(10), 2), 0x14E, 1, 0 : gosub *settings_ok
+		if frame = 50 : dbg += strf("SETVT after vt=%d work=%d brk=%d vol=%d act=%d", vtimer, work_min, break_min, volume, act_level) + " " + bubble + "\n"
+	}
 	; 確認用：icontest は、アイコンのお手玉（2秒目）と積む（9秒目）を見せる（IC 行。shot を付けると絵を書き出す）
 	if instr(cmd, 0, "icontest") >= 0 {
 		if frame = 1 : endframe = 60 * 20 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999 : tm_shot = (shoton != 0)
@@ -287,7 +318,8 @@
 	}
 	; 確認用：pctest は、PCのようすの数を書き出し、ひとことの条件をわざと満たして言わせる（PC 行）
 	if instr(cmd, 0, "pctest") >= 0 {
-		if frame = 1 : endframe = 60 * 8 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999
+		; 季節のあいさつ（240コマ目）がひとことの番に重ならないように切っておく（ハロウィンの週などに落ちていた）
+		if frame = 1 : endframe = 60 * 8 : work_ms = 600000 : idle_warn = 99999999 : idle_pause = 99999999 : sea_line = ""
 		if frame = 200 : gosub *pc_lines : dbg += "PC " + pc_line + "\n" : dbg += strf("PCMM %d", int(pc_mmpx * 10000.0)) + "\n"
 		if frame = 240 : pc_cool = 0 : bubt = 0 : state = ST_IDLE : mouse_cm = pc_mnext + 5
 	}

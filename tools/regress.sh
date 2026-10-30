@@ -51,7 +51,7 @@ run "lowpow test" "" 60
 run "climb" "" 60
 run "throw" "" 60
 run "wizardtest" "WFIRST f=1" 60
-run "playtest" "DEV ヨーヨーで犬の散歩をした。" 90
+run "playtest" "DEV ブーメランがちゃんと戻ってきた。" 120
 run "clicktest" "CLICK f=560 paused=0" 60
 run "diarytimetest" "WROTE size=" 60
 run "bubbletest" "" 30
@@ -70,4 +70,9 @@ run "linetest test" "LN 7" 20
 run "calltest calltray test" "CALL ok" 30
 run "closetest closeclose brclose" "CTRLW to=" 60
 run "starttest" "ST f=712 notyet=0 paused=0" 40
+run "vtimertest test" "VT f=451 s=100 tlw=42 tlh=44 paused=1" 30
+run "clicktest vton" "CLICK f=560 paused=0" 60
+run "starttest vton" "ST f=712 notyet=0 paused=0" 40
+run "setvttest noaudio" "SETVT after vt=1 work=25" 20
+run "wraptest test noaudio" "WRAP rows=2 cols=9 準備ができたら、|上の札を押してくれ" 20
 exit $fail

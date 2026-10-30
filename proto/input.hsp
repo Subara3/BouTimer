@@ -153,7 +153,7 @@
 			clx = double(mx - int(cx)) / uis : cly = double(my - int(cy)) / uis
 			; カーソルを乗せたときに出るやることの札：クリックで済み／もどす
 			cl_td = td_vis & hovering & (wz_on = 0) & (clx >= td_x) & (clx <= td_x + td_w) & (cly >= 37.0) & (cly <= 57.0)
-			cl_tl = (wz_on = 0) & (clx >= tl_x) & (clx <= tl_x + tl_w) & (cly >= 0.0) & (cly <= 22.0)
+			cl_tl = (wz_on = 0) & (clx >= tl_x) & (clx <= tl_x + tl_w) & (cly >= 0.0) & (cly <= tl_h)
 			if cl_td {
 				if td_empty {
 					gosub *todo_open

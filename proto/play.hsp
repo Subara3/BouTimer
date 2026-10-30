@@ -1,4 +1,4 @@
-; 作業のおとも、棒人間：あそびの動き（縄跳び・ジャグリング・しゃぼん玉・紙飛行機・おにぎり・ヨーヨー）
+; 作業のおとも、棒人間：あそびの動き（縄跳び・ジャグリング・しゃぼん玉・紙飛行機・おにぎり・ヨーヨー・フラフープ・けん玉・ダンベル・自撮り・ブーメラン）
 ; main.hsp から #include で読み込む（ラベルだけのファイル。上から流れては実行されない）
 ; 体のポーズは *play_pose、道具や飛んでいくものは *draw_play で、体と同じ座標（足もとが 0）に描く
 
@@ -12,6 +12,11 @@
 	if act = ACT_PLANE : sdur = 300 : bubble = "紙飛行機、折るか" : bubt = 60
 	if act = ACT_ONIGIRI : sdur = 320 : bubble = "腹へったな" : bubt = 60 : oni_ume = rnd(3)
 	if act = ACT_YOYO : sdur = 320 : bubble = "ヨーヨー" : bubt = 50
+	if act = ACT_HOOP : sdur = 300 : bubble = "フラフープ！" : bubt = 50
+	if act = ACT_KENDAMA : sdur = 300
+	if act = ACT_DUMBBELL : sdur = 280
+	if act = ACT_SELFIE : sdur = 250
+	if act = ACT_BOOMERANG : sdur = 290
 	return
 
 ; とちゅうのひとこと
@@ -40,6 +45,28 @@
 	if act = ACT_YOYO {
 		if stimer = 170 : bubble = "犬の散歩！" : bubt = 70
 	}
+	if act = ACT_HOOP {
+		if stimer = 150 : bubble = "まだまだ回るぞ" : bubt = 60
+		if stimer = 268 : bubble = "あっ、落ちた" : bubt = 50
+	}
+	if act = ACT_KENDAMA {
+		; 2回しくじって、3回目でのせる
+		if stimer = 64 : bubble = "あっ" : bubt = 40
+		if stimer = 164 : bubble = "おしい" : bubt = 40
+		if stimer = 262 : bubble = "のった！" : bubt = 50
+	}
+	if act = ACT_DUMBBELL {
+		if stimer = 60 : bubble = "ふんっ" : bubt = 40
+		if stimer = 190 : bubble = "あと3回…" : bubt = 50
+	}
+	if act = ACT_SELFIE {
+		if stimer = 70 : bubble = "はい、チーズ" : bubt = 50
+		if stimer = 170 : bubble = "よく撮れた" : bubt = 50
+	}
+	if act = ACT_BOOMERANG {
+		if stimer = 80 : bubble = "戻ってこーい" : bubt = 60
+		if stimer = 206 : bubble = "キャッチ！" : bubt = 50
+	}
 	return
 
 ; 終わったときのひとこと
@@ -48,6 +75,7 @@
 	if act = ACT_JUGGLE : bubble = "次は落とさないぞ" : bubt = 60
 	if act = ACT_ONIGIRI : bubble = "ごちそうさん" : bubt = 60
 	if act = ACT_YOYO : bubble = "よし、戻ってきた" : bubt = 50
+	if act = ACT_DUMBBELL : bubble = "腕がぱんぱんだ" : bubt = 60
 	return
 
 *play_pose
@@ -119,6 +147,71 @@
 		aa1(0) = 40.0 : aa2(0) = 70.0 + sin(yo) * 15.0
 		aa1(1) = 10.0 : aa2(1) = 25.0
 		if stimer >= 170 : aa2(0) = 80.0 : lookdown = 1
+		return
+	}
+	if act = ACT_HOOP {
+		; 両手を上げて腰を回す。終わりぎわにフープが足もとへ落ちる
+		view = 1 : mouth = 3
+		la1(0) = -8.0 : la2(0) = -8.0 : la1(1) = 8.0 : la2(1) = 8.0
+		aa1(0) = 125.0 : aa2(0) = 150.0 : aa1(1) = 125.0 : aa2(1) = 150.0
+		if stimer < 260 {
+			hipx = sin(double(stimer) * 0.3) * 2.5 : lean = sin(double(stimer) * 0.3) * 3.0
+		} else {
+			eyes = 6 : mouth = 4
+		}
+		return
+	}
+	if act = ACT_KENDAMA {
+		; 胸の前でけんを持ち、玉を振り上げる
+		mouth = 2
+		aa1(0) = 30.0 : aa2(0) = 120.0 : aa1(1) = 15.0 : aa2(1) = 30.0
+		k = stimer \ 100
+		if (k >= 36) & (k < 46) & (stimer < 262) : aa2(0) = 145.0
+		if (stimer / 100 < 2) & (k >= 62) & (k < 82) : eyes = 6 : mouth = 4
+		if stimer >= 262 : mouth = 3
+		return
+	}
+	if act = ACT_DUMBBELL {
+		; 正面を向いて両手でカール。後半は疲れて遅くなる
+		view = 1 : mouth = 1
+		la1(0) = -7.0 : la2(0) = -7.0 : la1(1) = 7.0 : la2(1) = 7.0
+		if stimer < 180 {
+			ph = double(stimer) * 0.11
+		} else {
+			ph = 19.8 + double(stimer - 180) * 0.07
+		}
+		c = (1.0 - cos(ph)) / 2.0
+		aa1(0) = 12.0 : aa1(1) = 12.0 : aa2(0) = 15.0 + c * 150.0 : aa2(1) = 15.0 + c * 150.0
+		if c > 0.7 : eyes = 4 : mouth = 4
+		return
+	}
+	if act = ACT_SELFIE {
+		view = 1 : mouth = 3
+		if stimer < 160 {
+			; 片手で電話を高く構え、もう片手でピース
+			aa1(1) = 120.0 : aa2(1) = 135.0
+			aa1(0) = 40.0 : aa2(0) = 160.0
+			if (stimer >= 76) & (stimer < 84) : eyes = 1
+		} else {
+			; 撮れたのを見る
+			aa1(1) = 50.0 : aa2(1) = 120.0 : lookdown = 1
+		}
+		return
+	}
+	if act = ACT_BOOMERANG {
+		if stimer < 30 {
+			lean = -6.0 : mouth = 4
+			aa1(0) = 160.0 : aa2(0) = 200.0 : aa1(1) = 30.0 : aa2(1) = 50.0
+			return
+		}
+		if stimer < 42 {
+			lean = 6.0 : mouth = 3
+			aa1(0) = 100.0 : aa2(0) = 95.0 : aa1(1) = -20.0 : aa2(1) = -10.0
+			return
+		}
+		mouth = 3 : lean = -2.0
+		if stimer >= 185 : aa1(0) = 95.0 : aa2(0) = 100.0 : lean = 0.0
+		if stimer >= 235 : aa1(0) = 125.0 : aa2(0) = 150.0
 		return
 	}
 	return
@@ -228,6 +321,102 @@
 		GdipDrawLine gfx, pen, handx, handy, yx, yy
 		GdipSetSolidFillColor brush, 0xFFE05050
 		GdipFillEllipse gfx, brush, yx - 4.0, yy - 4.0, 8.0, 8.0
+		gosub *pen_back
+		return
+	}
+	if act = ACT_HOOP {
+		; 腰のまわりを回る輪。奥の半分はうすく、手前の半分は濃く
+		if stimer < 260 {
+			ht = double(stimer) * 0.3
+			hcx = hipx + cos(ht) * 5.0 : hcy = -28.0
+		} else {
+			hcx = 0.0 : hcy = -28.0 + limitf(double(stimer - 260) / 8.0, 0.0, 1.0) * 26.0
+		}
+		GdipSetPenWidth pen, 2.2
+		GdipSetPenColor pen, 0x90E07030
+		GdipDrawArc gfx, pen, hcx - 17.0, hcy - 3.5, 34.0, 7.0, 180.0, 180.0
+		GdipSetPenColor pen, 0xFFE07030
+		GdipDrawArc gfx, pen, hcx - 17.0, hcy - 3.5, 34.0, 7.0, 0.0, 180.0
+		gosub *pen_back
+		return
+	}
+	if act = ACT_KENDAMA {
+		; 玉は、ぶら下がる → 振り上げる → 皿にのる（3回目）／こぼれる（1・2回目）
+		k = stimer \ 100 : ktr = stimer / 100
+		hx = handx : hy = handy
+		if k < 40 {
+			ka = sin(double(k) * 0.22) * 0.5
+			kbx = hx + sin(ka) * 15.0 : kby = hy - 2.0 + cos(ka) * 15.0
+		} else {
+			if k < 62 {
+				kq = double(k - 40) / 22.0 : kex = 0.0
+				if ktr < 2 : kex = 6.0
+				kbx = hx + sin(kq * 3.1416) * 7.0 + kex * kq : kby = hy + 13.0 - kq * 28.0 - sin(kq * 3.1416) * 12.0
+			} else {
+				if ktr >= 2 {
+					kbx = hx : kby = hy - 15.5
+				} else {
+					kq = limitf(double(k - 62) / 10.0, 0.0, 1.0)
+					kbx = hx + 6.0 - 6.0 * kq + sin(double(k) * 0.4) * 3.0 * kq : kby = hy - 15.0 + kq * 28.0
+				}
+			}
+		}
+		GdipSetPenColor pen, 0xFF707080 : GdipSetPenWidth pen, 0.8
+		GdipDrawLine gfx, pen, hx, hy - 2.0, kbx, kby
+		GdipSetPenColor pen, 0xFFB07840 : GdipSetPenWidth pen, 2.2
+		GdipDrawLine gfx, pen, hx, hy + 5.0, hx, hy - 11.0
+		GdipSetSolidFillColor brush, 0xFFB07840
+		GdipFillEllipse gfx, brush, hx - 4.5, hy - 13.0, 9.0, 3.5
+		GdipSetSolidFillColor brush, 0xFFE05050
+		GdipFillEllipse gfx, brush, kbx - 3.5, kby - 3.5, 7.0, 7.0
+		gosub *pen_back
+		return
+	}
+	if act = ACT_DUMBBELL {
+		; 両手にダンベル（横向きの棒と、両はしのおもり）
+		GdipSetPenColor pen, 0xFF606070 : GdipSetPenWidth pen, 2.0
+		GdipSetSolidFillColor brush, 0xFF40404C
+		dbx = lhx : dby = lhy
+		repeat 2
+			GdipDrawLine gfx, pen, dbx - 5.0, dby, dbx + 5.0, dby
+			GdipFillRectangle gfx, brush, dbx - 7.0, dby - 3.5, 3.0, 7.0
+			GdipFillRectangle gfx, brush, dbx + 4.0, dby - 3.5, 3.0, 7.0
+			dbx = handx : dby = handy
+		loop
+		gosub *pen_back
+		return
+	}
+	if act = ACT_SELFIE {
+		; 電話（画面つき）と、ピースの指。撮った瞬間に光る
+		GdipSetSolidFillColor brush, 0xFF30303A
+		GdipFillRectangle gfx, brush, handx - 3.0, handy - 5.0, 6.0, 9.0
+		GdipSetSolidFillColor brush, 0xFF8EC8F0
+		GdipFillRectangle gfx, brush, handx - 2.0, handy - 4.0, 4.0, 6.5
+		if stimer < 160 {
+			GdipSetPenWidth pen, 1.6
+			GdipDrawLine gfx, pen, lhx, lhy, lhx - 2.5, lhy - 6.0
+			GdipDrawLine gfx, pen, lhx, lhy, lhx + 1.5, lhy - 6.5
+		}
+		if (stimer >= 76) & (stimer < 92) {
+			fa = (92 - stimer) * 14
+			GdipSetSolidFillColor brush, (fa << 24) | (fa << 16) | (fa << 8) | fa
+			GdipFillEllipse gfx, brush, handx - 14.0, handy - 14.0, 28.0, 28.0
+		}
+		gosub *pen_back
+		return
+	}
+	if act = ACT_BOOMERANG {
+		; くの字の板。投げたら前へ大きく回って手もとへ戻る
+		if (stimer < 36) | (stimer >= 205) {
+			bmx = handx : bmy = handy : bma = 30.0
+		} else {
+			bt = double(stimer - 36) / 169.0
+			bmx = 19.0 + sin(bt * 3.1416) * 76.0 : bmy = -40.0 - sin(bt * 3.1416) * 24.0 - sin(bt * 6.2832) * 12.0
+			bma = double(stimer) * 28.0
+		}
+		GdipSetPenColor pen, 0xFF9A6A3A : GdipSetPenWidth pen, 2.6
+		GdipDrawLine gfx, pen, bmx, bmy, bmx + cos(bma * RAD) * 7.0, bmy + sin(bma * RAD) * 7.0
+		GdipDrawLine gfx, pen, bmx, bmy, bmx + cos((bma + 110.0) * RAD) * 7.0, bmy + sin((bma + 110.0) * RAD) * 7.0
 		gosub *pen_back
 		return
 	}

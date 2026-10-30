@@ -166,9 +166,16 @@
 		if ((frame / 40) \ 2) = 1 : tl_bg = 0xF0F0A060
 	}
 	tl_w = limitf(24.0 + double(strlen(label)) * 4.0, 76.0, 130.0) : tl_x = double(LW / 2) - tl_w / 2.0
+	tl_h = 22.0 : vt_hov = 0
 	; はじめての質問のあいだは、タイマーの表示を出さない
-	if wz_on = 0 : cpill 0, label, tl_x, 2, tl_w, 18, tl_bg, fg
-	if hovering & (dragging = 0) {
+	if wz_on = 0 {
+		if vtimer & (notyet = 0) {
+			gosub *draw_vtimer
+		} else {
+			cpill 0, label, tl_x, 2, tl_w, 18, tl_bg, fg
+		}
+	}
+	if hovering & (dragging = 0) & (vt_hov = 0) {
 		; カーソルを乗せると今日の記録
 		hs_line = "ポモドーロ：" + pomos_today + "サイクル"
 		if typecount_on : hs_line += "・" + keys_today + "打"
@@ -213,13 +220,10 @@
 		bubt--
 		; 札を出している間は吹き出しを出さない
 		if (lie = 0) & (signboard = 0) {
-			; 文字数（UTF-8 の続きのバイトは数えない）。窓の幅に入らない長さなら2行にする
-			bn = 0
-			repeat strlen(bubble)
-				if (peek(bubble, cnt) & 0xC0) != 0x80 : bn++
-			loop
-			bw = 22.0 + double(bn) * 12.0 : bh = 18.0
-			if bw > double(LW) - 6.0 : bh = 34.0 : bw = limitf(28.0 + double((bn + 1) / 2) * 12.0, 60.0, double(LW) - 6.0)
+			; 窓の幅に入らない長さなら、読点などの切れ目で2行にする（*bubble_wrap。文が変わったときだけ作りなおす）
+			if bubble != bub_src : bub_src = bubble : gosub *bubble_wrap
+			bw = 22.0 + double(bub_cols) * 12.0 : bh = 18.0
+			if bub_rows = 2 : bh = 34.0 : bw = limitf(28.0 + double(bub_cols) * 12.0, 60.0, double(LW) - 6.0)
 			bxp = limitf(LW / 2 + dir * 24 - bw / 2, 1.0, LW - bw - 1.0)
 			byp = limitf(LF + (heady - 40.0) * sy - (bh - 18.0), 22.0, 200.0)
 			; 吹き出し：うすい縁どりと、頭へ向かうしっぽ
@@ -233,7 +237,7 @@
 			poly(5) = tipyp - 1
 			GdipSetSolidFillColor brush, 0xF8FFFFFF
 			GdipFillPolygonI gfx, brush, poly, 3, 0
-			cpill 2, bubble, bxp, byp, bw, bh, 0xF8FFFFFF, 0xFF3A3A44
+			cpill 2, bub_txt, bxp, byp, bw, bh, 0xF8FFFFFF, 0xFF3A3A44
 		}
 	}
 	if zzz {
@@ -828,6 +832,106 @@
 	GdipDrawImageRectI gfx, icbmp(ic_i), -8, -8, 16, 16
 	GdipRotateWorldTransform gfx, -ia, 0
 	GdipTranslateWorldTransform gfx, -ix, -iy, 0
+	return
+
+; ---- 吹き出しの文を2行に分ける（bubble → bub_txt。声は文で引くので bubble そのものは変えない） ----
+; 句読点のあとを優先し、なければ助詞のあと（次の字がひらがなのときは語の途中なので切らない）。2行の長さが近いところを選ぶ
+; 長さは半角を1、全角を2で数える（bn・bc）。bub_cols は全角の字数にそろえた幅
+*bubble_wrap
+	bub_txt = bubble : bn = 0 : blen = strlen(bubble)
+	repeat blen
+		b = peek(bubble, cnt)
+		if b < 0x80 : bn++
+		if b >= 0xC0 : bn += 2
+	loop
+	bub_cols = (bn + 1) / 2 : bub_rows = 1
+	if 22 + bn * 6 <= LW - 6 : return
+	bub_rows = 2 : bub_cols = (bn + 3) / 4
+	bmax = (LW - 6 - 28) / 6
+	bpunct = "、。！？…～!?," : bpart = "をにがでもへはと"
+	bbest = -1 : bscore = 9999 : bc = 0 : bp = 0
+	repeat
+		if bp >= blen : break
+		b = peek(bubble, bp)
+		bl = 1 : if b >= 0xC0 : bl = 2 : if b >= 0xE0 : bl = 3 : if b >= 0xF0 : bl = 4
+		bch = strmid(bubble, bp, bl)
+		bp += bl : bc += 1 + (bl > 1)
+		bpen = -1
+		if instr(bpunct, 0, bch) >= 0 : bpen = 0
+		if (bpen < 0) & (instr(bpart, 0, bch) >= 0) & (bp < blen) {
+			bhira = 0
+			if peek(bubble, bp) = 0xE3 {
+				b1 = peek(bubble, bp + 1)
+				if b1 = 0x81 : bhira = 1
+				if (b1 = 0x82) & (peek(bubble, bp + 2) <= 0x9F) : bhira = 1
+			}
+			if bhira = 0 : bpen = 3
+		}
+		if (bpen >= 0) & (bc <= bmax) & (bn - bc <= bmax) & (bn - bc >= 4) {
+			bs = abs(bc * 2 - bn) + bpen * 4
+			if bs < bscore : bscore = bs : bbest = bp : bbc = bc
+		}
+	loop
+	if bbest < 0 : return
+	bub_txt = strmid(bubble, 0, bbest) + "\n" + strmid(bubble, bbest, blen - bbest)
+	bub_cols = bbc
+	if bn - bbc > bub_cols : bub_cols = bn - bbc
+	bub_cols = (bub_cols + 1) / 2
+	return
+
+; ---- 目盛りの円盤で残り時間を見せる（vtimer。30分の盤、作業が30分より長いときは60分の盤） ----
+; 残りは12時から時計回りの扇。時間がたつと12時へ向かって縮む。作業は赤、休憩は緑、止まっているときは灰色
+; 吹き出し・札・今日の記録が出ているあいだは小さくして上へよける。円盤そのものにカーソルを乗せているときは大きいまま
+*draw_vtimer
+	vt_dx = double(mx - int(cx)) / uis - double(LW / 2) : vt_dy = double(my - int(cy)) / uis - 23.0
+	vt_hov = hovering & (vt_dx * vt_dx + vt_dy * vt_dy < 484.0)
+	vt_small = ((bubt > 0) & (lie = 0)) | (signboard != 0) | (hovering & (vt_hov = 0))
+	if vt_small {
+		vt_s = limitf(vt_s - 0.12, 0.0, 1.0)
+	} else {
+		vt_s = limitf(vt_s + 0.12, 0.0, 1.0)
+	}
+	vr = 10.0 + 11.0 * vt_s : vcx = double(LW / 2) : vcy = 2.0 + vr
+	tl_x = vcx - vr : tl_w = vr * 2.0 : tl_h = vr * 2.0 + 2.0
+	vsc = 1800000 : vstep = 30 : vmaj = 5
+	if dur > 1800000 : vsc = 3600000 : vstep = 12 : vmaj = 3
+	; 盤
+	GdipSetSolidFillColor brush, 0xF4FFFFFF
+	GdipFillEllipse gfx, brush, vcx - vr, vcy - vr, vr * 2.0, vr * 2.0
+	; 残りの扇
+	vcol = 0xFFE04848
+	if phase : vcol = 0xFF3FAF6A
+	if paused | (slack_now & (phase = 0)) : vcol = 0xFFA8A8B0
+	vrr = vr - 2.0 - vt_s * 3.0
+	vsw = 360.0 * double(limit(remain, 0, vsc)) / double(vsc)
+	GdipSetSolidFillColor brush, vcol
+	if vsw > 0.5 : GdipFillPie gfx, brush, vcx - vrr, vcy - vrr, vrr * 2.0, vrr * 2.0, -90.0, vsw
+	; 目盛り（大きいときだけ）。5分ごと（60分の盤は15分ごと）に長く太く
+	GdipSetPenColor pen, 0xFF505060
+	if vt_s > 0.3 {
+		repeat vstep
+			ta = double(cnt) * 360.0 / double(vstep) * RAD
+			vtl = 2.5 : GdipSetPenWidth pen, 0.8
+			if (cnt \ vmaj) = 0 : vtl = 5.0 : GdipSetPenWidth pen, 1.5
+			vtl *= vt_s
+			GdipDrawLine gfx, pen, vcx + sin(ta) * (vr - 1.0 - vtl), vcy - cos(ta) * (vr - 1.0 - vtl), vcx + sin(ta) * (vr - 1.0), vcy - cos(ta) * (vr - 1.0)
+		loop
+	}
+	GdipSetPenWidth pen, 1.2
+	GdipDrawEllipse gfx, pen, vcx - vr, vcy - vr, vr * 2.0, vr * 2.0
+	; まんなかのつまみ。大きいときは残りの分（止まっているときは‖）
+	vkr = 3.0 + 5.0 * vt_s
+	GdipSetSolidFillColor brush, 0xFFFFFFFF
+	GdipFillEllipse gfx, brush, vcx - vkr, vcy - vkr, vkr * 2.0, vkr * 2.0
+	GdipDrawEllipse gfx, pen, vcx - vkr, vcy - vkr, vkr * 2.0, vkr * 2.0
+	if vt_s > 0.6 {
+		vtxt = str((remain + 59999) / 60000)
+		if paused | (slack_now & (phase = 0)) : vtxt = "‖"
+		rf(0) = fbits(vcx - 10.0) : rf(1) = fbits(vcy - 7.0) : rf(2) = fbits(20.0) : rf(3) = fbits(14.0)
+		GdipSetSolidFillColor brush, 0xFF3A3A44
+		GdipDrawString gfx, vtxt, -1, gfont_s, rf, gfmt, brush
+	}
+	gosub *pen_back
 	return
 
 *pen_back

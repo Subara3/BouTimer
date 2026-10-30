@@ -13,7 +13,7 @@
 	today = strf("%04d-%02d-%02d", gettime(0), gettime(1), gettime(3))
 	work_min = 25 : break_min = 5 : typecount_on = 1 : sound_on = 1 : volume = 100 : alarm_se = 3 : inkmode = 0 : close_mode = 0 : close_min = 15
 	season_on = 1 : slack_stop = 0 : idle_stop = 1 : costume = 0 : stand_on = 1 : act_level = 1 : my_fcode = "" : diary_hour = 21 : diary_asked = "" : voice_mode = 1 : voice_asked = 0 : vv_speaker = 11 : friend_on = 0 : myid = "" : gh_url = "https://boutimer-ghost.subara3.workers.dev/"
-	update_on = 1 : up_day = "" : up_skip = ""
+	update_on = 1 : up_day = "" : up_skip = "" : vtimer = 0
 	pomos_today = 0 : keys_today = 0 : pomos_total = 0 : workms_today = 0
 	aq_n = 0 : aq_gold = 0 : aq_big = 0
 	exist datadir + "\\settings.txt"
@@ -60,6 +60,7 @@
 		if sk = "fcode" : my_fcode = sv
 		if sk = "ghost_url" : gh_url = sv
 		if sk = "update" : update_on = (int(sv) != 0)
+		if sk = "vtimer" : vtimer = (int(sv) != 0)
 		if sk = "up_day" : up_day = sv
 		if sk = "up_skip" : up_skip = sv
 		if sk = "switches" : switches_today = int(sv)
@@ -133,6 +134,7 @@
 	stxt += "fcode=" + my_fcode + "\n"
 	stxt += "ghost_url=" + gh_url + "\n"
 	stxt += "update=" + update_on + "\n"
+	stxt += "vtimer=" + vtimer + "\n"
 	stxt += "up_day=" + up_day + "\n"
 	stxt += "up_skip=" + up_skip + "\n"
 	stxt += "switches=" + switches_today + "\n"
